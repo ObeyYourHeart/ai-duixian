@@ -17,6 +17,24 @@ window.Settings = (function () {
   }
   const speed = () => (SPEEDS[S.speed] || SPEEDS[2]).v;
 
+  // ---------------------------------------------------------------- 全屏
+  const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+  const canFull = () => !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+  const standalone = () => { try { return window.navigator.standalone === true || matchMedia("(display-mode: fullscreen), (display-mode: standalone)").matches; } catch (e) { return false; } };
+  const IOS = /iPhone|iPod/.test(navigator.userAgent) || (/Mac/.test(navigator.platform || "") && navigator.maxTouchPoints > 1 && !canFull());
+  function toggleFull() {
+    if (!canFull()) {
+      UI.toast(IOS ? "iPhone 浏览器不支持网页全屏：在 Safari 点「分享 → 添加到主屏幕」，以后从桌面图标打开就是全屏"
+        : "这个浏览器不支持全屏，可以试试「添加到主屏幕」", 5200);
+      return;
+    }
+    const d = document.documentElement;
+    try {
+      if (fsOn()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else { const r = (d.requestFullscreen || d.webkitRequestFullscreen).call(d, { navigationUI: "hide" }); if (r && r.catch) r.catch(() => UI.toast("没能进入全屏")); }
+    } catch (e) { UI.toast("没能进入全屏"); }
+  }
+
   // ---------------------------------------------------------------- 设置面板（借用 #modal）
   const $ = (s) => document.querySelector(s);
   function seg(k, opts) {
@@ -69,19 +87,12 @@ window.Settings = (function () {
     });
     $("#set-reset").onclick = () => { reset(); Sound.sfx("click", 0.5); open(); UI.toast("已恢复默认设置"); };
     const fs = $("#set-full");
-    const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
     fs.textContent = fsOn() ? "退出全屏" : "全屏";
-    fs.onclick = () => {
-      const d = document.documentElement;
-      try {
-        if (fsOn()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-        else (d.requestFullscreen || d.webkitRequestFullscreen).call(d);
-      } catch (e) { UI.toast("这个浏览器不支持全屏"); }
-      setTimeout(() => { fs.textContent = fsOn() ? "退出全屏" : "全屏"; }, 300);
-    };
+    fs.classList.toggle("hidden", standalone());
+    fs.onclick = () => { toggleFull(); setTimeout(() => { fs.textContent = fsOn() ? "退出全屏" : "全屏"; }, 400); };
     $("#modal-close").style.display = "";
     $("#modal").classList.remove("hidden");
   }
 
-  return { S, DEF, SPEEDS, set, reset, speed, open, on: (f) => subs.push(f) };
+  return { S, DEF, SPEEDS, set, reset, speed, open, on: (f) => subs.push(f), fsOn, canFull, standalone, toggleFull };
 })();

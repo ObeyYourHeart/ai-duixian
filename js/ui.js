@@ -1,12 +1,14 @@
-// 界面：座位/手牌/群聊/动画/玩家输入。坐标都是舞台坐标：基准 1600x900，舞台随屏幕比例变宽 / 变高时，
-// 中间的东西右移 DX、底部的东西下移 DY（layout() 更新）。
+// 界面：座位/手牌/群聊/动画/玩家输入。坐标都是舞台坐标（layout() 更新）：
+// 横屏基准 1600x900，舞台变宽 / 变高时中间的东西右移 DX、底部的东西下移 DY；
+// 竖屏基准 760x1300：对手在上、桌面、群聊、自己 + 按钮、手牌在最下，多出来的高度分给桌面和群聊（DY = 高 - 1300）。
 window.UI = (function () {
   const CD = window.GAME_DATA.cards;
   const $ = (s) => document.querySelector(s);
   const A = (p) => (window.ASSET && window.ASSET[p]) || p;
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
-  const HERO_W = 214, HERO_H = 300, CARD_W = 150, CARD_H = 212, HAND_W = 900;
-  let SW = 1600, SH = 900, DX = 0, DY = 0, HAND_X = 270, HAND_Y = 668, TABLE_X = 260, TABLE_Y = 390;
+  const HERO_W = 214, HERO_H = 300, CARD_W = 150, CARD_H = 212;
+  let SW = 1600, SH = 900, DX = 0, DY = 0, HAND_X = 270, HAND_Y = 668, HAND_W = 900, TABLE_X = 260, TABLE_Y = 390, PROMPT_Y = 590, PORTRAIT = false;
+  let HS = 1, ME_S = 0.8, ME_Y = 840, OPP_S = 1;          // 竖屏：手牌缩放、自己卡的缩放和位置、对手卡缩放
   const POS = { 3: [{ x: 36, y: 568 }, { x: 760, y: 80 }, { x: 300, y: 80 }], 2: [{ x: 36, y: 568 }, { x: 530, y: 80 }],
     4: [{ x: 36, y: 568 }, { x: 980, y: 80 }, { x: 630, y: 80 }, { x: 280, y: 80 }],
     5: [{ x: 36, y: 568 }, { x: 940, y: 80 }, { x: 720, y: 80 }, { x: 500, y: 80 }, { x: 280, y: 80 }] };
@@ -21,17 +23,54 @@ window.UI = (function () {
   const timerMs = () => SET().timer * 1000;
 
   function wait(ms) { return Engine.wait(ms); }
-  function pos(p) { const b = POS[g.players.length][p.i]; return { x: b.x + DX, y: b.y + (p.i === 0 ? DY : 0) }; }   // 0 号座位（自己）贴底
+  // 角色卡缩放：竖屏时自己的卡 0.8；对手放不下一排时一起缩小
+  function seatScale(p) {
+    if (!PORTRAIT) return 1;
+    return p.i === 0 ? ME_S : OPP_S;
+  }
+  function pos(p) {
+    if (!PORTRAIT) { const b = POS[g.players.length][p.i]; return { x: b.x + DX, y: b.y + (p.i === 0 ? DY : 0) }; }   // 0 号座位（自己）贴底
+    if (p.i === 0) return { x: 16, y: ME_Y };
+    const n = g.players.length - 1, w = HERO_W * seatScale(p), gap = seatScale(p) < 1 ? 12 : 14;
+    const x0 = (SW - (n * w + (n - 1) * gap)) / 2;
+    return { x: x0 + (n - p.i) * (w + gap), y: 74 };                 // 和横屏一样：1 号座位在最右，往左排
+  }
+  function placeHero(p) {
+    const h = heroes[p.i]; if (!h) return;
+    const q = pos(p), s = seatScale(p);
+    h.style.left = q.x + "px"; h.style.top = q.y + "px";
+    h.style.scale = s === 1 ? "" : String(s); h.style.transformOrigin = s === 1 ? "" : "0 0";
+  }
   // 舞台尺寸变了（换屏幕、全屏、转手机）：重算坐标，把角色卡和手牌挪到新位置
-  function layout(W, H) {
-    SW = W; SH = H; DX = (W - 1600) / 2; DY = H - 900;
-    HAND_X = 270 + DX; HAND_Y = 668 + DY; TABLE_X = 260 + DX; TABLE_Y = 390 + DY / 2;
-    PILE = { x: 710 + DX, y: 480 + DY / 2 }; DECK = { x: 420 + DX, y: 480 + DY / 2 };
+  function layout(W, H, portrait) { SW = W; SH = H; PORTRAIT = !!portrait; relayout(); }
+  function relayout() {
+    const W = SW, H = SH;
+    if (PORTRAIT) {
+      // 从下往上：手牌（屏幕越长越大）→ 自己 + 按钮 → 群聊（剩下的高度）→ 桌面 → 对手一排
+      DX = 0; DY = H - 1300;
+      HS = Math.max(1, Math.min(1.3, 1 + DY / 500));
+      ME_S = Math.max(0.8, Math.min(1, 0.8 + DY / 1000));
+      HAND_W = W - 32; HAND_X = 16; HAND_Y = H - 220 * HS; PROMPT_Y = HAND_Y - 78;
+      ME_Y = HAND_Y - 8 - HERO_H * ME_S;
+      const n = g ? g.players.length - 1 : 2;
+      OPP_S = n * HERO_W + (n - 1) * 14 <= W - 32 ? 1 : (W - 32 - (n - 1) * 12) / n / HERO_W;
+      TABLE_X = 0; TABLE_Y = 74 + HERO_H * OPP_S + 12;
+      PILE = { x: W / 2, y: TABLE_Y + 135 }; DECK = { x: W * 0.2, y: TABLE_Y + 135 };
+      const chatY = TABLE_Y + 280, st = $("#stage").style;
+      const v = { "--hand-y": HAND_Y, "--hand-s": HS, "--me-y": ME_Y, "--act-x": 16 + HERO_W * ME_S + 14, "--act-h": HERO_H * ME_S,
+        "--chat-y": chatY, "--chat-h": Math.max(120, ME_Y - 12 - chatY), "--table-y": TABLE_Y, "--prompt-y": PROMPT_Y };
+      for (const [k, x] of Object.entries(v)) st.setProperty(k, k === "--hand-s" ? String(x) : x + "px");
+    } else {
+      HS = 1;
+      DX = (W - 1600) / 2; DY = H - 900;
+      HAND_W = 900; HAND_X = 270 + DX; HAND_Y = 668 + DY; PROMPT_Y = 590 + DY; TABLE_X = 260 + DX; TABLE_Y = 390 + DY / 2;
+      PILE = { x: 710 + DX, y: 480 + DY / 2 }; DECK = { x: 420 + DX, y: 480 + DY / 2 };
+    }
     if (!g) return;
-    for (const p of g.players) { const q = pos(p); if (heroes[p.i]) { heroes[p.i].style.left = q.x + "px"; heroes[p.i].style.top = q.y + "px"; } }
+    for (const p of g.players) placeHero(p);
     renderHand();
   }
-  function center(p) { const q = pos(p); return { x: q.x + HERO_W / 2, y: q.y + HERO_H / 2 - 20 }; }
+  function center(p) { const q = pos(p), s = seatScale(p); return { x: q.x + HERO_W * s / 2, y: q.y + (HERO_H / 2 - 20) * s }; }
   function portrait(key, e) { return A(`assets/img/${key}_${e}.webp`); }
 
   // ---------------------------------------------------------------- 牌面
@@ -51,9 +90,7 @@ window.UI = (function () {
     $("#pile").innerHTML = ""; $("#chat-list").innerHTML = ""; $("#fx").innerHTML = "";
     $("#chat-n").textContent = g.players.length;
     for (const p of g.players) {
-      const q = pos(p);
       const h = el("div", "hero");
-      h.style.left = q.x + "px"; h.style.top = q.y + "px";
       h.style.setProperty("--c", p.ch.color); h.style.setProperty("--l", p.ch.light);
       const tags = p.ch.skills.map((s) => `<span title="${s.desc}">${s.name}</span>`).join("");
       h.innerHTML = `<div class="por"><img src="${portrait(p.key, "base")}" alt=""></div><div class="flash"></div><div class="hp"></div>
@@ -72,6 +109,7 @@ window.UI = (function () {
     let tip = $("#ctip");
     if (!tip) { tip = el("div"); tip.id = "ctip"; $("#scr-game").appendChild(tip); }
     tip.className = "hidden";
+    relayout();
     const me = g.human;
     const GOAL = { lord: "守住群：把黑粉和潜水党都踢出群", loyal: "暗中帮群主，踢掉黑粉和潜水党", rebel: "把群主踢出群", spy: "先潜水，最后单挑踢掉群主，自己当新群主" };
     const goal = g.mode === "team" ? `你和 <b>${g.players.find((q) => q !== me && q.team === me.team).name}</b> 一队。`
@@ -119,20 +157,28 @@ window.UI = (function () {
     const n = me.hand.length;
     const existing = {};
     for (const e of [...box.children]) existing[e.dataset.id] = e;
-    const step = n > 1 ? Math.min(CARD_W + 10, (HAND_W - CARD_W) / (n - 1)) : 0;
-    const x0 = n > 1 ? Math.max(0, (HAND_W - (CARD_W + step * (n - 1))) / 2) : (HAND_W - CARD_W) / 2;
+    const hw = HAND_W / HS;
+    const step = n > 1 ? Math.min(CARD_W + 10, (hw - CARD_W) / (n - 1)) : 0;
+    const x0 = n > 1 ? Math.max(0, (hw - (CARD_W + step * (n - 1))) / 2) : (hw - CARD_W) / 2;
     const focus = me.hand.findIndex((c) => c.id === (hoverId != null ? hoverId : selected));
     const gap = focus >= 0 ? Math.max(0, CARD_W + 6 - step) : 0;
+    // 悬停 / 选中那张两边让开，但不能挤出手牌区：超出的一侧按比例压回来
+    const xs = me.hand.map((c, i) => x0 + step * i + (focus < 0 || i === focus ? 0 : i < focus ? -gap / 2 : gap / 2));
+    if (focus >= 0) {
+      const xf = xs[focus], lo = Math.min(...xs), hi = Math.max(...xs), maxX = hw - CARD_W;
+      if (lo < 0) for (let i = 0; i < focus; i++) xs[i] = xf - (xf - xs[i]) * xf / (xf - lo);
+      if (hi > maxX) for (let i = focus + 1; i < xs.length; i++) xs[i] = xf + (xs[i] - xf) * (maxX - xf) / (hi - xf);
+    }
     const keep = new Set();
     me.hand.forEach((c, i) => {
       let e = existing[c.id];
       if (!e) {
         e = cardEl(c); e.removeAttribute("title"); bindHandCard(e, c.id);
         e.appendChild(el("div", "kn"));
-        box.appendChild(e); e.style.left = HAND_W + "px"; e.style.top = "8px";
+        box.appendChild(e); e.style.left = hw + "px"; e.style.top = "8px";
       }
       keep.add(String(c.id));
-      const x = x0 + step * i + (focus < 0 || i === focus ? 0 : i < focus ? -gap / 2 : gap / 2);
+      const x = xs[i];
       e.dataset.x = x;
       e.style.zIndex = i === focus ? 30 : i + 1;
       requestAnimationFrame(() => { e.style.left = x + "px"; e.style.top = "8px"; });
@@ -194,15 +240,15 @@ window.UI = (function () {
     const go = tip.querySelector("#tip-go");
     if (go) go.onclick = (ev) => { ev.stopPropagation(); playSelected(); };
     const w = tip.offsetWidth, h = tip.offsetHeight;
-    const cx = HAND_X + (+ce.dataset.x || 0) + CARD_W / 2;
-    const top = $("#prompt").classList.contains("hidden") ? HAND_Y + 8 - 34 - 12 - h : 578 + DY - h;
+    const cx = HAND_X + ((+ce.dataset.x || 0) + CARD_W / 2) * HS;
+    const top = $("#prompt").classList.contains("hidden") ? HAND_Y + (8 - 34) * HS - 12 - h : PROMPT_Y - 12 - h;
     tip.style.left = Math.max(16, Math.min(SW - 16 - w, cx - w / 2)) + "px";
     tip.style.top = top + "px";
   }
 
   // ---------------------------------------------------------------- 拖牌：拖到对手身上 / 往上拖到桌面
   function stagePt(ev) { const r = $("#stage").getBoundingClientRect(), s = r.width / SW; return { x: (ev.clientX - r.left) / s, y: (ev.clientY - r.top) / s }; }
-  function heroAt(pt) { return g.players.find((p) => { const q = pos(p); return pt.x >= q.x && pt.x <= q.x + HERO_W && pt.y >= q.y && pt.y <= q.y + HERO_H; }); }
+  function heroAt(pt) { return g.players.find((p) => { const q = pos(p), s = seatScale(p); return pt.x >= q.x && pt.x <= q.x + HERO_W * s && pt.y >= q.y && pt.y <= q.y + HERO_H * s; }); }
   const dropY = () => HAND_Y - 20;
   function canDrag(c) { return mode === "play" ? !busy && g.canUse(g.human, c) : mode === "respond" && respondCards.includes(c.id); }
   function startDrag(ev, id) {
@@ -234,7 +280,7 @@ window.UI = (function () {
     }
     const dx = pt.x - (drag.pt || pt).x;
     drag.pt = pt; drag.rot = Math.max(-12, Math.min(12, (drag.rot || 0) * 0.7 + dx * 0.6));
-    drag.ghost.style.transform = `translate(${pt.x - CARD_W / 2}px, ${pt.y - CARD_H * 0.6}px) rotate(${drag.rot}deg) scale(1.06)`;
+    drag.ghost.style.transform = `translate(${pt.x - CARD_W / 2}px, ${pt.y - CARD_H * 0.6}px) rotate(${drag.rot}deg) scale(${1.06 * HS})`;
     const h = drag.one ? heroAt(pt) : null;
     const ok = !!h && heroes[h.i].classList.contains("target");
     heroes.forEach((e, i) => e.classList.toggle("drop", ok && i === h.i));
@@ -261,8 +307,8 @@ window.UI = (function () {
     }
     // 没放到地方：飞回手里，保持选中
     const slot = document.querySelector(`#hand .card[data-id="${d.id}"]`);
-    const tx = HAND_X + (slot ? +slot.dataset.x || 0 : 0), ty = HAND_Y + 8 - 34;
-    d.ghost.animate([{ transform: d.ghost.style.transform }, { transform: `translate(${tx}px, ${ty}px)` }], { duration: 160, easing: "ease-out", fill: "forwards" })
+    const tx = HAND_X + (slot ? +slot.dataset.x || 0 : 0) * HS + CARD_W * (HS - 1) / 2, ty = HAND_Y + (8 - 34) * HS + CARD_H * (HS - 1) / 2;
+    d.ghost.animate([{ transform: d.ghost.style.transform }, { transform: `translate(${tx}px, ${ty}px) scale(${HS})` }], { duration: 160, easing: "ease-out", fill: "forwards" })
       .finished.then(() => d.ghost.remove(), () => d.ghost.remove()).then(() => { if (g) renderHand(); });
     if (g && mode === "play" && d.one && !busy) hint(`选中【${CD[d.c.k].name}】<br>👉 拖到一位对手身上，或点她`);
     if (g) sync();
@@ -331,7 +377,7 @@ window.UI = (function () {
     b.dataset.p = p.i; b.style.setProperty("--c", p.ch.color); b.style.position = "relative";
     wrap.appendChild(b);
     if (p.human) { wrap.style.left = q.x + 20 + "px"; wrap.style.top = q.y - 14 + "px"; wrap.style.transform = "translateY(-100%)"; }
-    else { wrap.style.left = q.x + 6 + "px"; wrap.style.top = q.y + HERO_H + 14 + "px"; }
+    else { wrap.style.left = Math.max(8, Math.min(q.x + 6, SW - 330)) + "px"; wrap.style.top = q.y + HERO_H * seatScale(p) + 14 + "px"; }
     $("#fx").appendChild(wrap);
     if (HURT_KEYS.includes(key)) expr(p, "hurt", key === "out" ? 0 : 1600);
     else if (SMUG_KEYS.includes(key)) expr(p, "smug", 1400);
@@ -377,7 +423,7 @@ window.UI = (function () {
   function handCardCenter(card) {
     const e = document.querySelector(`#hand .card[data-id="${card.id}"]`);
     if (!e) return null;
-    return { x: HAND_X + (+e.dataset.x || parseFloat(e.style.left) || 0) + CARD_W / 2, y: HAND_Y + 8 + CARD_H / 2 };
+    return { x: HAND_X + ((+e.dataset.x || parseFloat(e.style.left) || 0) + CARD_W / 2) * HS, y: HAND_Y + (8 + CARD_H / 2) * HS };
   }
   function arrow(a, b) {
     const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);

@@ -8,7 +8,7 @@
   --title: "FangYuan", "PuHui", sans-serif;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; font-family: var(--sans); font-weight: 500; color: var(--ink); user-select: none; }
+html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; touch-action: manipulation; font-family: var(--sans); font-weight: 500; color: var(--ink); user-select: none; }
 #viewport { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(#bcd8ff, #e7d9ff); }
 #stage { position: relative; width: 1600px; height: 900px; transform-origin: center center; overflow: hidden; flex: none; --dx: 0px; --dy: 0px; }
 #bg { position: absolute; inset: 0; background: url("../assets/img/bg.webp") center/cover; }
@@ -36,6 +36,10 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; fon
 .icon { width: 46px; height: 46px; border-radius: 50%; border: 3px solid #fff; background: rgba(255, 255, 255, .85); font-size: 20px; color: #5a4aa8;
   cursor: pointer; font-weight: 700; box-shadow: 0 3px 10px rgba(70, 50, 140, .18); }
 .icon.off { opacity: .45; }
+.icon svg { display: block; margin: 0 auto; }
+.icon.on { background: linear-gradient(#ffcf5a, #ff7f3f); color: #fff; }
+#btn-full { position: absolute; top: 24px; right: 28px; z-index: 5; height: 54px; padding: 0 22px; display: flex; align-items: center; gap: 8px; font-size: 22px; }
+#btn-full svg { margin: 0; }
 .icon.pill { width: auto; min-width: 46px; padding: 0 14px; border-radius: 23px; font-family: var(--title); font-size: 19px; font-weight: normal; }
 
 /* ---------- 标题页 ---------- */
@@ -251,10 +255,6 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .spark { position: absolute; width: 14px; height: 14px; border-radius: 50%; animation: spark .7s ease-out forwards; }
 @keyframes spark { to { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; } }
 
-#rotate { display: none; position: fixed; left: 50%; bottom: 6%; transform: translateX(-50%); z-index: 200; background: rgba(255, 255, 255, .95); border: 4px solid #fff;
-  border-radius: 24px; padding: 14px 20px; font-size: 18px; font-weight: 800; color: #5a4aa8; box-shadow: 0 8px 24px rgba(70, 50, 140, .25); text-align: center; flex-direction: column; gap: 8px; }
-#rotate small { font-size: 13px; color: #8a83a8; }
-@media (orientation: portrait) and (max-width: 900px) { #rotate { display: flex; } }
 #toast { position: absolute; left: 50%; top: 80px; transform: translateX(-50%); background: rgba(42, 36, 64, .88); color: #fff; padding: 10px 22px; border-radius: 20px;
   font-size: 20px; font-weight: 700; opacity: 0; transition: opacity .25s; z-index: 90; pointer-events: none; }
 #toast.on { opacity: 1; }
@@ -289,3 +289,75 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .rank { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
 .rank div { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 700; }
 .rank img { width: 46px; border-radius: 50%; }
+
+/* ================= 竖屏（手机竖着拿）：舞台宽 760 起、高 1300 起，--dy = 高 - 1300，--w = 舞台宽 ================= */
+/* 标题：整组内容竖直居中 */
+#stage.portrait .logo.big { font-size: 150px; top: calc(214px + var(--dy) / 2); }
+#stage.portrait .subtitle { top: calc(404px + var(--dy) / 2); font-size: 32px; }
+#stage.portrait .parade { top: calc(484px + var(--dy) / 2); height: 290px; }
+#stage.portrait .parade img { height: 290px; margin: 0 -40px; }
+#stage.portrait .title-btns { top: calc(844px + var(--dy) / 2); bottom: auto; left: 50%; right: auto; width: 680px; transform: translateX(-50%); flex-wrap: wrap; gap: 22px; }
+#stage.portrait .title-btns .btn { width: 320px; padding: 16px 0; font-size: 34px; }
+#stage.portrait .foot { bottom: 40px; font-size: 16px; padding: 0 30px; }
+/* 选人：上面 5 列小卡，下面详情 */
+#stage.portrait .sel-head { left: 16px; right: 16px; top: calc(24px + var(--dy) / 10); flex-direction: column; gap: 14px; }
+#stage.portrait .sel-head .logo.mid { font-size: 56px; }
+#stage.portrait .mode { font-size: 22px; padding: 8px 18px; }
+#stage.portrait .sel-body { left: 16px; right: 16px; top: calc(190px + var(--dy) / 10); bottom: calc(20px + var(--dy) / 10); flex-direction: column; gap: 16px; }
+#stage.portrait #sel-grid { flex: none; gap: 10px; }
+#stage.portrait .pick { height: calc(230px + var(--dy) / 4); }
+#stage.portrait .pick img { width: calc(190px + var(--dy) / 6); }
+#stage.portrait .pick .pn { font-size: 20px; padding: 6px 2px; }
+#stage.portrait .pick .pn.long { font-size: 15px; padding: 8px 1px; }
+#stage.portrait #sel-detail { width: auto; flex: 1; }
+#stage.portrait .sd-portrait { left: -14px; top: 12px; width: 270px; }
+#stage.portrait .sd-portrait img { width: 270px; }
+#stage.portrait .sd-info { right: 18px; top: 22px; width: calc(100% - 280px); }
+#stage.portrait .sd-name { font-size: 52px; }
+#stage.portrait .sd-title { font-size: 22px; }
+#stage.portrait .sd-hp { font-size: 26px; }
+#stage.portrait .sd-skill b { font-size: 28px; }
+#stage.portrait .sd-skill em { font-size: 16px; }
+#stage.portrait .sd-skill p { font-size: 21px; }
+#stage.portrait .modal-box p, #stage.portrait .modal-box li { font-size: 21px; }
+/* 对局：位置由 ui.js relayout() 算好写进变量（--hand-y 等），这里只管用 */
+#stage.portrait #topbar { left: 14px; right: 14px; top: 10px; height: 56px; }
+#stage.portrait #topbar .logo { display: none; }
+#stage.portrait #info { font-size: 22px; padding: 6px 16px; }
+#stage.portrait .tb-btns { gap: 8px; }
+#stage.portrait .tb-btns .icon { width: 52px; height: 52px; font-size: 22px; }
+#stage.portrait .tb-btns .icon.pill { width: auto; padding: 0 14px; font-size: 21px; }
+#stage.portrait #table { left: 0; width: var(--w); top: var(--table-y); height: 270px; }
+#stage.portrait #chat { left: 16px; right: 16px; width: auto; top: var(--chat-y); height: var(--chat-h); }
+#stage.portrait .chat-head { font-size: 20px; }
+#stage.portrait .msg img { width: 50px; height: 50px; }
+#stage.portrait .msg .mb { max-width: 590px; padding: 6px 12px; }
+#stage.portrait .msg .mw { font-size: 15px; }
+#stage.portrait .msg .mt { font-size: 21px; }
+#stage.portrait .sys { font-size: 17px; }
+#stage.portrait #actions { left: var(--act-x); right: 16px; width: auto; top: var(--me-y); height: var(--act-h); gap: 10px; }
+#stage.portrait #hint { font-size: 23px; line-height: 1.35; }
+#stage.portrait #hint small { font-size: 17px; }
+#stage.portrait #skillbox .btn { font-size: 25px; }
+#stage.portrait #btn-end { font-size: 32px; padding: 10px 0; }
+#stage.portrait #hand { left: 16px; top: var(--hand-y); width: calc((var(--w) - 32px) / var(--hand-s)); height: 220px; scale: var(--hand-s); transform-origin: 0 0; }
+#stage.portrait #prompt { left: 16px; width: calc(var(--w) - 32px); top: var(--prompt-y); }
+#stage.portrait .bubble { font-size: 24px; max-width: 400px; }
+#stage.portrait #prompt-text { font-size: 24px; }
+#stage.portrait #prompt-btns .btn { font-size: 24px; }
+#stage.portrait #ctip { font-size: 25px; max-width: 640px; }
+#stage.portrait #toast { font-size: 27px; max-width: calc(var(--w) - 60px); text-align: center; }
+#stage.portrait .banner { top: calc(var(--table-y) + 60px); font-size: 100px; }
+#stage.portrait .cutin { top: calc(var(--table-y) + 20px); height: 260px; }
+#stage.portrait .cutin img { width: 330px; right: 3%; top: -90px; }
+#stage.portrait .cutin .ct1 { left: 6%; top: 84px; font-size: 80px; }
+#stage.portrait .cutin .ct2 { left: 6%; }
+/* 弹窗 */
+#stage.portrait .modal-box { width: calc(var(--w) - 36px); max-height: calc(100% - 60px); padding: 24px 22px; }
+#stage.portrait .settings { grid-template-columns: 1fr; }
+#stage.portrait .rules-cards { grid-template-columns: repeat(3, 1fr); }
+#stage.portrait .result { flex-direction: column; gap: 10px; }
+#stage.portrait .result img { width: 260px; }
+#stage.portrait .result .rt { font-size: 52px; }
+#stage.portrait .pickrow { flex-wrap: wrap; }
+#stage.portrait #btn-full { top: 20px; right: 20px; }
