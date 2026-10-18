@@ -1,0 +1,134 @@
+// 电脑 AI娘：优先摸牌、回血、用技能占便宜，再削弱手牌多的人、收割心态低的人。
+// 组队 / 身份局里只打对手：g.hostility(p, q) > 0 才算敌人（身份局靠"谁在打主公"猜身份）。
+window.AI = (function () {
+  const r = Math.random;
+
+  function value(g, p, c) {
+    switch (c.k) {
+      case "naicha": return p.hp < p.maxHp ? 9 : 6.5;
+      case "fanbo": return p.hp <= 2 ? 9 : 7.5;
+      case "tucao": return g.has(p, "tucao").length > 1 ? 4 : 6.5;
+      case "hongbao": return 7.5;
+      case "yidu": return 6;
+      case "jinyan": return 6;
+      case "baipiao": return 6;
+      case "resou": case "shuaping": return 6;
+      case "chehui": return 5;
+      case "dantiao": return 5;
+      case "tuanjian": return 3;
+    }
+    return 5;
+  }
+  function cheapest(g, p, n, exclude = []) {
+    return p.hand.filter((c) => !exclude.includes(c.id)).sort((a, b) => value(g, p, a) - value(g, p, b)).slice(0, n).map((c) => c.id);
+  }
+  // 只留对手（乱斗 / 单挑里人人都是对手）
+  function foes(g, p, list) { return g && g.foesOf ? g.foesOf(p, list) : list; }
+  const hostile = (g, p, q) => (g && g.hostility ? Math.max(0, g.hostility(p, q)) : 0);
+  // 选目标：残血好收割，同一回合不反复集火同一个人，带点随机；身份局里越像敌人越优先
+  function threat(g, p, q) {
+    let s = q.hand.length * 0.35 + (q.hp <= 1 ? 3 : 0) + (q.hp <= 2 ? 0.8 : 0) + r() * 2.6;
+    s -= ((p.hits && p.hits[q.i]) || 0) * 2.2;
+    if (g.round <= 1 && q.human) s -= 1.5;
+    return s + hostile(g, p, q) * 1.2;
+  }
+  function pickTarget(g, p, list) {
+    const L = foes(g, p, list);
+    return L.slice().sort((a, b) => threat(g, p, b) - threat(g, p, a))[0];
+  }
+  function richest(list, p) {
+    const g = p && p.game;
+    const L = foes(g, p, list);
+    const score = (q) => q.hand.length - ((p && p.hits && p.hits[q.i]) || 0) * 2 + r() + hostile(g, p, q);
+    return L.slice().sort((a, b) => score(b) - score(a))[0];
+  }
+  // 威胁最大（手牌多 / 心态低）的对手
+  function biggest(g, p, list) {
+    const L = foes(g, p, list);
+    return L.slice().sort((x, y) => (y.hand.length + (3 - y.hp) + hostile(g, p, y)) - (x.hand.length + (3 - x.hp) + hostile(g, p, x)))[0];
+  }
+
+  function choose(g, p) {
+    const H = (k) => p.hand.filter((c) => c.k === k);
+    const others = g.others(p);
+    if (!others.length) return null;
+    const enemies = foes(g, p, others);
+    const use = (c, targets = []) => ({ card: c, targets });
+    // 0. 白拿的技能先用
+    if (g.canSkill(p, "beg")) {                                   // 小 DeepSeek 蹭饭：先找最宠她的
+      const ts = g.skillTargets(p, "beg"), fond = foes(g, p, ts).filter((q) => q.key === "gpt" || q.key === "claude");
+      const t = fond.length ? richest(fond, p) : richest(ts, p);
+      if (t) return { skill: "beg", target: t };
+    }
+    if (g.canSkill(p, "polish")) return { skill: "polish" };
+    if (g.canSkill(p, "search")) return { skill: "search" };
+    if (g.canSkill(p, "halluc") && (Engine.T.hallucCost ? p.hand.length >= 2 : true) && p.hp >= 2) return { skill: "halluc" };
+    if (g.canSkill(p, "recall")) return { skill: "recall" };
+    if (g.canSkill(p, "steal")) { const t = richest(g.skillTargets(p, "steal"), p); if (t) return { skill: "steal", target: t }; }
+    if (g.canSkill(p, "buy")) {
+      const ts = g.skillTargets(p, "buy").filter((q) => q.hand.length >= 2);
+      const t = richest(ts, p);
+      if (t && p.hand.length >= (Engine.T.buyCost ? 2 : 0)) return { skill: "buy", target: t };
+    }
+    if (g.canSkill(p, "reset") && (p.hand.length <= 1 || (p.hp <= 1 && p.hand.length <= 2))) return { skill: "reset" };
+    // 1. 摸牌
+    if (H("hongbao").length) return use(H("hongbao")[0]);
+    // 2. 回血
+    if (p.hp < p.maxHp && H("naicha").length) return use(H("naicha")[0]);
+    if (p.hp < p.maxHp && H("tuanjian").length) return use(H("tuanjian")[0]);
+    if (!enemies.length) return null;                             // 身份局开局还看不出谁是敌人：先不动手
+    // 3. 风控封号：盯着手牌多或快赢的人
+    if (g.canSkill(p, "ban")) {
+      const t = biggest(g, p, g.skillTargets(p, "ban"));
+      if (t && (t.hand.length >= 4 || g.round >= 3 || r() < 0.3)) return { skill: "ban", target: t };
+    }
+    // 3b. 维护日：同样盯着威胁大的人
+    if (g.canSkill(p, "maint") && g.round >= 2) {
+      const t = biggest(g, p, g.skillTargets(p, "maint"));
+      if (t && (t.hand.length >= 3 || r() < 0.4)) return { skill: "maint", target: t };
+    }
+    // 4. 控场
+    if (H("jinyan").length) {
+      const t = richest(enemies.filter((q) => !q.banned && !q.muted), p) || richest(enemies, p);
+      if (t) return use(H("jinyan")[0], [t]);
+    }
+    const rich = enemies.filter((q) => q.hand.length > 0);
+    if (rich.length && H("baipiao").length) return use(H("baipiao")[0], [richest(rich, p)]);
+    if (rich.length && H("chehui").length) return use(H("chehui")[0], [richest(rich, p)]);
+    // 5. 群伤：会打到所有人，组队时对手不比自己人少才用
+    const aoeOk = enemies.length * 2 >= others.length;
+    if (aoeOk && H("resou").length) return use(H("resou")[0]);
+    if (aoeOk && H("shuaping").length) return use(H("shuaping")[0]);
+    // 6. 单挑：自己吐槽多 或 对方手牌少
+    if (H("dantiao").length) {
+      const t = enemies.slice().sort((x, y) => (x.hand.length + (p.hits[x.i] || 0) * 2) - (y.hand.length + (p.hits[y.i] || 0) * 2))[0];
+      if (t && (H("tucao").length >= 2 || t.hand.length <= 1 || (t.hp <= 1 && H("tucao").length >= 1))) return use(H("dantiao")[0], [t]);
+    }
+    // 7. 吐槽
+    if (H("tucao").length && p.tucao < g.limitTucao(p)) { const t = pickTarget(g, p, others); if (t) return use(H("tucao")[0], [t]); }
+    if (g.canSkill(p, "reset") && g.round >= 4 && p.hand.length <= 2) return { skill: "reset" };
+    return null;
+  }
+
+  function respond(g, p, kind, ctx, cards) {
+    if (kind === "fanbo" || kind === "tucao") return cards.length ? { card: cards[0] } : null;
+    if (kind === "yidu") {
+      const k = ctx.card.k;
+      const many = cards.length >= 2;
+      const want = k === "jinyan" || (k === "dantiao" && g.has(p, "tucao").length < 1) ||
+        (k === "resou" && !g.has(p, "tucao").length) || (k === "shuaping" && !g.has(p, "fanbo").length) ||
+        ((k === "baipiao" || k === "chehui") && (many || p.hand.length <= 2)) || (p.hp <= 1 && k !== "tuanjian");
+      return want ? { card: cards[0] } : null;
+    }
+    return null;
+  }
+
+  function discard(g, p, n) { return cheapest(g, p, n); }
+  // 从一组牌里挑最有价值的（搜索 / 挥金 / 过目都用它）
+  function pick(g, p, cards, n) { return cards.slice().sort((a, b) => value(g, p, b) - value(g, p, a)).slice(0, n); }
+
+  // 豆包：吐槽被挡后要不要弃牌接着说；GPT：没反驳时要不要弃一张硬顶
+  function wantLong(g, p, t) { return p.hand.length >= 2 || t.hp <= 1; }
+  function wantZuiying(g, t, p) { return t.hp <= 2 || t.hand.length >= 4; }
+  return { choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying };
+})();
