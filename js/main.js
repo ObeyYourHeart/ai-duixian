@@ -8,6 +8,7 @@ window.Main = (function () {
   // 舞台跟着屏幕比例走：16:9 正好 1600x900；16:10、4:3 加高（最多 1200），超宽屏加宽（最多 2133），不留空条
   function fit() {
     const w = window.innerWidth, h = window.innerHeight, a = w / h;
+    if (!w || !h) return;                       // 窗口还没显示出来（后台标签页、隐藏的框）：等 resize 再算
     let W = 1600, H = 900;
     if (a < 16 / 9) H = Math.min(1200, Math.round(1600 / a)); else W = Math.min(2133, Math.round(900 * a));
     const st = $("#stage");
