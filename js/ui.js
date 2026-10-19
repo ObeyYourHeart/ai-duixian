@@ -126,6 +126,12 @@ window.UI = (function () {
       if (p.role === "lord" || p.human || p.revealed) return { text: Engine.ROLE[p.role], cls: "role-" + p.role };
       return { text: "？", cls: "unknown" };
     }
+    if (g.mode === "ffa" || g.mode === "duel") {
+      if (p.human) return null;
+      const r = g.relation(p, g.human);
+      if (r === "ally") return { text: "盟友", cls: "ally" };
+      if (r === "rival") return { text: "宿敌", cls: "foe" };
+    }
     return null;
   }
 
@@ -363,8 +369,9 @@ window.UI = (function () {
     clearTimeout(exprTimers[p.i]);
     if (ms && p.alive) exprTimers[p.i] = setTimeout(() => { if (p.alive && g) img.src = portrait(p.key, "base"); }, ms);
   }
-  const HURT_KEYS = ["hurt", "out", "stolen", "fury", "halluc"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
-    "polish", "zuiying", "beg", "beg_gpt", "beg_claude", "claw", "dad", "maint", "long", "busy", "fed", "think", "sis", "search", "know", "sorry", "bundle", "sale"];
+  const HURT_KEYS = ["hurt", "out", "stolen", "fury", "halluc", "low", "mourn"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
+    "polish", "zuiying", "beg", "beg_gpt", "beg_claude", "claw", "dad", "maint", "long", "busy", "fed", "think", "sis", "search", "know", "sorry", "bundle", "sale",
+    "ko", "def", "qingke", "qingke_self", "pact_end"];
   function say(p, key, important) {
     if (!g) return;
     const arr = p.ch.lines[key];
@@ -494,12 +501,25 @@ window.UI = (function () {
     Sound.sfx("chime", 0.5);
     sync();
     checkAutoEnd(1600);
+    armNudge();
     return new Promise((res) => { playResolve = res; });
   }
   function endPlay() {
     if (!playResolve) return;
-    const r = playResolve; playResolve = null; mode = null; selected = null; skillMode = null; clearTimeout(autoT);
+    const r = playResolve; playResolve = null; mode = null; selected = null; skillMode = null; clearTimeout(autoT); clearTimeout(nudgeT);
     clearTargets(); hint(""); sync(); r();
+  }
+  let nudgeT = null;
+  function armNudge() {
+    clearTimeout(nudgeT);
+    nudgeT = setTimeout(() => {
+      if (!g || mode !== "play" || busy || drag) return;
+      const os = g.alive().filter((q) => !q.human);
+      if (!os.length) return;
+      const q = os[Math.floor(Math.random() * os.length)];
+      sys(`${q.name} 拍了拍你`); Sound.sfx("notify", 0.6); toast(`${q.name} 拍了拍你`, 1800);
+      heroes[q.i] && heroes[q.i].animate([{ transform: "translateY(0)" }, { transform: "translateY(-10px)" }, { transform: "translateY(0)" }], { duration: 400 });
+    }, 16000);
   }
   function checkAutoEnd(ms) {
     clearTimeout(autoT);
@@ -517,7 +537,9 @@ window.UI = (function () {
 
   async function act(fn) {
     busy = true; clearTargets(); hint("结算中……"); sync();
+    clearTimeout(nudgeT);
     try { await fn(); } finally { busy = false; }
+    if (playResolve) armNudge();
     selected = null; skillMode = null;
     if (!g || g.over || !g.human.alive) { endPlay(); return; }
     hint("继续出牌、用技能，或点【结束回合】。");
@@ -600,14 +622,14 @@ window.UI = (function () {
     if (s.target) {
       const ts = g.skillTargets(me, s.id);
       if (ts.length === 1 && s.id === "copy") { act(() => g.doSkill(me, s.id, { target: ts[0] })); return; }
-      skillMode = s.id; showTargets(ts); hint(`【${s.name}】👉 ${s.id === "bundle" ? "点一位角色，送她一张牌" : "点一位对手"}${SET().keys ? "（或按她头上的数字）" : ""}<br><small>${s.desc}</small>`); sync();
+      skillMode = s.id; showTargets(ts); hint(`【${s.name}】👉 ${s.id === "bundle" ? "点一位角色，送她一张牌" : s.id === "qingke" ? "点一位角色（也可以点自己），给她点一杯奶茶" : "点一位对手"}${SET().keys ? "（或按她头上的数字）" : ""}<br><small>${s.desc}</small>`); sync();
       return;
     }
     act(() => g.doSkill(me, s.id, {}));
   }
   function onHeroClick(p) {
     if (performance.now() - suppressClick < 350) return;
-    if (mode !== "play" || busy || p.human || !p.alive) return;
+    if (mode !== "play" || busy || !p.alive || (p.human && skillMode !== "qingke")) return;
     const me = g.human;
     if (skillMode) {
       const id = skillMode;

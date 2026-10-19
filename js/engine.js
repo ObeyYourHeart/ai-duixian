@@ -8,17 +8,17 @@ window.Engine = (function () {
   const BIGS = ["gpt", "claude"];
   // 技能数值表（平衡都在这里调；sim.js 可以用 TUNE 覆盖）
   const T = Object.assign({
-    hand: { kimi: 2, xds: 1, gpt: 1, gemini: 1, qwen: 1 },                    // 手牌上限加成
+    hand: { kimi: 2, xds: 1, gpt: 2, gemini: 2, qwen: 1 },                    // 手牌上限加成
     extraDraw: {},                                        // 每回合多摸
-    searchLook: 5, knowLook: 4,                           // Gemini 搜索：看几张；博闻：翻几张找反驳
-    sorryDraw: 2,                                         // 豆包 嘻嘻抱歉：做错事摸几张
-    grokStart: 1, grokFloor: 1,                           // 千金：开局多拿；回合开始补到几张
+    searchLook: 5, knowLook: 5,                           // Gemini 搜索：看几张；博闻：翻几张找反驳
+    sorryDraw: 3,                                         // 豆包 嘻嘻抱歉：做错事摸几张
+    grokStart: 1, grokFloor: 2,                           // 千金：开局多拿；回合开始补到几张
     thinkLook: 4, thinkKeep: 3, thinkQuick: 3, quickAt: -1, // 大 DeepSeek 深思
     polishDraw: 2,                                        // Claude 润色：弃 1 摸几张
     zuiyingCost: 1,                                       // GPT 嘴硬：弃几张硬顶
     busyRate: 0.12,                                       // 小 DeepSeek 服务器繁忙
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
-    halluc: [0.45, 0.35, 0.1, 0.1], hallucCost: 0,        // Gemini 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
+    halluc: [0.55, 0.35, 0.05, 0.05], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
     buyN: 1, buyCost: 0,                                  // Grok 挥金
     stealAll: false, stealN: 1, stealClaude: 2,           // GLM 借鉴
     fansN: 1, fansLow: 2, fans: { doubao: [2, 2] },       // 豆包 应援：[摸, 只剩 1 点心态时摸]
@@ -26,12 +26,18 @@ window.Engine = (function () {
     recallKinds: ["tucao", "fanbo", "naicha"],            // Kimi 过目
     teamFirstDraw: 3,                                     // 2v2：先手第一回合摸几张
     rageRound: 3,                                         // 从第几轮起每回合能吐槽两次
-    bombRate: 0.15, bombDmg: 2, firewallRate: 0.3, powerbank: 2,   // 宕机：每次检查爆的概率、伤害；防火墙拦截率；充电宝手牌上限
+    bombRate: 0.15, bombDmg: 2, firewallRate: 0.3, powerbank: 2,
+    qingkeCost: 1, qingkeDraw: 1,                         // 千问·请客：弃几张、送给别人时摸几张
+    banterRate: 0.35, chatterRate: 0.22,                  // 每轮开头随机斗嘴的概率；有人破防时路人在群里起哄的概率   // 宕机：每次检查爆的概率、伤害；防火墙拦截率；充电宝手牌上限
     bundleLook: 3, bundleKeep: 2, bundleRival: false,     // 千问·全家桶：亮出几张、自己留几张、送牌是否只能送对手
     bundleRandom: true,                                   // 千问·全家桶：剩下那张随机送人（不用选目标）
     saleDraw: 1, saleExtra: 1, saleChop: false,           // 千问·狂欢：开的时候摸几张；吐槽多几次（null = 不限）；回合结束是否弃光手牌（剁手）
   }, window.TUNE || {});
   // 抢群主的四种身份（内部 id 沿用 lord/loyal/rebel/spy）
+  // 人物关系：ally 盟友 / friend 交好 / rival 宿敌（data.js 的 relations）
+  const REL = {};
+  for (const [a, b, t] of (window.GAME_DATA.relations || [])) { REL[a + "|" + b] = t; REL[b + "|" + a] = t; }
+  const CHATTER = ["哈哈哈哈哈", "🍿 吃瓜中", "前排围观", "+1", "好家伙", "截图了截图了", "这波可以"];
   const ROLE = { lord: "群主", loyal: "管理员", rebel: "黑粉", spy: "潜水党" };
   const ROLE_LEAN = { lord: 10, loyal: 5, rebel: -5, spy: 0 };
   const SN = (key, id) => { const s = CH[key].skills.find((x) => x.id === id); return s ? s.name : id; };
@@ -50,7 +56,7 @@ window.Engine = (function () {
       this.players = keys.map((key, i) => ({
         i, key, ch: CH[key], name: CH[key].name, hp: CH[key].hp, maxHp: CH[key].hp, hand: [], alive: true,
         human: i === 0, muted: false, banned: false, dumb: false, tucao: 0, used: {}, uses: {}, hits: {},
-        equip: null, boost: false, offline: false, evidence: null,
+        equip: null, boost: false, offline: false, evidence: null, grudge: {}, saidLow: false,
         stats: { dmg: 0, taken: 0, used: 0 },
       }));
       for (const p of this.players) for (const s of p.ch.skills) if (s.uses) p.uses[s.id] = keys.length === 2 && s.uses2p != null ? s.uses2p : s.uses;
@@ -71,7 +77,12 @@ window.Engine = (function () {
     hostility(p, q) {
       if (p === q || !q.alive) return -99;
       if (this.mode === "team") return p.team === q.team ? -99 : 1;
-      if (this.mode !== "id5") return 1;
+      if (this.mode !== "id5") {
+        // 乱斗 / 单挑：盟友在还有别人时不互相出手；宿敌优先，交好的下手轻一点
+        const r = this.relation(p, q);
+        if (r === "ally") return this.alive().some((x) => x !== p && x !== q && this.relation(p, x) !== "ally") ? -1 : 1;
+        return (r === "rival" ? 1.6 : r === "friend" ? 0.5 : 1) + (p.grudge[q.i] || 0);
+      }
       const lean = (r) => r.role === "lord" ? 10 : r.revealed ? ROLE_LEAN[r.role] : r.lean;
       if (p.role === "lord" || p.role === "loyal") return q.role === "lord" ? -99 : -lean(q);
       if (p.role === "rebel") return q.role === "lord" ? 3 : lean(q) > 0.5 ? lean(q) * 0.6 : -1;
@@ -81,6 +92,9 @@ window.Engine = (function () {
       return this.alive().some((r) => r.role === "rebel") ? -lean(q) : 1.5;
     }
     foesOf(p, list) { return list.filter((q) => this.hostility(p, q) > 0); }
+    relation(p, q) { return p && q ? REL[p.key + "|" + q.key] || null : null; }
+    // 关系网里的人：盟友在前，交好在后
+    friendsOf(t) { return this.players.filter((q) => q !== t && (this.relation(q, t) === "ally" || this.relation(q, t) === "friend")).sort((a, b) => (this.relation(b, t) === "ally") - (this.relation(a, t) === "ally")); }
     // 抢群主：谁对群主这边下手，就更像黑粉；打黑粉的更像管理员
     noteHostile(a, b, w) {
       if (this.mode !== "id5" || !a || !b || a === b || a.role === "lord" || a.revealed) return;
@@ -134,6 +148,10 @@ window.Engine = (function () {
       for (const p of this.players) this.drawCards(p, 4 + (p.key === "grok" ? T.grokStart : 0));
       this.ui.sync();
       this.ui.sys("群聊已创建，开始对线！", "good");
+      if (this.mode === "ffa" || this.mode === "duel") {                // 乱斗里先说清楚谁和谁是盟友
+        const has = (k) => this.players.some((q) => q.key === k);
+        for (const [a, b, t, note] of (window.GAME_DATA.relations || [])) if (t === "ally" && has(a) && has(b)) this.ui.sys(`🤝 ${note}`, "good");
+      }
       // 开场台词一句接一句，等配音说完再轮到下一个（招呼最多等 2.2 秒、斗嘴 3 秒，免得拖慢开局）
       const talk = async (p, key, cap = 2200) => {
         const ms = +this.ui.say(p, key, true) || 0;
@@ -151,8 +169,10 @@ window.Engine = (function () {
       }
       for (const p of this.players) await talk(p, "greet", this.players.length >= 4 ? 1500 : 2200);
       const by = (k) => this.players.find((q) => q.key === k);
+      this.banterUsed = new Set();
       const pairs = shuffle((window.GAME_DATA.pairs || []).filter(([a, , b]) => by(a) && by(b))).slice(0, this.players.length >= 4 ? 1 : 2);   // 人多时只斗一组，开场别拖太久
-      for (const [a, ka, b, kb] of pairs) { await talk(by(a), ka, 3000); await talk(by(b), kb, 3000); }
+      for (const [a, ka, b, kb] of pairs) { this.banterUsed.add(a + ka); await talk(by(a), ka, 3000); await talk(by(b), kb, 3000); }
+      this.talk = talk;
       this.cur = this.startIdx;
       while (!this.over) {
         const p = this.players[this.cur];
@@ -162,6 +182,7 @@ window.Engine = (function () {
         const d = (x) => (x - this.startIdx + n) % n;                 // 从先手（群主）开始数，转完一圈才算一轮
         if (d(next) <= d(this.cur)) {
           this.round++;
+          if (Math.random() < T.banterRate) await this.banter();
           if (this.round === T.rageRound) {
             this.ui.banner("吵上头了！"); Sound.sfx("drumroll", 0.6); if (Sound.track) Sound.track("rage");
             this.ui.sys(`第 ${T.rageRound} 轮：大家吵上头了，从现在起每回合可以【吐槽】两次！`, "bad");
@@ -170,6 +191,15 @@ window.Engine = (function () {
         }
         this.cur = next;
       }
+    }
+    // 中途斗嘴：挑一组还都在群里、这局没说过的
+    async banter() {
+      const by = (k) => this.players.find((q) => q.key === k && q.alive);
+      const ok = (window.GAME_DATA.pairs || []).filter(([a, ka, b]) => by(a) && by(b) && !this.banterUsed.has(a + ka));
+      if (!ok.length || !this.talk) return;
+      const [a, ka, b, kb] = ok[rnd(ok.length)];
+      this.banterUsed.add(a + ka);
+      await this.talk(by(a), ka, 2600); await this.talk(by(b), kb, 2600);
     }
     nextAlive(i) {
       const n = this.players.length;
@@ -232,7 +262,7 @@ window.Engine = (function () {
         this.ui.sys(`${p.name} 弃了 ${ids.length} 张牌`);
         this.ui.sync(); await wait(250);
       }
-      p.dumb = false;
+      p.dumb = false; p.grudge = {};
       this.ui.sync();
       await wait(200);
     }
@@ -293,7 +323,10 @@ window.Engine = (function () {
       const tnames = targets.map((t) => t.name).join("、");
       if (d.target === "one") this.ui.log(p, `对 ${tnames} 使用了<b>【${d.name}】</b>`);
       else this.ui.log(p, `使用了<b>【${d.name}】</b>`);
-      if (card.k === "tucao") this.ui.say(p, "attack");
+      if (card.k === "tucao") {
+        const t = targets[0], special = t && p.ch.lines[t.key] && this.relation(p, t) === "rival" && Math.random() < 0.5;
+        this.ui.say(p, special ? t.key : "attack");
+      }
       else if (card.k === "naicha" || card.k === "tuanjian") this.ui.say(p, "heal");
       else if (Math.random() < 0.4) this.ui.say(p, "trick");
       await this.ui.showCard(p, card, targets);
@@ -546,7 +579,21 @@ window.Engine = (function () {
       this.noteHostile(src, t, 1);
       t.hp -= n; t.stats.taken += n; if (src) src.stats.dmg += n;
       this.ui.damage(t, n);
-      this.ui.say(t, "hurt", true);
+      if (t.hp === 1 && !t.saidLow && t.ch.lines.low) { t.saidLow = true; this.ui.say(t, "low", true); }
+      else this.ui.say(t, "hurt", true);
+      // 盟友护短：出声 + 记仇（她下个回合优先打出手的人）
+      if (src && src !== t) for (const q of this.alive()) {
+        if (q === t || q === src || this.relation(q, t) !== "ally" || this.relation(q, src) === "ally") continue;
+        q.grudge[src.i] = (q.grudge[src.i] || 0) + 1.2;
+        if (q.ch.lines.def && Math.random() < 0.6) setTimeout(() => this.ui.say(q, "def"), 900 * E.speed);
+      }
+      // 群里路人起哄（不配音，只发消息）
+      const crowd = this.alive().filter((q) => q !== t && q !== src && !q.human);
+      if (crowd.length && Math.random() < T.chatterRate) {
+        const q = crowd[rnd(crowd.length)];
+        const pool = src ? [...CHATTER, `这波我站 ${src.name}`, `${t.name} 稳住啊`] : ["服务器冒烟了哈哈哈", "宕机现场直播"];
+        setTimeout(() => { if (!this.over) this.ui.log(q, pool[rnd(pool.length)]); }, 700 * E.speed);
+      }
       this.ui.sys(`${t.name} 破防了！心态 -${n}`, "bad");
       await wait(650);
       if (t.hp <= 0) await this.dying(t, src);
@@ -592,6 +639,17 @@ window.Engine = (function () {
       this.ui.sys(`${t.name} 破防退群了`, "bad");
       this.ui.sync();
       await wait(1100);
+      if (src && src !== t && src.alive && src.ch.lines.ko && Math.random() < 0.7) { this.ui.say(src, "ko", true); await wait(900); }
+      const mourner = this.friendsOf(t).find((q) => q.alive && q !== src && q.ch.lines.mourn && (this.relation(q, t) === "ally" || Math.random() < 0.5));
+      if (mourner) { this.ui.say(mourner, "mourn", true); await wait(900); }
+      // 乱斗里只剩一对盟友：协议到期，最后对决
+      const left = this.alive();
+      if ((this.mode === "ffa" || this.mode === "duel") && left.length === 2 && this.relation(left[0], left[1]) === "ally" && this.talk) {
+        this.ui.banner("协议到期！"); this.ui.sys(`只剩 ${left[0].name} 和 ${left[1].name} 了——合作到此为止，最后的对决！`, "bad");
+        const [a, b] = left[0].ch.lines.pact_end && !left[0].human ? left : [left[1], left[0]];
+        if (a.ch.lines.pact_end) await this.talk(a, "pact_end", 3000);
+        if (b.ch.lines.pact_end) await this.talk(b, "pact_end", 3000);
+      }
       if (this.checkOver()) return;
       if (this.mode === "id5") { t.revealed = true; this.ui.sys(`${t.name} 的身份是【${ROLE[t.role]}】`, t.role === "rebel" ? "good" : "bad"); this.ui.sync(); }
       if (this.checkOver()) return;
@@ -650,6 +708,7 @@ window.Engine = (function () {
     }
     skillTarget(id, p) {
       if (id === "ban" || id === "buy" || id === "beg" || id === "maint" || (id === "steal" && !T.stealAll)) return "opp";
+      if (id === "qingke") return "self";                        // 千问请客：可以选自己
       if (id === "bundle") return T.bundleRandom ? null : "any";   // 千问送牌：队友、对手都能选（随机送时不用选）
       return null;
     }
@@ -658,6 +717,7 @@ window.Engine = (function () {
       if (id === "maint") return this.rivals(p).filter((q) => !q.muted);
       if (id === "steal" || id === "buy" || id === "beg") return this.rivals(p).filter((q) => q.hand.length > 0);
       if (id === "bundle") return T.bundleRival ? this.rivals(p) : this.others(p);
+      if (id === "qingke") return this.alive().filter((q) => q.hp < q.maxHp);
       return [];
     }
     canSkill(p, id) {
@@ -670,6 +730,7 @@ window.Engine = (function () {
       if (id === "search") return this.deck.length + this.discard.length > 0;
       if (id === "bundle") return this.deck.length + this.discard.length > 0 && this.skillTargets(p, "bundle").length > 0;
       if (id === "sale") return (p.uses.sale || 0) > 0;
+      if (id === "qingke") return (p.uses.qingke == null || p.uses.qingke > 0) && p.hand.length >= T.qingkeCost && this.skillTargets(p, "qingke").length > 0;
       if (id === "halluc") return p.hand.length >= T.hallucCost;
       if (id === "recall") return (p.uses.recall == null || p.uses.recall > 0) && this.discard.some((c) => T.recallKinds.includes(c.k));
       return false;
@@ -684,11 +745,11 @@ window.Engine = (function () {
       if (!this.canSkill(p, id)) return;
       let t = act.target;
       if (t && !this.skillTargets(p, id).includes(t)) t = null;
-      if (!t && this.skillTarget(id, p)) t = (id === "bundle" ? AI.giftTarget(this, p) : AI.richest(this.skillTargets(p, id), p)) || this.skillTargets(p, id)[0];
+      if (!t && this.skillTarget(id, p)) t = (id === "bundle" ? AI.giftTarget(this, p) : id === "qingke" ? AI.treatTarget(this, p) : AI.richest(this.skillTargets(p, id), p)) || this.skillTargets(p, id)[0];
       if (this.skillTarget(id, p) && !t) return;
       p.used[id] = true;
       if (p.uses[id] != null) p.uses[id]--;
-      if (t && id !== "bundle") { p.hits[t.i] = (p.hits[t.i] || 0) + 1; this.noteHostile(p, t, 0.5); }   // 送牌不算出手
+      if (t && id !== "bundle" && id !== "qingke") { p.hits[t.i] = (p.hits[t.i] || 0) + 1; this.noteHostile(p, t, 0.5); }   // 送牌 / 请客不算出手
       if (id === "ban") {
         t.banned = true;
         this.ui.skill(p, SN("claude", "ban")); this.ui.say(p, "ban", true); Sound.sfx("stamp_thick", 0.9);
@@ -777,6 +838,16 @@ window.Engine = (function () {
         for (const c of rest) if (c !== gift) this.toDiscard(c);
         this.ui.log(p, `【${SN("qwen", "bundle")}】自己留了 ${keep.length} 张，送给 ${t.name} 一张【${gift ? CD[gift.k].name : "?"}】`);
         await wait(400);
+      } else if (id === "qingke") {
+        // 千问·请客：弃牌点外卖，送的人心态 +1；送给别人自己再摸
+        const c = await this.pickOwn(p, `${SN("qwen", "qingke")}：选 ${T.qingkeCost} 张牌弃掉，给 ${t === p ? "自己" : t.name} 点一杯奶茶`);
+        if (!c) return;
+        this.ui.skill(p, SN("qwen", "qingke")); this.ui.say(p, t === p ? "qingke_self" : "qingke", true); Sound.sfx("slurp", 0.7);
+        await wait(500);
+        t.hp = Math.min(t.maxHp, t.hp + 1); this.ui.heal(t, 1);
+        this.ui.log(p, `【${SN("qwen", "qingke")}】给 ${t === p ? "自己" : t.name} 点了一杯奶茶外卖，心态 +1`);
+        if (t !== p && T.qingkeDraw) await this.draw(p, T.qingkeDraw, true);
+        await wait(300);
       } else if (id === "sale") {
         p.sale = true;
         this.ui.skill(p, SN("qwen", "sale")); this.ui.say(p, "sale", true); Sound.sfx("fanfare_short", 0.6);

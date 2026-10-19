@@ -37,6 +37,7 @@ window.AI = (function () {
   function threat(g, p, q) {
     let s = q.hand.length * 0.35 + (q.hp <= 1 ? 3 : 0) + (q.hp <= 2 ? 0.8 : 0) + r() * 2.6;
     s -= ((p.hits && p.hits[q.i]) || 0) * 2.2;
+    s += ((p.grudge && p.grudge[q.i]) || 0) * 1.5;
     if (g.round <= 1 && q.human) s -= 1.5;
     return s + hostile(g, p, q) * 1.2;
   }
@@ -76,6 +77,12 @@ window.AI = (function () {
     if (c.k === "chongdianbao") return 1.6 + (p.hand.length > p.hp ? 1 : 0);
     return 0;
   }
+  function treatTarget(g, p) {
+    const ts = g.skillTargets(p, "qingke");
+    const allies = ts.filter((q) => q !== p && g.hostility && g.hostility(p, q) < 0).sort((a, b) => a.hp - b.hp);
+    if (ts.includes(p) && (p.hp <= 2 || !allies.length)) return p;
+    return allies[0] || (ts.includes(p) ? p : null);
+  }
   function choose(g, p) {
     const H = (k) => p.hand.filter((c) => c.k === k);
     const others = g.others(p);
@@ -90,6 +97,7 @@ window.AI = (function () {
     }
     if (g.canSkill(p, "polish")) return { skill: "polish" };
     if (g.canSkill(p, "search")) return { skill: "search" };
+    if (g.canSkill(p, "qingke")) { const t = treatTarget(g, p); if (t && (t !== p || p.hp <= p.maxHp - 1)) return { skill: "qingke", target: t }; }
     if (g.canSkill(p, "bundle")) { if (Engine.T.bundleRandom) return { skill: "bundle" }; const t = giftTarget(g, p); if (t) return { skill: "bundle", target: t }; }
     if (g.canSkill(p, "halluc") && (Engine.T.hallucCost ? p.hand.length >= 2 : true) && p.hp >= 2) return { skill: "halluc" };
     if (g.canSkill(p, "recall")) return { skill: "recall" };
@@ -185,5 +193,5 @@ window.AI = (function () {
   // 豆包：吐槽被挡后要不要弃牌接着说；GPT：没反驳时要不要弃一张硬顶
   function wantLong(g, p, t) { return p.hand.length >= 2 || t.hp <= 1; }
   function wantZuiying(g, t, p) { return t.hp <= 2 || t.hand.length >= 4; }
-  return { choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard };
+  return { choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard, treatTarget };
 })();
