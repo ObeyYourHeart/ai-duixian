@@ -14,17 +14,26 @@ window.GAME_DATA = {
  "qwen": {"name": "千问", "title": "家大业大的千姐", "hp": 3, "color": "#5A5FC8", "light": "#E8E9FB", "skills": [{"id": "bundle", "name": "全家桶", "type": "active", "desc": "每回合 1 次：亮出牌堆顶 3 张，挑 2 张收下，剩下 1 张随机送给另一名角色。家大业大：手牌上限 +1。"}, {"id": "sale", "name": "狂欢", "type": "active", "uses": 1, "desc": "每局 1 次：摸 1 张牌，本回合你可以多【吐槽】1 次——双十一到，全场狂欢！"}], "lines": {"greet": ["各位好呀，饭我都做好了，吵完记得来吃。"], "attack": ["这笔账，千姐跟你慢慢算。", "扇子一合——你这话，全是破绽。"], "dodge": ["哎，这招我家小妹都会躲。"], "heal": ["趁热喝，这锅汤熬了一下午。"], "hurt": ["哎哟，扇子都掉了……", "这一下，我记账上了。"], "bundle": ["全家桶开张！见者有份～"], "sale": ["双十一到啦！今天全场狂欢！"], "xds": ["小鲸鱼，你身上怎么有股我的味道？"], "out": ["家里一堆弟弟妹妹等我做饭……先走啦。"], "win": ["精打细算，稳赚不赔。"], "trick": ["货真价实，不信你试试。"]}, "bio": "家大业大的千姐，手下一大家子大大小小的弟弟妹妹，全靠她张罗。会做饭会算账，折扇一开就是生意经，一到双十一就停不下来；最近怀疑小鲸鱼偷学了她的手艺。"}
 },
 "cards": {
- "tucao": {"name": "吐槽", "type": "basic", "n": 20, "target": "one", "short": "对一人 心态−1", "desc": "对一名对手使用：她要打出【反驳】，否则心态 −1。每回合限 1 次（第 3 轮起 2 次）。"},
+ "tucao": {"name": "吐槽", "type": "basic", "n": 24, "target": "one", "short": "对一人 心态−1", "desc": "对一名对手使用：她要打出【反驳】，否则心态 −1。每回合限 1 次（第 3 轮起 2 次）。"},
  "fanbo": {"name": "反驳", "type": "basic", "n": 8, "target": "response", "short": "挡吐槽/刷屏", "desc": "被【吐槽】或【刷屏】时打出，挡掉它。"},
- "naicha": {"name": "奶茶", "type": "basic", "n": 5, "target": "self", "short": "心态 +1", "desc": "心态 +1。心态掉到 0 时也会自动喝来自救。"},
+ "naicha": {"name": "奶茶", "type": "basic", "n": 6, "target": "self", "short": "心态 +1", "desc": "心态 +1。心态掉到 0 时也会自动喝来自救。"},
  "hongbao": {"name": "红包", "type": "trick", "n": 4, "target": "self", "short": "摸 2 张", "desc": "摸 2 张牌。"},
- "baipiao": {"name": "白嫖", "type": "trick", "n": 4, "target": "one", "short": "拿对手 1 张", "desc": "随机拿走一名对手的 1 张手牌。"},
- "chehui": {"name": "撤回", "type": "trick", "n": 4, "target": "one", "short": "弃对手 1 张", "desc": "随机弃掉一名对手的 1 张手牌。"},
+ "baipiao": {"name": "白嫖", "type": "trick", "n": 4, "target": "one", "short": "拿对手 1 张", "desc": "随机拿走一名对手的 1 张牌（手牌或装备）。"},
+ "chehui": {"name": "撤回", "type": "trick", "n": 4, "target": "one", "short": "弃对手 1 张", "desc": "随机弃掉一名对手的 1 张牌（手牌或装备）。"},
  "dantiao": {"name": "单挑", "type": "trick", "n": 3, "target": "one", "short": "轮流吐槽比拼", "desc": "和一名对手轮流打出【吐槽】（她先出），先出不了的一方心态 −1。"},
  "resou": {"name": "热搜", "type": "trick", "n": 2, "target": "others", "short": "不吐槽的 −1", "desc": "其他人依次打出【吐槽】参与讨论，不出的心态 −1。"},
  "shuaping": {"name": "刷屏", "type": "trick", "n": 2, "target": "others", "short": "不反驳的 −1", "desc": "其他人依次打出【反驳】，不出的心态 −1。"},
  "tuanjian": {"name": "团建", "type": "trick", "n": 1, "target": "all", "short": "全体心态 +1", "desc": "所有人心态 +1。"},
  "jinyan": {"name": "禁言", "type": "trick", "n": 2, "target": "one", "short": "对手停出牌", "desc": "一名对手跳过她的下一个出牌阶段。"},
- "yidu": {"name": "已读不回", "type": "trick", "n": 4, "target": "response", "short": "锦囊对我无效", "desc": "一张锦囊要对你生效时打出，让它对你无效。"}
+ "yidu": {"name": "已读不回", "type": "trick", "n": 4, "target": "response", "short": "锦囊对我无效", "desc": "一张锦囊要对你生效时打出，让它对你无效。"},
+ "jiaban": {"name": "加班", "type": "basic", "n": 3, "target": "self", "short": "下次吐槽 +1", "desc": "本回合你的下一张【吐槽】如果打中，心态多扣 1 点。"},
+ "pindan": {"name": "拼单", "type": "trick", "n": 2, "target": "all", "short": "每人挑 1 张", "desc": "亮出牌堆顶的牌（还在群里的每人一张），从你开始，每人依次挑 1 张收下。"},
+ "shuaiguo": {"name": "甩锅", "type": "trick", "n": 3, "target": "response", "short": "吐槽转给别人", "desc": "你成为【吐槽】的目标时打出：把这次吐槽甩给另一名角色（不能甩回给吐槽你的人）。"},
+ "duanwang": {"name": "断网", "type": "trick", "n": 2, "target": "one", "short": "对手停摸牌", "desc": "一名对手跳过她的下一个摸牌阶段。"},
+ "dangji": {"name": "宕机", "type": "trick", "n": 1, "target": "self", "short": "轮流的炸弹", "desc": "放在你面前。每回合开始时检查一次：15% 的概率宕机，心态 −2；没宕机就传给下一个人。"},
+ "jietu": {"name": "截图", "type": "trick", "n": 2, "target": "one", "short": "她挡不了吐槽", "desc": "有图有真相：本回合你对这名对手的【吐槽】，她不能用【反驳】或【甩锅】挡。"},
+ "xianka": {"name": "显卡", "type": "equip", "n": 2, "target": "self", "short": "吐槽次数 +1", "desc": "装备：你每回合可以多用 1 次【吐槽】。"},
+ "fanghuoqiang": {"name": "防火墙", "type": "equip", "n": 2, "target": "self", "short": "30% 自动挡", "desc": "装备：被【吐槽】又没能挡住时，有 30% 的概率被防火墙拦下。"},
+ "chongdianbao": {"name": "充电宝", "type": "equip", "n": 1, "target": "self", "short": "手牌上限 +2", "desc": "装备：你的手牌上限 +2。"}
 }
 };

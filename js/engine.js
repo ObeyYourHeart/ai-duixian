@@ -26,6 +26,7 @@ window.Engine = (function () {
     recallKinds: ["tucao", "fanbo", "naicha"],            // Kimi 过目
     teamFirstDraw: 3,                                     // 2v2：先手第一回合摸几张
     rageRound: 3,                                         // 从第几轮起每回合能吐槽两次
+    bombRate: 0.15, bombDmg: 2, firewallRate: 0.3, powerbank: 2,   // 宕机：每次检查爆的概率、伤害；防火墙拦截率；充电宝手牌上限
     bundleLook: 3, bundleKeep: 2, bundleRival: false,     // 千问·全家桶：亮出几张、自己留几张、送牌是否只能送对手
     bundleRandom: true,                                   // 千问·全家桶：剩下那张随机送人（不用选目标）
     saleDraw: 1, saleExtra: 1, saleChop: false,           // 千问·狂欢：开的时候摸几张；吐槽多几次（null = 不限）；回合结束是否弃光手牌（剁手）
@@ -49,6 +50,7 @@ window.Engine = (function () {
       this.players = keys.map((key, i) => ({
         i, key, ch: CH[key], name: CH[key].name, hp: CH[key].hp, maxHp: CH[key].hp, hand: [], alive: true,
         human: i === 0, muted: false, banned: false, dumb: false, tucao: 0, used: {}, uses: {}, hits: {},
+        equip: null, boost: false, offline: false, evidence: null,
         stats: { dmg: 0, taken: 0, used: 0 },
       }));
       for (const p of this.players) for (const s of p.ch.skills) if (s.uses) p.uses[s.id] = keys.length === 2 && s.uses2p != null ? s.uses2p : s.uses;
@@ -60,7 +62,7 @@ window.Engine = (function () {
         const lord = this.players.find((p) => p.role === "lord");
         lord.hp++; lord.maxHp++; lord.lean = 10;                  // 群主多 1 点心态，身份公开
       }
-      this.deck = buildDeck(); this.discard = [];
+      this.deck = buildDeck(); this.discard = []; this.bomb = null;     // bomb：场上的【宕机】{ holder, card }
       this.startIdx = this.mode === "id5" ? this.players.find((p) => p.role === "lord").i : 0;
       this.cur = this.startIdx; this.round = 1; this.over = false; this.outOrder = [];
     }
@@ -92,8 +94,11 @@ window.Engine = (function () {
     others(p) { return this.players.filter((q) => q.alive && q !== p); }
     has(p, k) { return p.hand.filter((c) => c.k === k); }
     hasSkill(p, id) { return p.ch.skills.some((s) => s.id === id); }
-    limitTucao(p) { const base = 1 + (this.round >= T.rageRound ? 1 : 0); return p.dumb ? 0 : p.sale ? (T.saleExtra == null ? 99 : base + T.saleExtra) : base; }
-    handLimit(p) { return Math.max(0, p.hp) + (T.hand[p.key] || 0); }
+    limitTucao(p) { const base = 1 + (this.round >= T.rageRound ? 1 : 0) + (p.equip && p.equip.k === "xianka" ? 1 : 0); return p.dumb ? 0 : p.sale ? (T.saleExtra == null ? 99 : base + T.saleExtra) : base; }
+    handLimit(p) { return Math.max(0, p.hp) + (T.hand[p.key] || 0) + (p.equip && p.equip.k === "chongdianbao" ? T.powerbank : 0); }
+    // 一个人的“牌”（手牌 + 装备），白嫖 / 撤回从里面随机挑
+    cardsOf(t) { return t.equip ? [...t.hand, t.equip] : t.hand.slice(); }
+    takeAny(t, c) { if (c === t.equip) t.equip = null; else this.takeFromHand(t, c); }
     doubaoHere() { return this.players.some((q) => q.key === "doubao" && q.alive); }
 
     // ---------------------------------------------------------------- 牌堆
@@ -173,10 +178,11 @@ window.Engine = (function () {
     }
 
     async turn(p) {
-      p.tucao = 0; p.used = {}; p.hits = {}; p.dumb = false; p.sale = false;
+      p.tucao = 0; p.used = {}; p.hits = {}; p.dumb = false; p.sale = false; p.boost = false; p.evidence = null;
       this.ui.setTurn(p); this.ui.sync();
       this.ui.phase(`${p.name} 的回合`);
       await wait(300);
+      if (this.bomb && this.bomb.holder === p) { await this.bombCheck(p); if (this.over || !p.alive) return; }
       if (p.banned) {                                       // Claude 的封号：整回合跳过
         p.banned = false; this.ui.sync();
         this.ui.sys(`${p.name} 的账号被封，这回合跳过`, "bad"); this.ui.say(p, "hurt", true);
@@ -188,13 +194,17 @@ window.Engine = (function () {
         await this.draw(p, T.grokFloor - p.hand.length, true);
         this.ui.log(p, `【${SN("grok", "rich")}】爸爸又送来了一点`);
       }
-      // 摸牌
-      if (p.key === "deepseek") await this.deepThink(p);
+      // 摸牌（断网了就不摸）
+      const cut = p.offline;
+      if (cut) {
+        p.offline = false; this.ui.sync();
+        this.ui.sys(`${p.name} 断网了，这回合摸不到牌`, "bad"); this.ui.say(p, "hurt"); await wait(700);
+      } else if (p.key === "deepseek") await this.deepThink(p);
       else {
         const first = this.mode === "team" && this.round === 1 && p.i === this.startIdx;   // 2v2 先手第一回合多摸 1 张（你-敌-敌-友 座位下两队五五开）
         await this.draw(p, (first ? T.teamFirstDraw : 2) + (T.extraDraw[p.key] || 0), true);
       }
-      this.ui.sys(`${p.name} 摸牌`);
+      if (!cut) this.ui.sys(`${p.name} 摸牌`);
       if (this.over) return;
       // 出牌
       if (p.muted) {
@@ -259,12 +269,15 @@ window.Engine = (function () {
       if (d.target === "response") return false;
       if (c.k === "tucao") return p.tucao < this.limitTucao(p) && this.rivals(p).length > 0;
       if (c.k === "naicha") return p.hp < p.maxHp;
-      if (c.k === "baipiao" || c.k === "chehui") return this.rivals(p).some((q) => q.hand.length > 0);
+      if (c.k === "baipiao" || c.k === "chehui") return this.rivals(p).some((q) => q.hand.length > 0 || q.equip);
+      if (c.k === "jiaban") return !p.boost;
+      if (c.k === "dangji") return !this.bomb;
+      if (c.k === "pindan") return this.deck.length + this.discard.length > 0;
       if (d.target === "one") return this.rivals(p).length > 0;
       return true;
     }
     targetsFor(p, c) {
-      if (c.k === "baipiao" || c.k === "chehui") return this.rivals(p).filter((q) => q.hand.length > 0);
+      if (c.k === "baipiao" || c.k === "chehui") return this.rivals(p).filter((q) => q.hand.length > 0 || q.equip);
       return this.rivals(p);
     }
 
@@ -284,7 +297,7 @@ window.Engine = (function () {
       else if (card.k === "naicha" || card.k === "tuanjian") this.ui.say(p, "heal");
       else if (Math.random() < 0.4) this.ui.say(p, "trick");
       await this.ui.showCard(p, card, targets);
-      this.toDiscard(card);
+      if (d.type !== "equip" && card.k !== "dangji") this.toDiscard(card);
       await this.resolve(p, card, targets);
       this.ui.sync();
       this.checkOver();
@@ -292,20 +305,25 @@ window.Engine = (function () {
 
     async resolve(p, card, targets) {
       switch (card.k) {
-        case "tucao": for (const t of targets) { if (this.over) break; if (t.alive) await this.tucao(p, t); } break;
+        case "tucao": {
+          const boost = p.boost; p.boost = false;                 // 加班只管下一张吐槽
+          for (const t of targets) { if (this.over) break; if (t.alive) await this.tucao(p, t, boost); }
+          break;
+        }
         case "naicha": p.hp = Math.min(p.maxHp, p.hp + 1); this.ui.heal(p, 1); Sound.sfx("slurp"); await wait(450); break;
         case "hongbao": Sound.sfx("coin"); await this.draw(p, 2); break;
         case "baipiao": {
-          const t = targets[0]; if (!t || !t.alive || !t.hand.length) break;
+          const t = targets[0]; if (!t || !t.alive || !this.cardsOf(t).length) break;
           if (await this.protect(t, p, card)) break;
-          const c = t.hand[rnd(t.hand.length)]; this.takeFromHand(t, c); p.hand.push(c);
+          const pool = this.cardsOf(t), c = pool[rnd(pool.length)], eq = c === t.equip;
+          this.takeAny(t, c); p.hand.push(c);
           this.ui.steal(t, p, c); Sound.sfx("paper");
-          this.ui.sys(`${p.name} 白嫖了 ${t.name} 的一张牌`); await wait(450); break;
+          this.ui.sys(eq ? `${p.name} 白嫖了 ${t.name} 的装备【${CD[c.k].name}】` : `${p.name} 白嫖了 ${t.name} 的一张牌`); await wait(450); break;
         }
         case "chehui": {
-          const t = targets[0]; if (!t || !t.alive || !t.hand.length) break;
+          const t = targets[0]; if (!t || !t.alive || !this.cardsOf(t).length) break;
           if (await this.protect(t, p, card)) break;
-          const c = t.hand[rnd(t.hand.length)]; this.takeFromHand(t, c); this.toDiscard(c);
+          const pool = this.cardsOf(t), c = pool[rnd(pool.length)]; this.takeAny(t, c); this.toDiscard(c);
           Sound.sfx("whoosh_little"); this.ui.sys(`${t.name} 的【${CD[c.k].name}】被撤回了`); this.ui.sync(); await wait(450); break;
         }
         case "dantiao": {
@@ -343,6 +361,44 @@ window.Engine = (function () {
           if (await this.protect(t, p, card)) break;
           t.muted = true; Sound.sfx("stamp"); this.ui.sys(`${t.name} 被禁言了（跳过下个出牌阶段）`, "bad"); this.ui.sync(); await wait(450); break;
         }
+        case "jiaban":
+          p.boost = true; Sound.sfx("ding2", 0.6);
+          this.ui.sys(`${p.name} 开始加班：下一张【吐槽】打中心态多扣 1 点`); this.ui.sync(); await wait(400); break;
+        case "pindan": {
+          // 拼单：亮出“每人一张”，从出牌的人开始轮流挑
+          const pool = [];
+          for (let i = 0; i < this.alive().length; i++) { if (!this.deck.length) { this.deck = shuffle(this.discard); this.discard = []; } if (this.deck.length) pool.push(this.deck.pop()); }
+          Sound.sfx("mixdeck", 0.6); this.ui.sys(`${p.name} 发起拼单：亮出 ${pool.length} 张，大家依次挑一张`, "good"); await wait(500);
+          for (let k = 0; k < this.players.length && pool.length && !this.over; k++) {
+            const q = this.players[(p.i + k) % this.players.length];
+            if (!q.alive) continue;
+            const pick = q.human ? (await this.ui.humanPick(pool.slice(), 1, `拼单：还剩 ${pool.length} 张，挑 1 张`))[0] : AI.pick(this, q, pool, 1)[0];
+            if (!pick) continue;
+            pool.splice(pool.indexOf(pick), 1); q.hand.push(pick); this.ui.drawAnim(q, 1);
+            this.ui.log(q, `拼单拿走了【${CD[pick.k].name}】`); this.ui.sync(); await wait(300);
+          }
+          for (const c of pool) this.toDiscard(c);
+          break;
+        }
+        case "duanwang": {
+          const t = targets[0]; if (!t || !t.alive) break;
+          if (await this.protect(t, p, card)) break;
+          t.offline = true; Sound.sfx("glitch_vhs", 0.6); this.ui.sys(`${t.name} 断网了（跳过下个摸牌阶段）`, "bad"); this.ui.sync(); await wait(450); break;
+        }
+        case "dangji":
+          this.bomb = { holder: p, card }; Sound.sfx("tick", 0.7);
+          this.ui.sys(`${p.name} 的服务器开始冒烟……【宕机】每回合开始检查一次，没炸就往下传`, "bad"); this.ui.sync(); await wait(500); break;
+        case "jietu": {
+          const t = targets[0]; if (!t || !t.alive) break;
+          if (await this.protect(t, p, card)) break;
+          p.evidence = t; Sound.sfx("pop_small", 0.7);
+          this.ui.sys(`${p.name} 截图留证：这回合 ${t.name} 挡不了她的【吐槽】`); this.ui.sync(); await wait(400); break;
+        }
+        case "xianka": case "fanghuoqiang": case "chongdianbao": {
+          if (p.equip) { this.toDiscard(p.equip); this.ui.sys(`${p.name} 换下了【${CD[p.equip.k].name}】`); }
+          p.equip = card; Sound.sfx("ding", 0.6);
+          this.ui.sys(`${p.name} 装备了【${CD[card.k].name}】`, "good"); this.ui.sync(); await wait(400); break;
+        }
       }
     }
 
@@ -354,20 +410,58 @@ window.Engine = (function () {
       return ok;
     }
 
-    async tucao(p, t) {
+    // 【宕机】轮到持有人时检查：炸了掉 2 点心态（可以用【已读不回】躲过，躲过就往下传）
+    async bombCheck(p) {
+      const card = this.bomb.card;
+      Sound.sfx("tick", 0.5); await wait(400);
+      if (Math.random() < T.bombRate && !(await this.protect(p, p, card))) {
+        this.bomb = null; this.toDiscard(card);
+        Sound.sfx("bomb", 0.8); this.ui.banner("宕机了！");
+        this.ui.sys(`${p.name} 的服务器宕机了！心态 −${T.bombDmg}`, "bad"); await wait(600);
+        await this.damage(null, p, T.bombDmg);
+        return;
+      }
+      const nx = this.players[this.nextAlive(p.i)];
+      this.bomb.holder = nx;
+      this.ui.sys(`【宕机】这次没炸，传给了 ${nx.name}`); this.ui.sync(); await wait(400);
+    }
+    // 防火墙：被吐槽又没挡住时，按概率拦下
+    async firewall(t, p) {
+      if (!t.equip || t.equip.k !== "fanghuoqiang" || !t.alive) return false;
+      const ok = Math.random() < T.firewallRate;
+      this.ui.log(t, ok ? "【防火墙】拦截成功！这次吐槽没进来" : "【防火墙】没拦住……");
+      if (ok) { Sound.sfx("stamp_thick", 0.6); this.ui.skillNote(t, "防火墙"); }
+      await wait(ok ? 600 : 300);
+      return ok;
+    }
+
+    async tucao(p, t, boost = false, depth = 0) {
       // 小 DeepSeek：服务器繁忙
       if (t.key === "xds" && Math.random() < T.busyRate) {
         this.ui.skillNote(t, SN("xds", "busy")); this.ui.say(t, "busy", true); Sound.sfx("boing", 0.5);
         this.ui.sys(`${t.name}：当前服务器繁忙，这次吐槽无效`); await wait(800);
         await this.sorry(p); return;
       }
+      const caught = p.evidence === t;                           // 截图：挡不了、也甩不了
+      // 甩锅：转给别人（不能甩回给吐槽你的人；2v2 只能甩给对手）
+      if (!caught && depth < 4 && this.has(t, "shuaiguo").length) {
+        const outs = this.rivals(t).filter((q) => q !== p);
+        if (outs.length && await this.ask(t, "shuaiguo", { from: p, card: { k: "tucao" }, outs })) {
+          const u = t.human ? await this.ui.humanChoose(outs, `【甩锅】甩给谁？`) : (AI.pickTarget(this, t, outs) || outs[0]);
+          this.noteHostile(t, u, 0.5); Sound.sfx("whoosh_cartoon", 0.6);
+          this.ui.sys(`${t.name} 甩锅！这次吐槽转给了 ${u.name}`, "bad"); await wait(450);
+          return this.tucao(p, u, boost, depth + 1);
+        }
+      }
       let more = this.hasSkill(p, "long") ? 1 : 0;                   // 长篇大论（目前没人有）
       for (;;) {
-        let ok = await this.ask(t, "fanbo", { from: p, card: { k: "tucao" } });
+        let ok = caught ? false : await this.ask(t, "fanbo", { from: p, card: { k: "tucao" } });
+        if (caught && this.has(t, "fanbo").length) this.ui.log(t, "有截图……【反驳】不了");
         if (!ok) ok = await this.know(t, p);
         if (!ok) ok = await this.zuiying(t, p);
+        if (!ok) ok = await this.firewall(t, p);
         if (!ok) {
-          await this.damage(p, t, 1);
+          await this.damage(p, t, 1 + (boost ? 1 : 0));
           if (this.hasSkill(p, "claw") && p.alive) await this.claw(p, t);
           return;
         }
@@ -489,6 +583,8 @@ window.Engine = (function () {
       t.alive = false; t.hp = 0;
       for (const c of t.hand) this.toDiscard(c);
       t.hand = [];
+      if (t.equip) { this.toDiscard(t.equip); t.equip = null; }
+      if (this.bomb && this.bomb.holder === t) { this.toDiscard(this.bomb.card); this.bomb = null; }
       this.outOrder.push(t);
       this.ui.say(t, "out", true);
       this.ui.out(t);

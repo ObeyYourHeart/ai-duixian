@@ -3,7 +3,7 @@
 @font-face { font-family: "PuHui"; src: url("../assets/font/puhui-bold.woff2") format("woff2"); font-weight: 700 900; font-display: swap; }
 :root {
   --ink: #2a2440; --ink2: #6b6585; --paper: #ffffff; --line: rgba(80, 70, 140, .16);
-  --basic: #ff8a4c; --trick: #8b6cf0; --good: #2fbf71; --bad: #ef4558; --gold: #f7b733;
+  --basic: #ff8a4c; --trick: #8b6cf0; --equip: #2fa67b; --good: #2fbf71; --bad: #ef4558; --gold: #f7b733;
   --sans: "PuHui", "Microsoft YaHei", "PingFang SC", sans-serif;
   --title: "FangYuan", "PuHui", sans-serif;
 }
@@ -114,6 +114,7 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 .hero .status { position: absolute; left: 8px; top: 74px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .hero .status span { background: rgba(42, 36, 64, .82); color: #fff; font-size: 16px; font-weight: 800; padding: 2px 9px; border-radius: 9px; }
 .hero .status .ban { background: #e53340; } .hero .status .dumb { background: #8b5cf6; }
+.hero .status .eq { background: var(--equip); } .hero .status .boost { background: #ff7f3f; } .hero .status .bomb { background: #c62f3b; }
 .hero .stag-old { position: absolute; right: 8px; bottom: 66px; background: rgba(255, 255, 255, .92); color: var(--c); font-family: var(--title); font-size: 18px;
   padding: 2px 10px; border-radius: 10px; cursor: help; }
 .hero.turn { box-shadow: 0 0 0 5px var(--c), 0 0 34px var(--c); }
@@ -146,6 +147,7 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 .card .cn { position: absolute; left: 0; right: 0; top: 0; height: 40px; background: var(--basic); color: #fff; font-family: var(--title); font-size: 27px; line-height: 40px !important;
   text-align: center; line-height: 32px; letter-spacing: 1px; }
 .card.trick .cn { background: var(--trick); }
+.card.equip .cn { background: var(--equip); }
 .card .cn { text-shadow: 0 2px 0 rgba(0, 0, 0, .15); }
 .card.long .cn { font-size: 22px; letter-spacing: 0; }
 .card.big.long .cn { font-size: 28px; }

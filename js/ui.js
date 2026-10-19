@@ -13,6 +13,7 @@ window.UI = (function () {
     4: [{ x: 36, y: 568 }, { x: 980, y: 80 }, { x: 630, y: 80 }, { x: 280, y: 80 }],
     5: [{ x: 36, y: 568 }, { x: 940, y: 80 }, { x: 720, y: 80 }, { x: 500, y: 80 }, { x: 280, y: 80 }] };
   let PILE = { x: 710, y: 480 }, DECK = { x: 420, y: 480 };
+  const EQ_ICON = { xianka: "🎮", fanghuoqiang: "🛡", chongdianbao: "🔋" };
   const HEART = '<svg class="heart%c" viewBox="0 0 24 22"><path d="M12 20.5C5 15 1.5 11.6 1.5 7.2 1.5 4 4 1.5 7.1 1.5c2 0 3.8 1 4.9 2.6C13.1 2.5 14.9 1.5 16.9 1.5 20 1.5 22.5 4 22.5 7.2c0 4.4-3.5 7.8-10.5 13.3z"/></svg>';
 
   let g = null, heroes = [], exprTimers = {}, lastSay = {};
@@ -77,7 +78,7 @@ window.UI = (function () {
   function cardEl(c, big) {
     const d = CD[c.k];
     const e = el("div", `card ${d.type}${big ? " big" : ""}${d.name.length > 3 ? " long" : ""}`);
-    e.innerHTML = `<div class="cn">${d.name}</div><img src="${A(`assets/img/card_${c.k}.webp`)}" alt="" draggable="false"><div class="ct">${d.type === "basic" ? "基本" : "锦囊"}</div><div class="cd">${d.short}</div>`;
+    e.innerHTML = `<div class="cn">${d.name}</div><img src="${A(`assets/img/card_${c.k}.webp`)}" alt="" draggable="false"><div class="ct">${{ basic: "基本", trick: "锦囊", equip: "装备" }[d.type]}</div><div class="cd">${d.short}</div>`;
     e.dataset.id = c.id;
     e.title = d.desc;
     return e;
@@ -142,6 +143,10 @@ window.UI = (function () {
       if (p.banned) st += '<span class="ban">🚫 封号中</span>';
       if (p.muted) st += '<span>🔇 禁言中</span>';
       if (p.dumb) st += '<span class="dumb">❓ 降智中</span>';
+      if (p.offline) st += '<span>📵 断网中</span>';
+      if (p.boost) st += '<span class="boost">🔥 加班中</span>';
+      if (g.bomb && g.bomb.holder === p) st += '<span class="bomb">💣 宕机预警</span>';
+      if (p.equip) st += `<span class="eq">${EQ_ICON[p.equip.k] || "🧰"} ${CD[p.equip.k].name}</span>`;
       h.querySelector(".status").innerHTML = st;
       const sd = h.querySelector(".side"), lab = sideLabel(p);
       sd.className = "side" + (lab ? " " + lab.cls : ""); sd.textContent = lab ? lab.text : "";
@@ -580,7 +585,10 @@ window.UI = (function () {
     if (c.k === "yidu") return "【已读不回】要在锦囊对你生效时才能打出";
     if (c.k === "tucao") return me.dumb ? "降智中，这回合不能吐槽" : "这回合已经吐槽过了";
     if (c.k === "naicha") return "心态是满的，先留着奶茶吧";
-    if (c.k === "baipiao" || c.k === "chehui") return "对手都没有手牌";
+    if (c.k === "baipiao" || c.k === "chehui") return "对手都没有牌";
+    if (c.k === "shuaiguo") return "【甩锅】要在被吐槽时才能打出";
+    if (c.k === "jiaban") return "已经在加班了";
+    if (c.k === "dangji") return "场上已经有一张【宕机】了";
     return "现在不能用";
   }
   function onSkillBtn(s) {
@@ -624,6 +632,8 @@ window.UI = (function () {
     if (opt.kind === "fanbo") text = opt.ctx.card.k === "shuaping" ? `${from.name} 在刷屏！打出【反驳】？` :
       `${from.name} 吐槽你！打出【反驳】？` + (opt.ctx.need === 2 ? `（${window.GAME_DATA.chars.claude.skills[0].name}：要 2 张，第 ${opt.ctx.nth + 1} 张）` : "");
     else if (opt.kind === "tucao") text = opt.ctx.duel ? `和 ${from.name} 单挑中！打出【吐槽】？` : `${from.name} 上了热搜！打出【吐槽】参与讨论？`;
+    else if (opt.kind === "shuaiguo") text = `${from.name} 吐槽你！打出【甩锅】，甩给别人？`;
+    else if (opt.ctx.card.k === "dangji") text = "【宕机】要在你这儿炸了！打出【已读不回】躲过去？";
     else text = `${from.name} 对你用了【${CD[opt.ctx.card.k].name}】，打出【已读不回】？`;
     if (SET().respond === "auto") {
       const ans = AI.respond(g, p, opt.kind, opt.ctx, opt.cards);
@@ -633,7 +643,7 @@ window.UI = (function () {
     respondCards = opt.cards.map((c) => c.id);
     mode = "respond"; selected = null; clearTimeout(autoT);
     const btns = [[`打出${d.name}`, () => finishRespond({ card: opt.cards[0] }), true], ["不出", () => finishRespond(null)]];
-    const auto = opt.kind === "yidu" ? () => finishRespond(null) : () => finishRespond({ card: opt.cards[0] });
+    const auto = opt.kind === "yidu" || opt.kind === "shuaiguo" ? () => finishRespond(null) : () => finishRespond({ card: opt.cards[0] });
     showPrompt(text, btns, timerMs(), auto, "respond");
     sync();
     return new Promise((res) => { respondResolve = res; });
@@ -668,6 +678,14 @@ window.UI = (function () {
       const done = (v) => { hidePrompt(); sync(); res(v); };
       if (SET().respond === "auto") { done(def); return; }
       showPrompt(text, [["发动", () => done(true), true], ["不了", () => done(false)]], timerMs(), () => done(def), "confirm");
+    });
+  }
+
+  // 选一个人（甩锅给谁）：提示条上一人一个按钮，超时选第一个
+  function humanChoose(list, text) {
+    return new Promise((res) => {
+      const done = (q) => { hidePrompt(); sync(); res(q); };
+      showPrompt(text, list.map((q, k) => [q.name, () => done(q), k === 0]), timerMs(), () => done(list[0]), "choose");
     });
   }
 
@@ -768,7 +786,9 @@ window.UI = (function () {
     const me = g.human;
     const promptBtn = (i) => { const b = $("#prompt-btns").children[i]; if (b && !$("#prompt").classList.contains("hidden")) { b.click(); return true; } return false; };
     let done = true;
-    if (promptKind === "respond" || promptKind === "confirm") {
+    if (promptKind === "choose") {
+      if (n) promptBtn(n - 1); else done = false;
+    } else if (promptKind === "respond" || promptKind === "confirm") {
       if (n && promptKind === "respond") { const c = me.hand[n - 1]; if (c && respondCards.includes(c.id)) finishRespond({ card: c }); else done = false; }
       else if (k === "Enter" || k === "y" || k === " ") promptBtn(0);
       else if (k === "Escape" || k === "n") promptBtn(1);
@@ -796,5 +816,5 @@ window.UI = (function () {
   }
 
   return { attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, skillNote, banner, phase, toast,
-    humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, gameOver, bindButtons, cardEl, portrait, expr };
+    humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, gameOver, bindButtons, cardEl, portrait, expr };
 })();

@@ -84,7 +84,7 @@ window.Main = (function () {
 
   function rules() {
     const cards = Object.entries(CD).map(([k, d]) => `<div class="rc"><img src="${(window.ASSET && window.ASSET[`assets/img/card_${k}.webp`]) || `assets/img/card_${k}.webp`}" alt=""><b>${d.name}</b>
-      <span>${d.desc}</span><small>${d.type === "basic" ? "基本牌" : "锦囊牌"} ×${d.n}</small></div>`).join("");
+      <span>${d.desc}</span><small>${{ basic: "基本牌", trick: "锦囊牌", equip: "装备牌" }[d.type]} ×${d.n}</small></div>`).join("");
     modal(`<h2>玩法说明</h2>
       <p>${D.world || ""}</p>
       <p>AI娘们在群里吵起来了！每人有几点<b>心态</b>（❤），被【吐槽】又没能【反驳】就破防掉 1 点，心态掉光就<b>破防退群</b>。最后留在群里的人成为<b>群主</b>。</p>
@@ -100,6 +100,10 @@ window.Main = (function () {
       <li>键盘：数字键 1–9 选牌（选目标时按对手头上的数字），Enter 确认，空格 结束回合，Esc 取消，Q / W 技能。</li>
       <li>右上角 ⚙ 设置：音量、速度、思考时间、“点一下就出”、自动应对、自动结束回合。</li>
       <li>手机竖着、横着都能玩，画面自动铺满。首页右上角和对局工具栏有【全屏】按钮；iPhone 不支持网页全屏，可以在 Safari 点「分享 → 添加到主屏幕」，从桌面图标打开就是全屏。</li></ul>
+      <h3>装备与特殊牌</h3>
+      <ul><li><b>装备</b>（绿色牌名）用了就放进自己的装备栏，一直生效；装备栏只有一格，换新的旧的就弃掉。【白嫖】【撤回】也能拿走或弃掉对方的装备。</li>
+      <li><b>【甩锅】</b>在被吐槽时打出，把吐槽转给别人；<b>【截图】</b>过的人这回合挡不了你的吐槽。</li>
+      <li><b>【宕机】</b>会在大家之间往下传，每回合开始检查一次，炸到谁谁心态 −2。</li></ul>
       <p>心态降到 0 时，手里有【奶茶】会自动喝掉自救。把别人怼到退群，你摸 2 张牌作为奖励。每位 AI娘 都有两个技能：<b>主动技</b>在出牌阶段点左下角的技能按钮发动，<b>被动技</b>自动生效。点角色卡上的技能名可以查看说明。</p>
       <h3>卡牌（共 ${Object.values(CD).reduce((s, d) => s + d.n, 0)} 张）</h3><div class="rules-cards">${cards}</div>`);
   }

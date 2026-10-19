@@ -16,6 +16,14 @@ window.AI = (function () {
       case "chehui": return 5;
       case "dantiao": return 5;
       case "tuanjian": return 3;
+      case "jiaban": return g.has(p, "tucao").length ? 5 : 3.5;
+      case "pindan": return 5.5;
+      case "shuaiguo": return 7;
+      case "duanwang": return 6;
+      case "dangji": return 2.5;
+      case "jietu": return g.has(p, "tucao").length ? 5 : 3.5;
+      case "xianka": case "fanghuoqiang": return p.equip ? 4 : 6.5;
+      case "chongdianbao": return p.equip ? 3.5 : 5.5;
     }
     return 5;
   }
@@ -60,6 +68,14 @@ window.AI = (function () {
     const s = cards.slice().sort((a, b) => value(g, t, a) - value(g, t, b));
     return ally ? s[s.length - 1] : s[0];
   }
+  // 装备打分：要不要换上这件
+  function equipScore(g, p, c) {
+    if (!c) return 0;
+    if (c.k === "xianka") return 2 + g.has(p, "tucao").length * 0.6;
+    if (c.k === "fanghuoqiang") return 2.6 + (p.hp <= 2 ? 1 : 0);
+    if (c.k === "chongdianbao") return 1.6 + (p.hand.length > p.hp ? 1 : 0);
+    return 0;
+  }
   function choose(g, p) {
     const H = (k) => p.hand.filter((c) => c.k === k);
     const others = g.others(p);
@@ -86,6 +102,9 @@ window.AI = (function () {
     if (g.canSkill(p, "reset") && (p.hand.length <= 1 || (p.hp <= 1 && p.hand.length <= 2))) return { skill: "reset" };
     // 1. 摸牌
     if (H("hongbao").length) return use(H("hongbao")[0]);
+    // 1b. 装备：没装备就穿上，有更好的就换
+    const eqs = p.hand.filter((c) => Engine.CD[c.k].type === "equip").sort((a, b) => equipScore(g, p, b) - equipScore(g, p, a));
+    if (eqs.length && equipScore(g, p, eqs[0]) > equipScore(g, p, p.equip) + 0.3) return use(eqs[0]);
     // 2. 回血
     if (p.hp < p.maxHp && H("naicha").length) return use(H("naicha")[0]);
     if (p.hp < p.maxHp && H("tuanjian").length) return use(H("tuanjian")[0]);
@@ -108,6 +127,11 @@ window.AI = (function () {
     const rich = enemies.filter((q) => q.hand.length > 0);
     if (rich.length && H("baipiao").length) return use(H("baipiao")[0], [richest(rich, p)]);
     if (rich.length && H("chehui").length) return use(H("chehui")[0], [richest(rich, p)]);
+    if (H("duanwang").length) {
+      const t = richest(enemies.filter((q) => !q.offline && !q.banned), p);
+      if (t) return use(H("duanwang")[0], [t]);
+    }
+    if (H("dangji").length && !g.bomb && p.hp >= 2) return use(H("dangji")[0]);
     // 5. 群伤：会打到所有人，组队时对手不比自己人少才用
     const aoeOk = enemies.length * 2 >= others.length;
     if (aoeOk && H("resou").length) return use(H("resou")[0]);
@@ -117,22 +141,38 @@ window.AI = (function () {
       const t = enemies.slice().sort((x, y) => (x.hand.length + (p.hits[x.i] || 0) * 2) - (y.hand.length + (p.hits[y.i] || 0) * 2))[0];
       if (t && (H("tucao").length >= 2 || t.hand.length <= 1 || (t.hp <= 1 && H("tucao").length >= 1))) return use(H("dantiao")[0], [t]);
     }
+    // 6a. 截图 + 加班：准备好再吐槽
+    const canT = H("tucao").length && p.tucao < g.limitTucao(p);
+    if (canT && H("jietu").length && !p.evidence) {
+      const t = pickTarget(g, p, enemies.filter((q) => q.hand.length > 0)) || pickTarget(g, p, enemies);
+      if (t) return use(H("jietu")[0], [t]);
+    }
+    if (canT && H("jiaban").length && !p.boost) return use(H("jiaban")[0]);
+    if (H("pindan").length && p.hand.length <= 4) return use(H("pindan")[0]);
     // 6b. 千问·狂欢：手里吐槽够多才开（第 3 轮起本来就能吐槽两次，要 3 张）
     if (g.canSkill(p, "sale") && !p.sale && H("tucao").length >= (g.round >= Engine.T.rageRound ? 3 : 2) && p.tucao === 0) return { skill: "sale" };
     // 7. 吐槽
-    if (H("tucao").length && p.tucao < g.limitTucao(p)) { const t = pickTarget(g, p, others); if (t) return use(H("tucao")[0], [t]); }
+    if (H("tucao").length && p.tucao < g.limitTucao(p)) {
+      const ev = p.evidence && p.evidence.alive && g.rivals(p).includes(p.evidence) ? p.evidence : null;   // 截过图的那个先打
+      const t = ev || pickTarget(g, p, others); if (t) return use(H("tucao")[0], [t]);
+    }
     if (g.canSkill(p, "reset") && g.round >= 4 && p.hand.length <= 2) return { skill: "reset" };
     return null;
   }
 
   function respond(g, p, kind, ctx, cards) {
     if (kind === "fanbo" || kind === "tucao") return cards.length ? { card: cards[0] } : null;
+    if (kind === "shuaiguo") {                                   // 甩锅：没反驳、或者快破防了，就甩给一个对手
+      const outs = foes(g, p, ctx.outs || []);
+      return outs.length && (!g.has(p, "fanbo").length || p.hp <= 1 || cards.length >= 2) ? { card: cards[0] } : null;
+    }
     if (kind === "yidu") {
       const k = ctx.card.k;
       const many = cards.length >= 2;
       const want = k === "jinyan" || (k === "dantiao" && g.has(p, "tucao").length < 1) ||
         (k === "resou" && !g.has(p, "tucao").length) || (k === "shuaping" && !g.has(p, "fanbo").length) ||
-        ((k === "baipiao" || k === "chehui") && (many || p.hand.length <= 2)) || (p.hp <= 1 && k !== "tuanjian");
+        ((k === "baipiao" || k === "chehui") && (many || p.hand.length <= 2)) || (p.hp <= 1 && k !== "tuanjian") ||
+        k === "dangji" || (k === "jietu" && g.has(p, "fanbo").length > 0) || (k === "duanwang" && (many || p.hand.length <= 2));
       return want ? { card: cards[0] } : null;
     }
     return null;
