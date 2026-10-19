@@ -34,10 +34,10 @@ window.Main = (function () {
 
   function title() {
     const par = $("#title-parade"); par.innerHTML = "";
-    const order = ["kimi", "gemini", "gpt", "claude", "xds", "deepseek", "doubao", "grok", "glm"];
+    const order = ["qwen", "kimi", "gemini", "gpt", "claude", "xds", "deepseek", "doubao", "grok", "glm"];
     order.forEach((k, i) => {
       const img = document.createElement("img"); img.src = UI.portrait(k, "base"); img.style.animationDelay = (i * 0.25) + "s";
-      img.style.zIndex = 10 - Math.abs(i - 4); par.appendChild(img);
+      img.style.zIndex = Math.round(10 - Math.abs(i - 4.5) * 2); par.appendChild(img);
     });
     show("scr-title");
     Sound.track("menu");
@@ -57,6 +57,7 @@ window.Main = (function () {
     const det = $("#sel-detail"); det.style.setProperty("--c", c.color); det.style.setProperty("--l", c.light);
     $("#sd-img").src = UI.portrait(pickKey, "smug");
     $("#sd-name").textContent = c.name; $("#sd-name").style.whiteSpace = "nowrap"; $("#sd-name").style.fontSize = c.name.length > 7 ? "36px" : ""; $("#sd-title").textContent = c.title;
+    $("#sd-bio").textContent = c.bio || "";
     $("#sd-hp").textContent = "心态 " + "❤".repeat(c.hp);
     $("#sd-skills").innerHTML = c.skills.map((s) => `<div class="sd-skill"><b>【${s.name}】</b><em>${s.type === "active" ? "主动" : "被动"}</em><p>${s.desc}</p></div>`).join("");
     show("scr-select");
@@ -85,6 +86,7 @@ window.Main = (function () {
     const cards = Object.entries(CD).map(([k, d]) => `<div class="rc"><img src="${(window.ASSET && window.ASSET[`assets/img/card_${k}.webp`]) || `assets/img/card_${k}.webp`}" alt=""><b>${d.name}</b>
       <span>${d.desc}</span><small>${d.type === "basic" ? "基本牌" : "锦囊牌"} ×${d.n}</small></div>`).join("");
     modal(`<h2>玩法说明</h2>
+      <p>${D.world || ""}</p>
       <p>AI娘们在群里吵起来了！每人有几点<b>心态</b>（❤），被【吐槽】又没能【反驳】就破防掉 1 点，心态掉光就<b>破防退群</b>。最后留在群里的人成为<b>群主</b>。</p>
       <h3>回合流程</h3>
       <ol><li>摸 2 张牌</li><li>出牌：想出几张出几张，但【吐槽】每回合只能用 1 次（第 3 轮起大家吵上头了，可以用 2 次）</li><li>弃牌：手牌不能超过当前心态（有的角色上限更高）</li></ol>

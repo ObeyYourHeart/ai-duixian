@@ -48,6 +48,18 @@ window.AI = (function () {
     return L.slice().sort((x, y) => (y.hand.length + (3 - y.hp) + hostile(g, p, y)) - (x.hand.length + (3 - x.hp) + hostile(g, p, x)))[0];
   }
 
+  // 千问送牌：有队友送队友（挑心态最低的），没有就送手牌最少、威胁最小的人
+  function giftTarget(g, p) {
+    const os = g.skillTargets ? g.skillTargets(p, "bundle") : g.others(p);
+    const allies = os.filter((q) => g.hostility && g.hostility(p, q) < 0);
+    if (allies.length) return allies.slice().sort((a, b) => a.hp - b.hp || a.hand.length - b.hand.length)[0];
+    return os.slice().sort((a, b) => a.hand.length + a.hp * 0.5 + hostile(g, p, a) - (b.hand.length + b.hp * 0.5 + hostile(g, p, b)) + (r() - 0.5))[0];
+  }
+  function giftCard(g, p, t, cards) {
+    const ally = g.hostility && g.hostility(p, t) < 0;
+    const s = cards.slice().sort((a, b) => value(g, t, a) - value(g, t, b));
+    return ally ? s[s.length - 1] : s[0];
+  }
   function choose(g, p) {
     const H = (k) => p.hand.filter((c) => c.k === k);
     const others = g.others(p);
@@ -62,6 +74,7 @@ window.AI = (function () {
     }
     if (g.canSkill(p, "polish")) return { skill: "polish" };
     if (g.canSkill(p, "search")) return { skill: "search" };
+    if (g.canSkill(p, "bundle")) { if (Engine.T.bundleRandom) return { skill: "bundle" }; const t = giftTarget(g, p); if (t) return { skill: "bundle", target: t }; }
     if (g.canSkill(p, "halluc") && (Engine.T.hallucCost ? p.hand.length >= 2 : true) && p.hp >= 2) return { skill: "halluc" };
     if (g.canSkill(p, "recall")) return { skill: "recall" };
     if (g.canSkill(p, "steal")) { const t = richest(g.skillTargets(p, "steal"), p); if (t) return { skill: "steal", target: t }; }
@@ -104,6 +117,8 @@ window.AI = (function () {
       const t = enemies.slice().sort((x, y) => (x.hand.length + (p.hits[x.i] || 0) * 2) - (y.hand.length + (p.hits[y.i] || 0) * 2))[0];
       if (t && (H("tucao").length >= 2 || t.hand.length <= 1 || (t.hp <= 1 && H("tucao").length >= 1))) return use(H("dantiao")[0], [t]);
     }
+    // 6b. 千问·狂欢：手里吐槽够多才开（第 3 轮起本来就能吐槽两次，要 3 张）
+    if (g.canSkill(p, "sale") && !p.sale && H("tucao").length >= (g.round >= Engine.T.rageRound ? 3 : 2) && p.tucao === 0) return { skill: "sale" };
     // 7. 吐槽
     if (H("tucao").length && p.tucao < g.limitTucao(p)) { const t = pickTarget(g, p, others); if (t) return use(H("tucao")[0], [t]); }
     if (g.canSkill(p, "reset") && g.round >= 4 && p.hand.length <= 2) return { skill: "reset" };
@@ -130,5 +145,5 @@ window.AI = (function () {
   // 豆包：吐槽被挡后要不要弃牌接着说；GPT：没反驳时要不要弃一张硬顶
   function wantLong(g, p, t) { return p.hand.length >= 2 || t.hp <= 1; }
   function wantZuiying(g, t, p) { return t.hp <= 2 || t.hand.length >= 4; }
-  return { choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying };
+  return { choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard };
 })();

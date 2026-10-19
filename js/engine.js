@@ -8,7 +8,7 @@ window.Engine = (function () {
   const BIGS = ["gpt", "claude"];
   // 技能数值表（平衡都在这里调；sim.js 可以用 TUNE 覆盖）
   const T = Object.assign({
-    hand: { kimi: 2, xds: 1, gpt: 1, gemini: 1 },                    // 手牌上限加成
+    hand: { kimi: 2, xds: 1, gpt: 1, gemini: 1, qwen: 1 },                    // 手牌上限加成
     extraDraw: {},                                        // 每回合多摸
     searchLook: 5, knowLook: 4,                           // Gemini 搜索：看几张；博闻：翻几张找反驳
     sorryDraw: 2,                                         // 豆包 嘻嘻抱歉：做错事摸几张
@@ -26,6 +26,9 @@ window.Engine = (function () {
     recallKinds: ["tucao", "fanbo", "naicha"],            // Kimi 过目
     teamFirstDraw: 3,                                     // 2v2：先手第一回合摸几张
     rageRound: 3,                                         // 从第几轮起每回合能吐槽两次
+    bundleLook: 3, bundleKeep: 2, bundleRival: false,     // 千问·全家桶：亮出几张、自己留几张、送牌是否只能送对手
+    bundleRandom: true,                                   // 千问·全家桶：剩下那张随机送人（不用选目标）
+    saleDraw: 1, saleExtra: 1, saleChop: false,           // 千问·狂欢：开的时候摸几张；吐槽多几次（null = 不限）；回合结束是否弃光手牌（剁手）
   }, window.TUNE || {});
   // 抢群主的四种身份（内部 id 沿用 lord/loyal/rebel/spy）
   const ROLE = { lord: "群主", loyal: "管理员", rebel: "黑粉", spy: "潜水党" };
@@ -89,7 +92,7 @@ window.Engine = (function () {
     others(p) { return this.players.filter((q) => q.alive && q !== p); }
     has(p, k) { return p.hand.filter((c) => c.k === k); }
     hasSkill(p, id) { return p.ch.skills.some((s) => s.id === id); }
-    limitTucao(p) { return p.dumb ? 0 : 1 + (this.round >= T.rageRound ? 1 : 0); }
+    limitTucao(p) { const base = 1 + (this.round >= T.rageRound ? 1 : 0); return p.dumb ? 0 : p.sale ? (T.saleExtra == null ? 99 : base + T.saleExtra) : base; }
     handLimit(p) { return Math.max(0, p.hp) + (T.hand[p.key] || 0); }
     doubaoHere() { return this.players.some((q) => q.key === "doubao" && q.alive); }
 
@@ -142,10 +145,9 @@ window.Engine = (function () {
         this.ui.sys(`抢群主：群主是 ${lord.name}${lord.human ? "（就是你）" : ""}。你的身份是【${ROLE[this.players[0].role]}】`, "good");
       }
       for (const p of this.players) await talk(p, "greet", this.players.length >= 4 ? 1500 : 2200);
-      const gem = this.players.find((q) => q.key === "gemini"), dou = this.players.find((q) => q.key === "doubao");
-      if (gem && dou) { await talk(dou, "vs_gemini", 3000); await talk(gem, "doubao", 3000); }
-      const big = this.players.find((q) => q.key === "deepseek"), small = this.players.find((q) => q.key === "xds");
-      if (big && small) { await talk(big, "sis", 3000); await talk(small, "sis", 3000); }
+      const by = (k) => this.players.find((q) => q.key === k);
+      const pairs = shuffle((window.GAME_DATA.pairs || []).filter(([a, , b]) => by(a) && by(b))).slice(0, this.players.length >= 4 ? 1 : 2);   // 人多时只斗一组，开场别拖太久
+      for (const [a, ka, b, kb] of pairs) { await talk(by(a), ka, 3000); await talk(by(b), kb, 3000); }
       this.cur = this.startIdx;
       while (!this.over) {
         const p = this.players[this.cur];
@@ -171,7 +173,7 @@ window.Engine = (function () {
     }
 
     async turn(p) {
-      p.tucao = 0; p.used = {}; p.hits = {}; p.dumb = false;
+      p.tucao = 0; p.used = {}; p.hits = {}; p.dumb = false; p.sale = false;
       this.ui.setTurn(p); this.ui.sync();
       this.ui.phase(`${p.name} 的回合`);
       await wait(300);
@@ -206,6 +208,11 @@ window.Engine = (function () {
         await this.aiPlay(p);
       }
       if (this.over || !p.alive) return;
+      if (p.sale && T.saleChop && p.hand.length) {          // 千问·狂欢之后剁手：弃光手牌
+        const n = p.hand.length;
+        for (const c of p.hand.splice(0)) this.toDiscard(c);
+        this.ui.log(p, `【${SN("qwen", "sale")}】买买买之后——剁手，弃光了 ${n} 张手牌`); this.ui.sync(); await wait(500);
+      }
       // 弃牌
       const lim = this.handLimit(p);
       if (p.hand.length > lim) {
@@ -547,12 +554,14 @@ window.Engine = (function () {
     }
     skillTarget(id, p) {
       if (id === "ban" || id === "buy" || id === "beg" || id === "maint" || (id === "steal" && !T.stealAll)) return "opp";
+      if (id === "bundle") return T.bundleRandom ? null : "any";   // 千问送牌：队友、对手都能选（随机送时不用选）
       return null;
     }
     skillTargets(p, id) {
       if (id === "ban") return this.rivals(p).filter((q) => !q.banned);
       if (id === "maint") return this.rivals(p).filter((q) => !q.muted);
       if (id === "steal" || id === "buy" || id === "beg") return this.rivals(p).filter((q) => q.hand.length > 0);
+      if (id === "bundle") return T.bundleRival ? this.rivals(p) : this.others(p);
       return [];
     }
     canSkill(p, id) {
@@ -563,6 +572,8 @@ window.Engine = (function () {
       if (id === "buy") return p.hand.length >= T.buyCost && this.skillTargets(p, id).length > 0;
       if (id === "polish") return p.hand.length > 0;
       if (id === "search") return this.deck.length + this.discard.length > 0;
+      if (id === "bundle") return this.deck.length + this.discard.length > 0 && this.skillTargets(p, "bundle").length > 0;
+      if (id === "sale") return (p.uses.sale || 0) > 0;
       if (id === "halluc") return p.hand.length >= T.hallucCost;
       if (id === "recall") return (p.uses.recall == null || p.uses.recall > 0) && this.discard.some((c) => T.recallKinds.includes(c.k));
       return false;
@@ -577,11 +588,11 @@ window.Engine = (function () {
       if (!this.canSkill(p, id)) return;
       let t = act.target;
       if (t && !this.skillTargets(p, id).includes(t)) t = null;
-      if (!t && this.skillTarget(id, p)) t = AI.richest(this.skillTargets(p, id), p) || this.skillTargets(p, id)[0];
+      if (!t && this.skillTarget(id, p)) t = (id === "bundle" ? AI.giftTarget(this, p) : AI.richest(this.skillTargets(p, id), p)) || this.skillTargets(p, id)[0];
       if (this.skillTarget(id, p) && !t) return;
       p.used[id] = true;
       if (p.uses[id] != null) p.uses[id]--;
-      if (t) { p.hits[t.i] = (p.hits[t.i] || 0) + 1; this.noteHostile(p, t, 0.5); }
+      if (t && id !== "bundle") { p.hits[t.i] = (p.hits[t.i] || 0) + 1; this.noteHostile(p, t, 0.5); }   // 送牌不算出手
       if (id === "ban") {
         t.banned = true;
         this.ui.skill(p, SN("claude", "ban")); this.ui.say(p, "ban", true); Sound.sfx("stamp_thick", 0.9);
@@ -654,6 +665,28 @@ window.Engine = (function () {
         this.ui.skill(p, SN("glm", "maint")); this.ui.say(p, "maint", true); Sound.sfx("stamp", 0.8);
         this.ui.log(p, `【${SN("glm", "maint")}】宣布今天是 ${t.name} 的维护日：她下个出牌阶段不能出牌`);
         await wait(800);
+      } else if (id === "bundle") {
+        // 千问·全家桶：亮出牌堆顶 3 张，自己留几张，送 t 1 张，其余弃掉
+        if (!t) { const os = this.skillTargets(p, "bundle"); t = os[rnd(os.length)]; }
+        const top = [];
+        for (let i = 0; i < T.bundleLook; i++) { if (!this.deck.length) { this.deck = shuffle(this.discard); this.discard = []; } if (this.deck.length) top.push(this.deck.pop()); }
+        this.ui.skill(p, SN("qwen", "bundle")); this.ui.say(p, "bundle", true);
+        await wait(500);
+        const kn = Math.min(T.bundleKeep, top.length);
+        const keep = p.human ? await this.ui.humanPick(top, kn, `${SN("qwen", "bundle")}：亮出 ${top.length} 张，挑 ${kn} 张自己留下`) : AI.pick(this, p, top, kn);
+        const rest = top.filter((c) => !keep.includes(c));
+        const gift = !rest.length || !t.alive ? null : p.human ? (await this.ui.humanPick(rest, 1, `${SN("qwen", "bundle")}：挑 1 张送给 ${t.name}`))[0] : AI.giftCard(this, p, t, rest);
+        if (keep.length) { p.hand.push(...keep); this.ui.drawAnim(p, keep.length); }
+        if (gift) { t.hand.push(gift); this.ui.drawAnim(t, 1); }
+        for (const c of rest) if (c !== gift) this.toDiscard(c);
+        this.ui.log(p, `【${SN("qwen", "bundle")}】自己留了 ${keep.length} 张，送给 ${t.name} 一张【${gift ? CD[gift.k].name : "?"}】`);
+        await wait(400);
+      } else if (id === "sale") {
+        p.sale = true;
+        this.ui.skill(p, SN("qwen", "sale")); this.ui.say(p, "sale", true); Sound.sfx("fanfare_short", 0.6);
+        this.ui.log(p, `【${SN("qwen", "sale")}】双十一到！这回合【吐槽】不限次数` + (T.saleDraw ? `，先囤 ${T.saleDraw} 张` : ""));
+        await wait(800);
+        if (T.saleDraw) await this.draw(p, T.saleDraw, true);
       } else if (id === "recall") {
         const pool = [];
         for (let k = this.discard.length - 1; k >= 0 && pool.length < 6; k--) { const c = this.discard[k]; if (T.recallKinds.includes(c.k)) pool.push(c); }

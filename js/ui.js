@@ -359,7 +359,7 @@ window.UI = (function () {
     if (ms && p.alive) exprTimers[p.i] = setTimeout(() => { if (p.alive && g) img.src = portrait(p.key, "base"); }, ms);
   }
   const HURT_KEYS = ["hurt", "out", "stolen", "fury", "halluc"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
-    "polish", "zuiying", "beg", "beg_gpt", "beg_claude", "claw", "dad", "maint", "long", "busy", "fed", "think", "sis", "search", "know", "sorry"];
+    "polish", "zuiying", "beg", "beg_gpt", "beg_claude", "claw", "dad", "maint", "long", "busy", "fed", "think", "sis", "search", "know", "sorry", "bundle", "sale"];
   function say(p, key, important) {
     if (!g) return;
     const arr = p.ch.lines[key];
@@ -592,7 +592,7 @@ window.UI = (function () {
     if (s.target) {
       const ts = g.skillTargets(me, s.id);
       if (ts.length === 1 && s.id === "copy") { act(() => g.doSkill(me, s.id, { target: ts[0] })); return; }
-      skillMode = s.id; showTargets(ts); hint(`【${s.name}】👉 点一位对手${SET().keys ? "（或按她头上的数字）" : ""}<br><small>${s.desc}</small>`); sync();
+      skillMode = s.id; showTargets(ts); hint(`【${s.name}】👉 ${s.id === "bundle" ? "点一位角色，送她一张牌" : "点一位对手"}${SET().keys ? "（或按她头上的数字）" : ""}<br><small>${s.desc}</small>`); sync();
       return;
     }
     act(() => g.doSkill(me, s.id, {}));
