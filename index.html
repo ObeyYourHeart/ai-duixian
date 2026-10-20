@@ -65,7 +65,7 @@
     <section id="scr-game" class="screen">
       <div id="topbar">
         <div class="logo tiny">AI娘对线</div>
-        <div id="info">第 <b id="round">1</b> 轮 · 牌堆 <b id="deck">0</b></div>
+        <div id="info" title="牌堆里还有几张【宕机】，后面是下一张摸到宕机的概率">第 <b id="round">1</b> 轮 · 牌堆 <b id="deck">0</b> · 💣<b id="bombs">0</b><small id="risk"></small></div>
         <div class="tb-btns">
           <button class="icon pill" id="tb-speed" title="游戏速度（点一下换档）">快</button>
           <button class="icon" id="tb-set" title="设置">⚙</button>
@@ -79,6 +79,7 @@
       <div id="seats"></div>
       <div id="table">
         <div id="pile"></div>
+        <div id="known" class="hidden"></div>
         <div id="phase"></div>
       </div>
       <div id="chat"><div class="chat-head">💬 AI娘 相亲相爱一家人（<span id="chat-n">3</span>）</div><div id="chat-list"></div></div>

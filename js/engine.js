@@ -8,25 +8,28 @@ window.Engine = (function () {
   const BIGS = ["gpt", "claude"];
   // 技能数值表（平衡都在这里调；sim.js 可以用 TUNE 覆盖）
   const T = Object.assign({
-    hand: { kimi: 2, xds: 1, gpt: 2, gemini: 2, qwen: 1 },                    // 手牌上限加成
+    hand: { kimi: 2, xds: 1, gpt: 2, gemini: 2, qwen: 1, claude: 1 },                    // 手牌上限加成
     extraDraw: {},                                        // 每回合多摸
     searchLook: 5, knowLook: 5,                           // Gemini 搜索：看几张；博闻：翻几张找反驳
-    sorryDraw: 3,                                         // 豆包 嘻嘻抱歉：做错事摸几张
-    grokStart: 1, grokFloor: 2,                           // 千金：开局多拿；回合开始补到几张
-    thinkLook: 4, thinkKeep: 3, thinkQuick: 3, quickAt: -1, // 大 DeepSeek 深思
-    polishDraw: 2,                                        // Claude 润色：弃 1 摸几张
+    sorryDraw: 4, sorryBoom: true,                        // 豆包 嘻嘻抱歉：做错事摸几张；自己宕机了也算做错事
+    grokStart: 2, grokFloor: 3,                           // 千金：开局多拿；回合开始补到几张
+    thinkDraw: 1, thinkRate: 0.6, thinkDefuse: 0.2,                       // 大 DeepSeek 深思：摸牌阶段多摸几张；摸到宕机时自己推理拆掉的概率
+    searchPeek: 3, searchDraw: 1,                         // Gemini 搜索：偷看几张、再摸几张
+    polishExtra: 2, polishExtra2p: 1,                                       // Claude 润色：整手重写时多摸几张
     zuiyingCost: 1,                                       // GPT 嘴硬：弃几张硬顶
-    busyRate: 0.12,                                       // 小 DeepSeek 服务器繁忙
+    busyRate: 0.08,                                       // 小 DeepSeek 服务器繁忙
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
-    halluc: [0.55, 0.35, 0.05, 0.05], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
-    buyN: 1, buyCost: 0,                                  // Grok 挥金
+    halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
+    buyN: 1, buyCost: 0, factRate: 0.5, factTricks: true, factTucao: true,                   // Grok 挥金（已换成核实）；核实判定为假的概率
     stealAll: false, stealN: 1, stealClaude: 2,           // GLM 借鉴
     fansN: 1, fansLow: 2, fans: { doubao: [2, 2] },       // 豆包 应援：[摸, 只剩 1 点心态时摸]
     longCost: 1,                                          // 豆包 长篇大论
-    recallKinds: ["tucao", "fanbo", "naicha"],            // Kimi 过目
+    recallKinds: ["tucao", "fanbo", "naicha"], recallRate: 0.5,   // Kimi 过目：捡哪几种牌；每次翻到的概率
     teamFirstDraw: 3,                                     // 2v2：先手第一回合摸几张
     rageRound: 3,                                         // 从第几轮起每回合能吐槽两次
-    bombRate: 0.15, bombDmg: 2, firewallRate: 0.3, powerbank: 2,
+    bombs: 0, bombsId5: -2, bombDmg: 2, boomBack: true,                 // 宕机：埋几张（人数 − 1 + bombs）、炸到扣几点、炸完是否随机塞回牌堆
+    rebootStart: 1, lordReboot: 0, lordDraw: 0, lordHp: 2, peekN: 3,                             // 开局每人发几张【重启】；剧透 / 插队看几张
+    firewallRate: 0.3, powerbank: 2,
     qingkeCost: 1, qingkeDraw: 1,                         // 千问·请客：弃几张、送给别人时摸几张
     banterRate: 0.35, chatterRate: 0.22,                  // 每轮开头随机斗嘴的概率；有人破防时路人在群里起哄的概率   // 宕机：每次检查爆的概率、伤害；防火墙拦截率；充电宝手牌上限
     bundleLook: 3, bundleKeep: 2, bundleRival: false,     // 千问·全家桶：亮出几张、自己留几张、送牌是否只能送对手
@@ -56,7 +59,7 @@ window.Engine = (function () {
       this.players = keys.map((key, i) => ({
         i, key, ch: CH[key], name: CH[key].name, hp: CH[key].hp, maxHp: CH[key].hp, hand: [], alive: true,
         human: i === 0, muted: false, banned: false, dumb: false, tucao: 0, used: {}, uses: {}, hits: {},
-        equip: null, boost: false, offline: false, evidence: null, grudge: {}, saidLow: false,
+        equip: null, boost: false, offline: false, evidence: null, grudge: {}, saidLow: false, seen: new Set(), lastSeq: 0,
         stats: { dmg: 0, taken: 0, used: 0 },
       }));
       for (const p of this.players) for (const s of p.ch.skills) if (s.uses) p.uses[s.id] = keys.length === 2 && s.uses2p != null ? s.uses2p : s.uses;
@@ -66,9 +69,10 @@ window.Engine = (function () {
         const roles = opts.roles || shuffle(["lord", "loyal", "rebel", "rebel", "spy"]);
         this.players.forEach((p, i) => { p.role = roles[i]; });
         const lord = this.players.find((p) => p.role === "lord");
-        lord.hp++; lord.maxHp++; lord.lean = 10;                  // 群主多 1 点心态，身份公开
+        lord.hp += T.lordHp; lord.maxHp += T.lordHp; lord.lean = 10;   // 群主多几点心态，身份公开
       }
-      this.deck = buildDeck(); this.discard = []; this.bomb = null;     // bomb：场上的【宕机】{ holder, card }
+      this.deck = buildDeck(); this.discard = []; this.bomb = null;
+      this.bombN = 0; this.insertSeq = 0; this.insertBy = null;          // 宕机总数；有人往牌堆里塞过宕机 / 插过队的次数（摸鱼看它判断“牌堆刚被动过”）
       this.startIdx = this.mode === "id5" ? this.players.find((p) => p.role === "lord").i : 0;
       this.cur = this.startIdx; this.round = 1; this.over = false; this.outOrder = [];
     }
@@ -115,26 +119,94 @@ window.Engine = (function () {
     takeAny(t, c) { if (c === t.equip) t.equip = null; else this.takeFromHand(t, c); }
     doubaoHere() { return this.players.some((q) => q.key === "doubao" && q.alive); }
 
-    // ---------------------------------------------------------------- 牌堆
+    // ---------------------------------------------------------------- 牌堆（数组末尾是牌堆顶）
+    // 开局发牌用（这时候还没埋宕机）
     drawCards(p, n) {
       const got = [];
-      for (let i = 0; i < n; i++) {
-        if (!this.deck.length) {
-          if (!this.discard.length) break;
-          this.deck = shuffle(this.discard); this.discard = [];
-          this.ui.sys("牌堆用完，弃牌洗回牌堆");
-        }
-        got.push(this.deck.pop());
-      }
+      for (let i = 0; i < n; i++) { const c = this.pull(); if (!c) break; got.push(c); }
       p.hand.push(...got);
       return got;
     }
-    async draw(p, n, quiet) {
-      const got = this.drawCards(p, n);
-      if (got.length) { this.ui.drawAnim(p, got.length); if (!quiet) this.ui.sys(`${p.name} 摸了 ${got.length} 张牌`); }
+    // 牌堆里只剩宕机（或空了）时，把弃牌洗回去
+    refill() {
+      if (this.deck.some((c) => c.k !== "dangji") || !this.discard.length) return;
+      this.deck = shuffle(this.deck.concat(this.discard)); this.discard = [];
+      this.ui.sys("牌堆用完，弃牌洗回牌堆"); this.forget();
+    }
+    pull(bottom) { this.refill(); if (!this.deck.length) return null; return bottom ? this.deck.shift() : this.deck.pop(); }
+    topCards(n) { this.refill(); return this.deck.slice(-n).reverse(); }          // [顶, 第 2 张, 第 3 张…]
+    insertAt(card, pos) { pos = Math.max(0, Math.min(this.deck.length, pos)); this.deck.splice(this.deck.length - pos, 0, card); }
+    bombsLeft() { return this.deck.filter((c) => c.k === "dangji").length; }
+    // 谁看过牌堆顶哪些牌：p.seen 记牌的 id；有人重新洗牌、往里塞牌、插队，别人的记忆就不算数了
+    see(p, cards) { for (const c of cards) if (c) p.seen.add(c.id); }
+    forget(except) { for (const q of this.players) if (q !== except) q.seen.clear(); }
+    known(p, n) { return this.deck.slice(-n).reverse().map((c) => (p.seen.has(c.id) ? c : null)); }
+    knowsBomb(p, n) { return this.known(p, n).findIndex((c) => c && c.k === "dangji"); }   // 她知道的、最上面那张宕机在第几张（0 = 顶），不知道就 −1
+    async draw(p, n, quiet, bottom) {
+      const got = [], bombs = [];
+      for (let i = 0; i < n; i++) { const c = this.pull(bottom); if (!c) break; (c.k === "dangji" ? bombs : got).push(c); }
+      p.hand.push(...got);
+      if (got.length) { this.ui.drawAnim(p, got.length); if (!quiet) this.ui.sys(`${p.name} ${bottom ? "从牌堆底" : ""}摸了 ${got.length} 张牌`); }
       this.ui.sync();
       await wait(260);
+      for (const b of bombs) await this.boom(p, b);
       return got;
+    }
+    // 把亮出来的牌交给 p（全家桶、拼单）：里面有宕机就当场炸
+    async give(p, cards) {
+      const rest = cards.filter((c) => c.k !== "dangji");
+      if (rest.length) { p.hand.push(...rest); this.ui.drawAnim(p, rest.length); this.ui.sync(); }
+      for (const b of cards.filter((c) => c.k === "dangji")) await this.boom(p, b);
+    }
+
+    // 摸到【宕机】：大 DeepSeek 可能自己推理拆掉；有【甩锅】可以甩给别人；有【重启】就拆掉，再偷偷塞回牌堆；都没有就炸
+    async boom(p, b, depth = 0) {
+      if (this.over || !p.alive) { this.insertAt(b, rnd(this.deck.length + 1)); this.forget(); return; }
+      Sound.sfx("tick", 0.8);
+      this.ui.banner("💣 宕机！");
+      this.ui.log(p, "摸到了<b>【宕机】</b>！");
+      await this.ui.showCard(p, b, []);
+      await wait(350);
+      const outs = this.rivals(p);
+      const hasR = this.has(p, "chongqi").length > 0, hasS = depth < 3 && outs.length > 0 && this.has(p, "shuaiguo").length > 0;
+      let how = null;
+      if (this.hasSkill(p, "think") && Math.random() < T.thinkDefuse) how = "think";
+      else if (hasR || hasS) how = p.human ? await this.ui.humanBomb(hasR, hasS) : AI.bombChoice(this, p, hasR, hasS);
+      if (how === "shuaiguo") {
+        const u = p.human ? await this.ui.humanChoose(outs, "【甩锅】把宕机甩给谁？") : (AI.pickTarget(this, p, outs) || outs[0]);
+        const c = this.has(p, "shuaiguo")[0];
+        this.takeFromHand(p, c); this.toDiscard(c); this.ui.sync();
+        this.noteHostile(p, u, 1); Sound.sfx("whoosh_cartoon", 0.6);
+        this.ui.log(p, `打出<b>【甩锅】</b>：宕机甩给了 ${u.name}！`);
+        await this.ui.showCard(p, c, [u]);
+        return this.boom(u, b, depth + 1);
+      }
+      if (how === "reboot" || how === "think") {
+        if (how === "reboot") {
+          const c = this.has(p, "chongqi")[0];
+          this.takeFromHand(p, c); this.toDiscard(c); this.ui.sync();
+          this.ui.log(p, "打出<b>【重启】</b>，拆掉了宕机");
+          await this.ui.showCard(p, c, []);
+        } else {
+          this.ui.skillNote(p, SN(p.key, "think"));
+          this.ui.log(p, `【${SN(p.key, "think")}】嗯……提前推理出来了，不用【重启】也拆掉了`);
+        }
+        this.ui.say(p, "reboot", true); Sound.sfx("ding", 0.7);
+        const pos = p.human ? await this.ui.humanPlace(this.deck.length) : AI.placeBomb(this, p);
+        this.insertAt(b, pos); this.insertSeq++; this.insertBy = p;
+        this.forget(p); p.seen.add(b.id);
+        this.ui.sys(`${p.name} 把【宕机】偷偷塞回了牌堆……`, "bad"); this.ui.sync();
+        await wait(500);
+        return;
+      }
+      Sound.sfx("bomb", 0.85); this.ui.say(p, "boom", true);
+      this.ui.sys(`${p.name} 的服务器宕机了！心态 −${T.bombDmg}`, "bad");
+      await wait(500);
+      if (T.boomBack) { this.insertAt(b, rnd(this.deck.length + 1)); this.forget(); }
+      else this.bombN--;
+      this.ui.sync();
+      await this.damage(null, p, T.bombDmg, true);
+      if (T.sorryBoom) await this.sorry(p);
     }
     takeFromHand(p, card) {
       const i = p.hand.findIndex((c) => c.id === card.id);
@@ -146,8 +218,16 @@ window.Engine = (function () {
     // ---------------------------------------------------------------- 主循环
     async run() {
       for (const p of this.players) this.drawCards(p, 4 + (p.key === "grok" ? T.grokStart : 0));
+      // 炸弹猫玩法：每人先发【重启】，再把【宕机】随机埋进牌堆
+      for (const p of this.players) for (let k = 0; k < T.rebootStart + (p.role === "lord" ? T.lordReboot : 0); k++) {
+        const i = this.deck.findIndex((c) => c.k === "chongqi");
+        if (i >= 0) p.hand.push(this.deck.splice(i, 1)[0]);
+      }
+      this.bombN = Math.max(1, this.players.length - 1 + T.bombs + (this.mode === "id5" ? T.bombsId5 : 0));
+      for (let k = 0; k < this.bombN; k++) this.insertAt({ id: 900 + k, k: "dangji" }, rnd(this.deck.length + 1));
       this.ui.sync();
       this.ui.sys("群聊已创建，开始对线！", "good");
+      this.ui.sys(`牌堆里埋了 ${this.bombN} 张【宕机】💣 谁摸到谁炸（心态 −${T.bombDmg}）！每人先发 1 张【重启】拆弹。`, "bad");
       if (this.mode === "ffa" || this.mode === "duel") {                // 乱斗里先说清楚谁和谁是盟友
         const has = (k) => this.players.some((q) => q.key === k);
         for (const [a, b, t, note] of (window.GAME_DATA.relations || [])) if (t === "ally" && has(a) && has(b)) this.ui.sys(`🤝 ${note}`, "good");
@@ -212,7 +292,6 @@ window.Engine = (function () {
       this.ui.setTurn(p); this.ui.sync();
       this.ui.phase(`${p.name} 的回合`);
       await wait(300);
-      if (this.bomb && this.bomb.holder === p) { await this.bombCheck(p); if (this.over || !p.alive) return; }
       if (p.banned) {                                       // Claude 的封号：整回合跳过
         p.banned = false; this.ui.sync();
         this.ui.sys(`${p.name} 的账号被封，这回合跳过`, "bad"); this.ui.say(p, "hurt", true);
@@ -229,13 +308,28 @@ window.Engine = (function () {
       if (cut) {
         p.offline = false; this.ui.sync();
         this.ui.sys(`${p.name} 断网了，这回合摸不到牌`, "bad"); this.ui.say(p, "hurt"); await wait(700);
-      } else if (p.key === "deepseek") await this.deepThink(p);
-      else {
+      } else {
+        // 摸鱼：知道顶上有雷、或者刚有人往牌堆里塞过宕机，可以改从牌堆底摸
+        let bottom = false;
+        const think = this.hasSkill(p, "think") && Math.random() < T.thinkRate ? T.thinkDraw : 0;   // 深思：这回合想得深不深看运气
+        const danger = this.knowsBomb(p, 2 + think) >= 0;
+        if (this.has(p, "moyu").length && (danger || this.insertSeq > p.lastSeq)) {
+          const go = p.human ? await this.ui.humanConfirm(danger ? "牌堆顶有【宕机】！打出【摸鱼】，这回合改从牌堆底摸牌？" : "刚有人往牌堆里塞了东西……打出【摸鱼】，这回合改从牌堆底摸牌？", danger) : AI.wantMoyu(this, p);
+          const c = go && this.has(p, "moyu")[0];
+          if (c) {
+            this.takeFromHand(p, c); this.toDiscard(c); this.ui.sync();
+            this.ui.log(p, "打出<b>【摸鱼】</b>：这回合从牌堆底摸牌"); await this.ui.showCard(p, c, []);
+            bottom = true;
+          }
+        }
+        p.lastSeq = this.insertSeq;
         const first = this.mode === "team" && this.round === 1 && p.i === this.startIdx;   // 2v2 先手第一回合多摸 1 张（你-敌-敌-友 座位下两队五五开）
-        await this.draw(p, (first ? T.teamFirstDraw : 2) + (T.extraDraw[p.key] || 0), true);
+        if (think) { this.ui.skillNote(p, SN(p.key, "think")); if (Math.random() < 0.3) this.ui.say(p, "think"); }
+        const lordX = p.role === "lord" ? T.lordDraw : 0;                         // 抢群主：群主每回合多摸
+        await this.draw(p, (first ? T.teamFirstDraw : 2) + (T.extraDraw[p.key] || 0) + think + lordX, true, bottom);
       }
       if (!cut) this.ui.sys(`${p.name} 摸牌`);
-      if (this.over) return;
+      if (this.over || !p.alive) return;
       // 出牌
       if (p.muted) {
         p.muted = false; this.ui.sync();
@@ -267,19 +361,6 @@ window.Engine = (function () {
       await wait(200);
     }
 
-    async deepThink(p) {
-      const top = [], quick = p.hand.length <= T.quickAt, n = quick ? T.thinkQuick : T.thinkKeep;   // 简单任务快速：手牌少时多留 1 张
-      for (let i = 0; i < T.thinkLook; i++) { if (!this.deck.length) { this.deck = shuffle(this.discard); this.discard = []; } if (this.deck.length) top.push(this.deck.pop()); }
-      this.ui.skillNote(p, SN("deepseek", "think"));
-      if (Math.random() < 0.35) this.ui.say(p, "think");
-      let keep;
-      if (p.human) keep = await this.ui.humanPick(top, Math.min(n, top.length), `${SN("deepseek", "think")}：牌堆顶 ${top.length} 张，留下 ${n} 张`);
-      else keep = AI.pick(this, p, top, Math.min(n, top.length));
-      for (const c of top) { if (keep.includes(c)) p.hand.push(c); else this.deck.unshift(c); }
-      this.ui.drawAnim(p, keep.length); this.ui.sync();
-      await wait(300);
-    }
-
     async aiPlay(p) {
       await wait(450);
       for (let guard = 0; guard < 24 && !this.over && p.alive; guard++) {
@@ -301,8 +382,9 @@ window.Engine = (function () {
       if (c.k === "naicha") return p.hp < p.maxHp;
       if (c.k === "baipiao" || c.k === "chehui") return this.rivals(p).some((q) => q.hand.length > 0 || q.equip);
       if (c.k === "jiaban") return !p.boost;
-      if (c.k === "dangji") return !this.bomb;
-      if (c.k === "pindan") return this.deck.length + this.discard.length > 0;
+      if (c.k === "dangji") return false;
+      if (c.k === "pindan" || c.k === "jutou" || c.k === "chadui" || c.k === "moyu") return this.deck.length + this.discard.length > 0;
+      if (c.k === "chongsheng") return this.deck.length > 1;
       if (d.target === "one") return this.rivals(p).length > 0;
       return true;
     }
@@ -400,17 +482,18 @@ window.Engine = (function () {
         case "pindan": {
           // 拼单：亮出“每人一张”，从出牌的人开始轮流挑
           const pool = [];
-          for (let i = 0; i < this.alive().length; i++) { if (!this.deck.length) { this.deck = shuffle(this.discard); this.discard = []; } if (this.deck.length) pool.push(this.deck.pop()); }
-          Sound.sfx("mixdeck", 0.6); this.ui.sys(`${p.name} 发起拼单：亮出 ${pool.length} 张，大家依次挑一张`, "good"); await wait(500);
+          for (let i = 0; i < this.alive().length; i++) { const c = this.pull(); if (c) pool.push(c); }
+          Sound.sfx("mixdeck", 0.6); this.ui.sys(`${p.name} 发起拼单：亮出 ${pool.map((c) => `【${CD[c.k].name}】`).join("")}，大家依次挑一张`, "good"); await wait(500);
           for (let k = 0; k < this.players.length && pool.length && !this.over; k++) {
             const q = this.players[(p.i + k) % this.players.length];
             if (!q.alive) continue;
-            const pick = q.human ? (await this.ui.humanPick(pool.slice(), 1, `拼单：还剩 ${pool.length} 张，挑 1 张`))[0] : AI.pick(this, q, pool, 1)[0];
+            const pick = pool.length === 1 ? pool[0] : q.human ? (await this.ui.humanPick(pool.slice(), 1, `拼单：还剩 ${pool.length} 张，挑 1 张`))[0] : AI.pick(this, q, pool, 1)[0];
             if (!pick) continue;
-            pool.splice(pool.indexOf(pick), 1); q.hand.push(pick); this.ui.drawAnim(q, 1);
-            this.ui.log(q, `拼单拿走了【${CD[pick.k].name}】`); this.ui.sync(); await wait(300);
+            pool.splice(pool.indexOf(pick), 1);
+            this.ui.log(q, pick.k === "dangji" ? "拼单拿到了……【宕机】！" : `拼单拿走了【${CD[pick.k].name}】`); this.ui.sync();
+            await this.give(q, [pick]); await wait(300);
           }
-          for (const c of pool) this.toDiscard(c);
+          for (const c of pool) { if (c.k === "dangji") { this.insertAt(c, rnd(this.deck.length + 1)); this.forget(); } else this.toDiscard(c); }
           break;
         }
         case "duanwang": {
@@ -418,9 +501,25 @@ window.Engine = (function () {
           if (await this.protect(t, p, card)) break;
           t.offline = true; Sound.sfx("glitch_vhs", 0.6); this.ui.sys(`${t.name} 断网了（跳过下个摸牌阶段）`, "bad"); this.ui.sync(); await wait(450); break;
         }
-        case "dangji":
-          this.bomb = { holder: p, card }; Sound.sfx("tick", 0.7);
-          this.ui.sys(`${p.name} 的服务器开始冒烟……【宕机】每回合开始检查一次，没炸就往下传`, "bad"); this.ui.sync(); await wait(500); break;
+        case "jutou": {                                            // 剧透：偷看牌堆顶
+          const top = this.topCards(T.peekN); this.see(p, top);
+          Sound.sfx("pop_small", 0.6); this.ui.sys(`${p.name} 偷看了牌堆顶 ${top.length} 张牌`);
+          if (p.human) await this.ui.peek(top, `【剧透】牌堆顶 ${top.length} 张（从上往下）`); else await wait(400);
+          this.ui.sync(); break;
+        }
+        case "chadui": {                                           // 插队：看牌堆顶几张，重新排
+          const top = this.topCards(T.peekN);
+          const order = p.human ? await this.ui.humanArrange(top, "【插队】按顺序点牌：先点的放最上面") : AI.arrange(this, p, top);
+          this.deck.splice(this.deck.length - top.length, top.length);
+          for (let i = order.length - 1; i >= 0; i--) this.deck.push(order[i]);
+          this.forget(p); this.see(p, order); this.insertSeq++; this.insertBy = p;
+          Sound.sfx("mixdeck", 0.5); this.ui.sys(`${p.name} 给牌堆顶的 ${order.length} 张牌插了个队`); this.ui.sync(); await wait(400); break;
+        }
+        case "chongsheng":                                         // 重新生成：洗乱牌堆
+          shuffle(this.deck); this.forget(); this.insertBy = null;
+          Sound.sfx("mixdeck", 0.8); this.ui.sys(`${p.name} 点了【重新生成】：牌堆重新洗过，谁也不知道下一张是什么了`); this.ui.sync(); await wait(500); break;
+        case "moyu":                                               // 摸鱼：从牌堆底摸 1 张
+          await this.draw(p, 1, false, true); break;
         case "jietu": {
           const t = targets[0]; if (!t || !t.alive) break;
           if (await this.protect(t, p, card)) break;
@@ -436,28 +535,33 @@ window.Engine = (function () {
     }
 
     // 锦囊生效前：目标可以打【已读不回】
+    // Grok 核实：大家 @ 她“这是真的吗？”，每轮 1 次，按概率判定是假的
+    async factCheck(t, from, card) {
+      if (!this.hasSkill(t, "fact") || t.used.fact || !from || from === t || !t.alive) return false;
+      {
+        t.used.fact = true;
+        const askers = this.alive().filter((q) => q !== t && q !== from && !q.human);
+        if (askers.length) this.ui.log(askers[rnd(askers.length)], "@Grok 这是真的吗？");
+        await wait(500);
+        this.ui.skillNote(t, SN(t.key, "fact"));
+        if (Math.random() < T.factRate) {
+          this.ui.say(t, "fact", true); Sound.sfx("stamp", 0.6);
+          this.ui.log(t, `【${SN(t.key, "fact")}】查过了——假的！【${CD[card.k].name}】对她无效`);
+          await wait(700);
+          return true;
+        }
+        this.ui.log(t, `【${SN(t.key, "fact")}】查了一下……好像是真的`); await wait(400);
+      }
+      return false;
+    }
     async protect(t, from, card) {
+      if (T.factTricks && await this.factCheck(t, from, card)) return true;
       if (!this.has(t, "yidu").length) return false;
       const ok = await this.ask(t, "yidu", { from, card });
       if (ok) { this.ui.sys(`${t.name}：已读不回。【${CD[card.k].name}】对她无效`); await wait(300); }
       return ok;
     }
 
-    // 【宕机】轮到持有人时检查：炸了掉 2 点心态（可以用【已读不回】躲过，躲过就往下传）
-    async bombCheck(p) {
-      const card = this.bomb.card;
-      Sound.sfx("tick", 0.5); await wait(400);
-      if (Math.random() < T.bombRate && !(await this.protect(p, p, card))) {
-        this.bomb = null; this.toDiscard(card);
-        Sound.sfx("bomb", 0.8); this.ui.banner("宕机了！");
-        this.ui.sys(`${p.name} 的服务器宕机了！心态 −${T.bombDmg}`, "bad"); await wait(600);
-        await this.damage(null, p, T.bombDmg);
-        return;
-      }
-      const nx = this.players[this.nextAlive(p.i)];
-      this.bomb.holder = nx;
-      this.ui.sys(`【宕机】这次没炸，传给了 ${nx.name}`); this.ui.sync(); await wait(400);
-    }
     // 防火墙：被吐槽又没挡住时，按概率拦下
     async firewall(t, p) {
       if (!t.equip || t.equip.k !== "fanghuoqiang" || !t.alive) return false;
@@ -492,6 +596,7 @@ window.Engine = (function () {
         if (caught && this.has(t, "fanbo").length) this.ui.log(t, "有截图……【反驳】不了");
         if (!ok) ok = await this.know(t, p);
         if (!ok) ok = await this.zuiying(t, p);
+        if (!ok && T.factTucao) ok = await this.factCheck(t, p, { k: "tucao" });
         if (!ok) ok = await this.firewall(t, p);
         if (!ok) {
           await this.damage(p, t, 1 + (boost ? 1 : 0));
@@ -513,11 +618,13 @@ window.Engine = (function () {
     // Gemini 博闻：没有反驳时翻牌堆顶几张，有反驳就拿来挡
     async know(t, p) {
       if (!this.hasSkill(t, "know") || !t.alive) return false;
-      const top = [];
-      for (let i = 0; i < T.knowLook; i++) { if (!this.deck.length) { this.deck = shuffle(this.discard); this.discard = []; } if (this.deck.length) top.push(this.deck.pop()); }
+      // 翻开牌堆顶几张（大家都看见了），有【反驳】就拿走，其余原样放回
+      const top = this.topCards(T.knowLook);
       const hit = top.find((c) => c.k === "fanbo");
-      for (let i = top.length - 1; i >= 0; i--) if (top[i] !== hit) this.deck.push(top[i]);
+      if (hit) this.deck.splice(this.deck.indexOf(hit), 1);
+      for (const q of this.alive()) this.see(q, top.filter((c) => c !== hit));
       this.ui.skillNote(t, SN("gemini", "know"));
+      this.ui.sys(`【${SN("gemini", "know")}】翻开了牌堆顶：${top.map((c) => `【${CD[c.k].name}】`).join("")}`);
       if (!hit) { this.ui.log(t, `【${SN("gemini", "know")}】翻了 ${top.length} 张，这题没查到`); await wait(400); return false; }
       this.toDiscard(hit); this.ui.say(t, "know", true);
       this.ui.log(t, `【${SN("gemini", "know")}】这个我知道！翻出一张【反驳】挡住了`); await this.ui.showCard(t, hit, []);
@@ -534,13 +641,10 @@ window.Engine = (function () {
       if (t.key !== "gpt" || !t.alive || t.used.zuiying || t.hand.length < T.zuiyingCost) return false;
       const go = t.human ? await this.ui.humanConfirm(`没有【反驳】……【${SN("gpt", "zuiying")}】弃 ${T.zuiyingCost} 张牌硬顶回去？`) : AI.wantZuiying(this, t, p);
       if (!go) return false;
-      const picks = t.human ? await this.ui.humanPick(t.hand.slice(), T.zuiyingCost, `${SN("gpt", "zuiying")}：选 ${T.zuiyingCost} 张牌弃掉`)
-        : AI.cheapest(this, t, T.zuiyingCost).map((id) => t.hand.find((x) => x.id === id));
-      if (!picks || picks.length < T.zuiyingCost) return false;
-      for (const c of picks) if (c && t.hand.includes(c)) { this.takeFromHand(t, c); this.toDiscard(c); }
+      const picks = this.dropRandom(t, T.zuiyingCost);              // 随机弃掉——嘴硬是要付出代价的
       t.used.zuiying = true; this.ui.sync();
       this.ui.skillNote(t, SN("gpt", "zuiying")); this.ui.say(t, "zuiying", true);
-      this.ui.log(t, `【${SN("gpt", "zuiying")}】弃了 ${T.zuiyingCost} 张牌，硬顶了回去`); await wait(600);
+      this.ui.log(t, `【${SN("gpt", "zuiying")}】随机弃了${picks.map((c) => `【${CD[c.k].name}】`).join("")}，硬顶了回去`); await wait(600);
       return true;
     }
     // Gemini 猫爪：吐槽打中后扫掉一张
@@ -574,12 +678,13 @@ window.Engine = (function () {
       return true;
     }
 
-    async damage(src, t, n) {
+    async damage(src, t, n, mute) {
       if (!t.alive) return;
       this.noteHostile(src, t, 1);
       t.hp -= n; t.stats.taken += n; if (src) src.stats.dmg += n;
       this.ui.damage(t, n);
-      if (t.hp === 1 && !t.saidLow && t.ch.lines.low) { t.saidLow = true; this.ui.say(t, "low", true); }
+      if (mute) { if (t.hp === 1) t.saidLow = true; }                 // 已经说过台词了（比如被宕机炸到）
+      else if (t.hp === 1 && !t.saidLow && t.ch.lines.low) { t.saidLow = true; this.ui.say(t, "low", true); }
       else this.ui.say(t, "hurt", true);
       // 盟友护短：出声 + 记仇（她下个回合优先打出手的人）
       if (src && src !== t) for (const q of this.alive()) {
@@ -735,11 +840,11 @@ window.Engine = (function () {
       if (id === "recall") return (p.uses.recall == null || p.uses.recall > 0) && this.discard.some((c) => T.recallKinds.includes(c.k));
       return false;
     }
-    // 自己挑一张弃掉（人选 / 电脑弃最没用的）
-    async pickOwn(p, title) {
-      const c = p.human ? (await this.ui.humanPick(p.hand.slice(), 1, title))[0] : p.hand.find((x) => x.id === AI.cheapest(this, p, 1)[0]);
-      if (c && p.hand.includes(c)) { this.takeFromHand(p, c); this.toDiscard(c); return c; }
-      return null;
+    // 随机弃掉自己 n 张手牌（技能的代价不用挑，看运气）
+    dropRandom(p, n) {
+      const out = shuffle(p.hand.slice()).slice(0, n);
+      for (const c of out) { this.takeFromHand(p, c); this.toDiscard(c); }
+      return out;
     }
     async doSkill(p, id, act = {}) {
       if (!this.canSkill(p, id)) return;
@@ -756,10 +861,14 @@ window.Engine = (function () {
         this.ui.log(p, `【${SN("claude", "ban")}】封了 ${t.name} 的号：她的下个回合跳过`);
         await wait(900);
       } else if (id === "polish") {
-        const c = await this.pickOwn(p, `${SN("claude", "polish")}：选一张牌弃掉，摸 ${T.polishDraw} 张`);
+        const n = p.hand.length;
+        for (const c of p.hand.splice(0)) this.toDiscard(c);
+        this.ui.sync();
         this.ui.skillNote(p, SN("claude", "polish")); this.ui.say(p, "polish", true);
-        this.ui.log(p, `【${SN("claude", "polish")}】把【${c ? CD[c.k].name : "?"}】润色成了 ${T.polishDraw} 张新牌`);
-        await this.draw(p, T.polishDraw, true); await wait(300);
+        const m = n + (this.players.length === 2 ? T.polishExtra2p : T.polishExtra);
+        this.ui.log(p, `【${SN("claude", "polish")}】整手 ${n} 张推倒重写，换成 ${m} 张新牌`);
+        await wait(300);
+        await this.draw(p, m, true); await wait(300);
       } else if (id === "reset") {
         this.ui.skill(p, SN("gpt", "reset")); this.ui.say(p, "reset", true); Sound.sfx("fanfare_short", 0.6);
         this.ui.log(p, `【${SN("gpt", "reset")}】额度重置，大家都有份！`);
@@ -769,15 +878,14 @@ window.Engine = (function () {
       } else if (id === "beg") {
         this.ui.skill(p, SN("xds", "beg")); this.ui.say(p, t.key === "gpt" ? "beg_gpt" : t.key === "claude" ? "beg_claude" : "beg", true);
         await wait(600);
-        const fond = BIGS.includes(t.key);                       // GPT / Claude 最宠她：给好牌
-        const c = t.human ? (await this.ui.humanPick(t.hand.slice(), 1, `${p.name} 来蹭饭了：选一张牌给她`))[0]
-          : fond && T.begFondBest ? AI.pick(this, p, t.hand, 1)[0] : t.hand.find((x) => x.id === AI.cheapest(this, t, 1)[0]);
+        const fond = BIGS.includes(t.key);                       // GPT / Claude 最宠她：给最好的牌；别人随手给一张
+        const c = fond && T.begFondBest ? AI.pick(this, p, t.hand, 1)[0] : t.hand[rnd(t.hand.length)];
         if (c && t.hand.includes(c)) { this.takeFromHand(t, c); p.hand.push(c); this.ui.steal(t, p, c); }
         if (fond) { this.ui.say(t, "fed", true); if (T.begBonus) await this.draw(p, T.begBonus, true); }
         this.ui.log(p, `【${SN("xds", "beg")}】从 ${t.name} 那里蹭到一张牌` + (fond ? `（${t.name} 最宠她）` : ""));
         await wait(500);
       } else if (id === "halluc") {
-        if (T.hallucCost) await this.pickOwn(p, `${SN(p.key, "halluc")}：选一张牌弃掉`);
+        if (T.hallucCost) this.dropRandom(p, T.hallucCost);
         this.ui.skill(p, SN(p.key, "halluc")); this.ui.say(p, "halluc", true); await wait(700);
         const r = Math.random(), H = T.halluc, nm = `【${SN(p.key, "halluc")}】`;
         if (r < H[0]) { this.ui.log(p, `${nm}好像……真的变出来了！摸 2 张`); await this.draw(p, 2, true); }
@@ -787,22 +895,21 @@ window.Engine = (function () {
         } else if (r < H[0] + H[1] + H[2]) { this.ui.log(p, `${nm}给大家都发了一张牌`); for (const q of this.alive()) await this.draw(q, 1, true); }
         else { this.ui.log(p, `${nm}翻车了！自己心态 −1`); await this.damage(null, p, 1); await this.sorry(p); }
       } else if (id === "search") {
-        const top = [];
-        for (let i = 0; i < T.searchLook; i++) { if (!this.deck.length) { this.deck = shuffle(this.discard); this.discard = []; } if (this.deck.length) top.push(this.deck.pop()); }
+        // Gemini 搜索：偷看牌堆顶几张，再摸 1 张——顶上是宕机就从牌堆底摸
+        const top = this.topCards(T.searchPeek); this.see(p, top);
         this.ui.skillNote(p, SN("gemini", "search")); this.ui.say(p, "search", true);
-        const pick = p.human ? (await this.ui.humanPick(top, 1, `${SN("gemini", "search")}：牌堆顶 ${top.length} 张，挑 1 张拿走`))[0] : AI.pick(this, p, top, 1)[0];
-        for (let i = top.length - 1; i >= 0; i--) { if (top[i] === pick) p.hand.push(top[i]); else this.deck.push(top[i]); }
-        if (pick) this.ui.drawAnim(p, 1);
-        this.ui.log(p, `【${SN("gemini", "search")}】搜了一下，找到了想要的牌`);
-        await wait(400);
+        if (p.human) await this.ui.peek(top, `【${SN("gemini", "search")}】牌堆顶 ${top.length} 张（从上往下）`);
+        const bottom = !!(top[0] && top[0].k === "dangji");
+        this.ui.log(p, `【${SN("gemini", "search")}】看了看牌堆顶 ${top.length} 张` + (bottom ? "——顶上是宕机！改从牌堆底摸" : "，摸了一张"));
+        await this.draw(p, T.searchDraw, true, bottom);
+        await wait(300);
       } else if (id === "buy") {
-        for (let k = 0; k < T.buyCost; k++) { const pay = p.hand.find((x) => x.id === AI.cheapest(this, p, 1)[0]); if (pay) { this.takeFromHand(p, pay); this.toDiscard(pay); } }
+        this.dropRandom(p, T.buyCost);
         this.ui.skill(p, SN("grok", "buy")); this.ui.say(p, "buy", true); Sound.sfx("coin", 0.8);
         await wait(500);
-        const bn = Math.min(T.buyN, t.hand.length);
-        const picks = p.human ? await this.ui.humanPick(t.hand.slice(), bn, `${t.name} 的手牌：挑 ${bn} 张买走`) : AI.pick(this, p, t.hand, bn);
-        for (const c of picks) if (t.hand.includes(c)) { this.takeFromHand(t, c); p.hand.push(c); this.ui.steal(t, p, c); }
-        this.ui.log(p, `【${SN("grok", "buy")}】买走了 ${t.name} 的${picks.map((c) => `【${CD[c.k].name}】`).join("")}`);
+        const picks = shuffle(t.hand.slice()).slice(0, T.buyN);
+        for (const c of picks) { this.takeFromHand(t, c); p.hand.push(c); this.ui.steal(t, p, c); }
+        this.ui.log(p, `【${SN("grok", "buy")}】随手买走了 ${t.name} 的${picks.map((c) => `【${CD[c.k].name}】`).join("")}`);
         await wait(500);
       } else if (id === "steal") {
         const vic = T.stealAll ? this.others(p).filter((q) => q.hand.length > 0) : [t];
@@ -823,25 +930,21 @@ window.Engine = (function () {
         this.ui.log(p, `【${SN("glm", "maint")}】宣布今天是 ${t.name} 的维护日：她下个出牌阶段不能出牌`);
         await wait(800);
       } else if (id === "bundle") {
-        // 千问·全家桶：亮出牌堆顶 3 张，自己留几张，送 t 1 张，其余弃掉
+        // 千问·全家桶：亮出牌堆顶 3 张，随机 1 张随机送人，剩下的自己收下（宕机谁拿到谁炸）
         if (!t) { const os = this.skillTargets(p, "bundle"); t = os[rnd(os.length)]; }
         const top = [];
-        for (let i = 0; i < T.bundleLook; i++) { if (!this.deck.length) { this.deck = shuffle(this.discard); this.discard = []; } if (this.deck.length) top.push(this.deck.pop()); }
+        for (let i = 0; i < T.bundleLook; i++) { const c = this.pull(); if (c) top.push(c); }
         this.ui.skill(p, SN("qwen", "bundle")); this.ui.say(p, "bundle", true);
         await wait(500);
-        const kn = Math.min(T.bundleKeep, top.length);
-        const keep = p.human ? await this.ui.humanPick(top, kn, `${SN("qwen", "bundle")}：亮出 ${top.length} 张，挑 ${kn} 张自己留下`) : AI.pick(this, p, top, kn);
-        const rest = top.filter((c) => !keep.includes(c));
-        const gift = !rest.length || !t.alive ? null : p.human ? (await this.ui.humanPick(rest, 1, `${SN("qwen", "bundle")}：挑 1 张送给 ${t.name}`))[0] : AI.giftCard(this, p, t, rest);
-        if (keep.length) { p.hand.push(...keep); this.ui.drawAnim(p, keep.length); }
-        if (gift) { t.hand.push(gift); this.ui.drawAnim(t, 1); }
-        for (const c of rest) if (c !== gift) this.toDiscard(c);
-        this.ui.log(p, `【${SN("qwen", "bundle")}】自己留了 ${keep.length} 张，送给 ${t.name} 一张【${gift ? CD[gift.k].name : "?"}】`);
+        const gift = top.length > 1 && t && t.alive ? top[rnd(top.length)] : null;
+        const keep = top.filter((c) => c !== gift);
+        this.ui.log(p, `【${SN("qwen", "bundle")}】亮出${top.map((c) => `【${CD[c.k].name}】`).join("")}，` + (gift ? `随机把【${CD[gift.k].name}】送给了 ${t.name}` : "全都自己收下"));
+        await this.give(p, keep);
+        if (gift) await this.give(t, [gift]);
         await wait(400);
       } else if (id === "qingke") {
         // 千问·请客：弃牌点外卖，送的人心态 +1；送给别人自己再摸
-        const c = await this.pickOwn(p, `${SN("qwen", "qingke")}：选 ${T.qingkeCost} 张牌弃掉，给 ${t === p ? "自己" : t.name} 点一杯奶茶`);
-        if (!c) return;
+        if (!this.dropRandom(p, T.qingkeCost).length && T.qingkeCost) return;
         this.ui.skill(p, SN("qwen", "qingke")); this.ui.say(p, t === p ? "qingke_self" : "qingke", true); Sound.sfx("slurp", 0.7);
         await wait(500);
         t.hp = Math.min(t.maxHp, t.hp + 1); this.ui.heal(t, 1);
@@ -858,9 +961,9 @@ window.Engine = (function () {
         const pool = [];
         for (let k = this.discard.length - 1; k >= 0 && pool.length < 6; k--) { const c = this.discard[k]; if (T.recallKinds.includes(c.k)) pool.push(c); }
         this.ui.skillNote(p, SN("kimi", "recall")); this.ui.say(p, "recall", true);
-        const pick = p.human ? (await this.ui.humanPick(pool, 1, `${SN("kimi", "recall")}：从弃牌堆捡回一张`))[0] : AI.pick(this, p, pool, 1)[0];
+        const pick = Math.random() < T.recallRate ? pool[rnd(pool.length)] : null;
         if (pick) { this.discard.splice(this.discard.indexOf(pick), 1); p.hand.push(pick); this.ui.drawAnim(p, 1); }
-        this.ui.log(p, `【${SN("kimi", "recall")}】从弃牌堆捡回了【${pick ? CD[pick.k].name : "?"}】`);
+        this.ui.log(p, pick ? `【${SN("kimi", "recall")}】从弃牌堆捡回了【${CD[pick.k].name}】` : `【${SN("kimi", "recall")}】翻了半天聊天记录，这次没找到`);
         await wait(400);
       }
       this.ui.sync();

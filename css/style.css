@@ -368,3 +368,25 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #stage.portrait .result .rt { font-size: 52px; }
 #stage.portrait .pickrow { flex-wrap: wrap; }
 #stage.portrait #btn-full { top: 20px; right: 20px; }
+
+/* v11 炸弹猫：宕机牌、牌堆提示、剧透 / 插队窗口 */
+.card.bomb .cn { background: #d8364a; }
+.card.bomb { box-shadow: 0 0 0 3px #ff6b6b, 0 6px 18px rgba(216, 54, 74, .35); }
+#info small { color: #d8364a; font-size: .8em; margin-left: 2px; }
+#info #bombs { color: #d8364a; }
+#known { position: absolute; left: 50%; top: -92px; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; white-space: nowrap;
+  background: rgba(255, 255, 255, .92); border-radius: 16px; padding: 5px 12px; font-size: 17px; font-weight: 700; color: #5a4aa8; box-shadow: 0 3px 10px rgba(90, 74, 168, .18); z-index: 60; pointer-events: none; }
+#known.hidden { display: none; }
+#known .kt { color: #8a7fc0; font-size: 15px; }
+#known .kc { background: #efeaff; border-radius: 10px; padding: 2px 8px; }
+#known .kc.boom { background: #d8364a; color: #fff; }
+#known .kc.unk { color: #aaa; }
+.peekrow .pk { display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; border-radius: 16px; padding: 6px; transition: transform .15s; }
+.peekrow .pk .card { cursor: pointer; }
+.peekrow .pk.set { transform: none; }
+.peekrow .pk.set .pkn { background: #8b6cf0; color: #fff; }
+.peekrow .pk.boom .pkn { background: #d8364a; color: #fff; }
+.peekrow .pkn { font-size: 18px; font-weight: 800; color: #5a4aa8; background: #efeaff; border-radius: 12px; padding: 3px 12px; }
+.pknote { text-align: center; color: #d8364a; font-weight: 700; font-size: 18px; margin: 4px 0 0; }
+.pkgo { display: flex; gap: 14px; justify-content: center; margin-top: 12px; }
+#stage.portrait #known { font-size: 20px; top: auto; bottom: 20px; }

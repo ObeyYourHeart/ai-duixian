@@ -18,9 +18,14 @@ window.AI = (function () {
       case "tuanjian": return 3;
       case "jiaban": return g.has(p, "tucao").length ? 5 : 3.5;
       case "pindan": return 5.5;
-      case "shuaiguo": return 7;
+      case "shuaiguo": return 7.2;
       case "duanwang": return 6;
-      case "dangji": return 2.5;
+      case "dangji": return -20;                                // 拼单里的宕机：谁都不想要
+      case "chongqi": return g.bombsLeft && g.bombsLeft() ? (g.has(p, "chongqi").length > 1 ? 5.5 : 8.6) : 1;
+      case "jutou": return 4.5;
+      case "chadui": return 5;
+      case "chongsheng": return 3.5;
+      case "moyu": return 5;
       case "jietu": return g.has(p, "tucao").length ? 5 : 3.5;
       case "xianka": case "fanghuoqiang": return p.equip ? 4 : 6.5;
       case "chongdianbao": return p.equip ? 3.5 : 5.5;
@@ -83,22 +88,85 @@ window.AI = (function () {
     if (ts.includes(p) && (p.hp <= 2 || !allies.length)) return p;
     return allies[0] || (ts.includes(p) ? p : null);
   }
+  // ---------------------------------------------------------------- 炸弹猫：牌堆顶会被谁摸到
+  // 从 p 之后开始，按回合顺序列出接下来几张牌分别归谁（摸牌阶段摸 2 张，深思多 1 张，断网 / 封号的不摸）
+  function drawOrder(g, p, n) {
+    const out = []; let i = p.i;
+    for (let guard = 0; out.length < n && guard < 24; guard++) {
+      i = g.nextAlive(i); const q = g.players[i];
+      let d = q.offline || q.banned ? 0 : 2 + (g.hasSkill(q, "think") ? Engine.T.thinkDraw : 0);
+      if (q.key === "grok" && q.hand.length < Engine.T.grokFloor) d += Engine.T.grokFloor - q.hand.length;
+      for (let k = 0; k < d && out.length < n; k++) out.push(q);
+      if (i === p.i && !d) break;
+    }
+    return out;
+  }
+  // 拆完宕机塞回哪：塞到第一个对手要摸的位置，偶尔随便塞一下让人猜不透
+  function placeBomb(g, p) {
+    const n = g.deck.length;
+    if (r() < 0.12) return Math.floor(r() * Math.min(6, n + 1));
+    const ord = drawOrder(g, p, 10);
+    const idx = ord.findIndex((q) => q !== p && g.hostility(p, q) > 0);
+    if (idx < 0) return n;
+    return Math.min(n, idx + (ord[idx + 1] === ord[idx] && r() < 0.35 ? 1 : 0));
+  }
+  // 摸到宕机：有甩锅又有对手可甩，多半先甩（省下重启）；否则用重启
+  function bombChoice(g, p, hasR, hasS) {
+    const foesOk = hasS && foes(g, p, g.rivals(p)).length > 0;
+    if (foesOk && (!hasR || g.has(p, "shuaiguo").length >= 2 || r() < 0.6)) return "shuaiguo";
+    if (hasR) return "reboot";
+    return foesOk ? "shuaiguo" : null;
+  }
+  // 摸牌阶段要不要摸鱼（从牌堆底摸）
+  function wantMoyu(g, p) {
+    if (g.knowsBomb(p, 2 + (g.hasSkill(p, "think") ? Engine.T.thinkDraw : 0)) >= 0) return true;
+    const by = g.insertBy;
+    if (g.insertSeq > p.lastSeq && by && by !== p && g.hostility(p, by) > 0) return !g.has(p, "chongqi").length || r() < 0.4 ? r() < 0.7 : false;
+    return false;
+  }
+  // 插队：宕机排到第一个对手要摸的位置，其余照原样
+  function arrange(g, p, top) {
+    const ord = drawOrder(g, p, top.length);
+    const res = new Array(top.length).fill(null);
+    const bombs = top.filter((c) => c.k === "dangji"), rest = top.filter((c) => c.k !== "dangji");
+    const foeSlots = top.map((_, i) => i).filter((i) => ord[i] && ord[i] !== p && g.hostility(p, ord[i]) > 0);
+    for (const b of bombs) { const s = foeSlots.shift(); if (s != null) res[s] = b; }
+    for (const b of bombs) if (!res.includes(b)) for (let i = res.length - 1; i >= 0; i--) if (!res[i]) { res[i] = b; break; }
+    let j = 0; for (let i = 0; i < res.length; i++) if (!res[i]) res[i] = rest[j++];
+    return res;
+  }
+  // 她知道的宕机会落到自己 / 自己人头上
+  function bombNearFriend(g, p, n) {
+    const k = g.knowsBomb(p, n); if (k < 0) return false;
+    const q = drawOrder(g, p, n)[k];
+    return !q || q === p || g.hostility(p, q) <= 0;
+  }
+
   function choose(g, p) {
     const H = (k) => p.hand.filter((c) => c.k === k);
     const others = g.others(p);
     if (!others.length) return null;
     const enemies = foes(g, p, others);
     const use = (c, targets = []) => ({ card: c, targets });
-    // 0. 白拿的技能先用
+    // 自己马上要摸牌，又知道顶上 n 张里有宕机、手里没重启：先别摸
+    const risky = (n) => g.knowsBomb(p, n) >= 0 && !H("chongqi").length && !g.hasSkill(p, "think");
+    // 0. 炸弹猫：先剧透看一眼，再决定摸不摸、要不要插队 / 洗牌
+    const blind = g.known(p, 3).some((x) => !x);
+    if (H("jutou").length && blind && g.deck.length > 2 && (H("hongbao").length || H("chadui").length || H("chongsheng").length || H("moyu").length ||
+      g.canSkill(p, "polish") || g.canSkill(p, "reset") || g.canSkill(p, "bundle") || r() < 0.35)) return use(H("jutou")[0]);
+    if (H("chadui").length && g.deck.length > 2 && (g.knowsBomb(p, 3) >= 0 ? bombNearFriend(g, p, 3) || r() < 0.3 : r() < 0.45)) return use(H("chadui")[0]);
+    if (H("chongsheng").length && g.deck.length > 3 && bombNearFriend(g, p, 3)) return use(H("chongsheng")[0]);
+    if (H("moyu").length && (H("moyu").length >= 2 || (risky(1) && p.hand.length <= 2))) return use(H("moyu")[0]);
+    // 0b. 白拿的技能先用
     if (g.canSkill(p, "beg")) {                                   // 小 DeepSeek 蹭饭：先找最宠她的
       const ts = g.skillTargets(p, "beg"), fond = foes(g, p, ts).filter((q) => q.key === "gpt" || q.key === "claude");
       const t = fond.length ? richest(fond, p) : richest(ts, p);
       if (t) return { skill: "beg", target: t };
     }
-    if (g.canSkill(p, "polish")) return { skill: "polish" };
+    if (g.canSkill(p, "polish") && !risky(p.hand.length + 1) && polishGain(g, p) > 0) return { skill: "polish" };
     if (g.canSkill(p, "search")) return { skill: "search" };
     if (g.canSkill(p, "qingke")) { const t = treatTarget(g, p); if (t && (t !== p || p.hp <= p.maxHp - 1)) return { skill: "qingke", target: t }; }
-    if (g.canSkill(p, "bundle")) { if (Engine.T.bundleRandom) return { skill: "bundle" }; const t = giftTarget(g, p); if (t) return { skill: "bundle", target: t }; }
+    if (g.canSkill(p, "bundle") && !risky(3)) { if (Engine.T.bundleRandom) return { skill: "bundle" }; const t = giftTarget(g, p); if (t) return { skill: "bundle", target: t }; }
     if (g.canSkill(p, "halluc") && (Engine.T.hallucCost ? p.hand.length >= 2 : true) && p.hp >= 2) return { skill: "halluc" };
     if (g.canSkill(p, "recall")) return { skill: "recall" };
     if (g.canSkill(p, "steal")) { const t = richest(g.skillTargets(p, "steal"), p); if (t) return { skill: "steal", target: t }; }
@@ -107,9 +175,9 @@ window.AI = (function () {
       const t = richest(ts, p);
       if (t && p.hand.length >= (Engine.T.buyCost ? 2 : 0)) return { skill: "buy", target: t };
     }
-    if (g.canSkill(p, "reset") && (p.hand.length <= 1 || (p.hp <= 1 && p.hand.length <= 2))) return { skill: "reset" };
+    if (g.canSkill(p, "reset") && !risky(5 - p.hand.length) && (p.hand.length <= 1 || (p.hp <= 1 && p.hand.length <= 2))) return { skill: "reset" };
     // 1. 摸牌
-    if (H("hongbao").length) return use(H("hongbao")[0]);
+    if (H("hongbao").length && !risky(2)) return use(H("hongbao")[0]);
     // 1b. 装备：没装备就穿上，有更好的就换
     const eqs = p.hand.filter((c) => Engine.CD[c.k].type === "equip").sort((a, b) => equipScore(g, p, b) - equipScore(g, p, a));
     if (eqs.length && equipScore(g, p, eqs[0]) > equipScore(g, p, p.equip) + 0.3) return use(eqs[0]);
@@ -187,11 +255,18 @@ window.AI = (function () {
   }
 
   function discard(g, p, n) { return cheapest(g, p, n); }
+  // Claude 润色（整手重写）值不值：手里的平均价值低于一张新牌才写
+  function polishGain(g, p) {
+    if (!p.hand.length) return 0;
+    const avg = p.hand.reduce((s, c) => s + value(g, p, c), 0) / p.hand.length;
+    return (p.hand.length + (g.players.length === 2 ? Engine.T.polishExtra2p : Engine.T.polishExtra)) * 5.6 - p.hand.length * avg - 0.5;
+  }
   // 从一组牌里挑最有价值的（搜索 / 挥金 / 过目都用它）
   function pick(g, p, cards, n) { return cards.slice().sort((a, b) => value(g, p, b) - value(g, p, a)).slice(0, n); }
 
   // 豆包：吐槽被挡后要不要弃牌接着说；GPT：没反驳时要不要弃一张硬顶
   function wantLong(g, p, t) { return p.hand.length >= 2 || t.hp <= 1; }
   function wantZuiying(g, t, p) { return t.hp <= 2 || t.hand.length >= 4; }
-  return { choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard, treatTarget };
+  return { choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard, treatTarget,
+    drawOrder, placeBomb, bombChoice, wantMoyu, arrange };
 })();

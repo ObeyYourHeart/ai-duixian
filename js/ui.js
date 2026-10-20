@@ -78,7 +78,7 @@ window.UI = (function () {
   function cardEl(c, big) {
     const d = CD[c.k];
     const e = el("div", `card ${d.type}${big ? " big" : ""}${d.name.length > 3 ? " long" : ""}`);
-    e.innerHTML = `<div class="cn">${d.name}</div><img src="${A(`assets/img/card_${c.k}.webp`)}" alt="" draggable="false"><div class="ct">${{ basic: "基本", trick: "锦囊", equip: "装备" }[d.type]}</div><div class="cd">${d.short}</div>`;
+    e.innerHTML = `<div class="cn">${d.name}</div><img src="${A(`assets/img/card_${c.k}.webp`)}" alt="" draggable="false"><div class="ct">${{ basic: "基本", trick: "锦囊", equip: "装备", bomb: "炸弹" }[d.type]}</div><div class="cd">${d.short}</div>`;
     e.dataset.id = c.id;
     e.title = d.desc;
     return e;
@@ -159,6 +159,15 @@ window.UI = (function () {
     }
     $("#deck").textContent = g.deck.length;
     $("#round").textContent = g.round;
+    // 炸弹猫：牌堆里还剩几张宕机、下一张是宕机的概率；你看过的牌堆顶
+    const bl = g.bombsLeft();
+    $("#bombs").textContent = bl;
+    $("#risk").textContent = g.deck.length ? ` ${Math.round(bl / g.deck.length * 100)}%` : "";
+    const kn = g.human.alive ? g.known(g.human, 5) : [];
+    let last = kn.length; while (last > 0 && !kn[last - 1]) last--;
+    const kb = $("#known");
+    kb.classList.toggle("hidden", !last);
+    if (last) kb.innerHTML = '<span class="kt">👁 你看过的牌堆顶</span>' + kn.slice(0, last).map((c, i) => `<span class="kc${c && c.k === "dangji" ? " boom" : c ? "" : " unk"}">${i + 1}. ${c ? CD[c.k].name : "？"}</span>`).join("");
     renderHand();
     renderSkills();
   }
@@ -711,6 +720,88 @@ window.UI = (function () {
     });
   }
 
+  // 摸到宕机：只有【重启】就直接拆；还有【甩锅】时问一下
+  function humanBomb(hasR, hasS) {
+    return new Promise((res) => {
+      const done = (v) => { hidePrompt(); sync(); res(v); };
+      if (hasR && !hasS) { done("reboot"); return; }
+      if (SET().respond === "auto") { done(hasR ? "reboot" : "shuaiguo"); return; }
+      const btns = [];
+      if (hasR) btns.push(["【重启】拆掉", () => done("reboot"), true]);
+      if (hasS) btns.push(["【甩锅】甩给别人", () => done("shuaiguo"), !hasR]);
+      if (!hasR) btns.push(["硬吃", () => done(null)]);
+      showPrompt("💣 你摸到了【宕机】！", btns, timerMs(), () => done(hasR ? "reboot" : "shuaiguo"), "pick");
+    });
+  }
+  // 拆掉宕机之后：偷偷塞回牌堆哪里（只有你知道）
+  function humanPlace(n) {
+    return new Promise((res) => {
+      const done = (v) => { hidePrompt(); sync(); res(v); };
+      if (SET().respond === "auto") { done(AI.placeBomb(g, g.human)); return; }
+      const rand = () => Math.floor(Math.random() * (n + 1));
+      const opts = [["最上面", 0], ["第 2 张", 1], ["第 3 张", 2], ["随机", -1], ["最底下", n]].filter(([, v], i, a) => v <= n && a.findIndex(([, w]) => w === v) === i);
+      const pick = (v) => done(v < 0 ? rand() : v);
+      showPrompt("宕机塞回哪？只有你知道", opts.map(([l, v], k) => [l, () => pick(v), k === 0]),
+        timerMs() ? Math.max(8000, timerMs()) : 0, () => pick(-1), "pick");
+    });
+  }
+  // 剧透 / 搜索：看牌堆顶（只看不挑）
+  function peekRow(cards, label) {
+    const row = el("div", "pickrow peekrow");
+    const wraps = cards.map((c, i) => {
+      const w = el("div", "pk" + (c.k === "dangji" ? " boom" : ""));
+      const tag = el("div", "pkn", label(i));
+      w.appendChild(tag); w.appendChild(cardEl(c, true)); row.appendChild(w);
+      return { w, tag, c };
+    });
+    return { row, wraps };
+  }
+  function openModal(body) { $("#modal-close").style.display = "none"; $("#modal").classList.remove("hidden"); }
+  function closeModal() { $("#modal").classList.add("hidden"); $("#modal-close").style.display = ""; }
+  const DPOS = (i) => (i === 0 ? "最上面" : `第 ${i + 1} 张`);
+  function peek(cards, title) {
+    return new Promise((res) => {
+      if (!cards.length) { res(); return; }
+      const body = $("#modal-body"); body.innerHTML = `<h2>${title}</h2>`;
+      body.appendChild(peekRow(cards, DPOS).row);
+      if (cards.some((c) => c.k === "dangji")) body.appendChild(el("p", "pknote", "💣 里面有【宕机】！记住它的位置——牌桌上会一直提示你。"));
+      const go = el("div", "pkgo"), ok = el("button", "btn primary", "知道了");
+      ok.onclick = () => { closeModal(); sync(); res(); };
+      for (const w of body.querySelectorAll(".pk")) w.onclick = ok.onclick;          // 点牌也算看完了
+      go.appendChild(ok); body.appendChild(go);
+      openModal();
+    });
+  }
+  // 插队：按顺序点牌，先点的放最上面
+  function humanArrange(cards, title) {
+    return new Promise((res) => {
+      if (cards.length < 2) { res(cards.slice()); return; }
+      const body = $("#modal-body"); body.innerHTML = `<h2>${title}</h2>`;
+      const { row, wraps } = peekRow(cards, (i) => `原来${DPOS(i)}`);
+      let order = [];
+      const finish = (o) => { closeModal(); sync(); res(o); };
+      const paint = () => wraps.forEach(({ w, tag, c }, i) => {
+        const k = order.indexOf(c);
+        w.classList.toggle("set", k >= 0); w.querySelector(".card").classList.toggle("pick2", k >= 0);
+        tag.textContent = k >= 0 ? `→ 放${DPOS(k)}` : `原来${DPOS(i)}`;
+      });
+      for (const x of wraps) x.w.onclick = () => {
+        if (order.includes(x.c)) return;
+        order.push(x.c); Sound.sfx("click", 0.5);
+        if (order.length === cards.length - 1) order.push(cards.find((c) => !order.includes(c)));
+        paint();
+        if (order.length === cards.length) setTimeout(() => finish(order), 450);
+      };
+      body.appendChild(row);
+      const go = el("div", "pkgo");
+      const again = el("button", "btn", "重排"), keep = el("button", "btn primary", "按原样放回");
+      again.onclick = () => { order = []; paint(); };
+      keep.onclick = () => finish(cards.slice());
+      go.appendChild(again); go.appendChild(keep); body.appendChild(go);
+      openModal();
+    });
+  }
+
   // ---------------------------------------------------------------- 玩家：弃牌 / 挑牌
   let discardNeed = 0;
   function humanDiscard(p, n) {
@@ -800,6 +891,7 @@ window.UI = (function () {
     if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
     if (!$("#modal").classList.contains("hidden")) {
       if (e.key === "Escape" && $("#modal-close").style.display !== "none") $("#modal").classList.add("hidden");
+      if (e.key === "Enter") { const b = $("#modal-body .pkgo .btn.primary"); if (b) b.click(); }
       return;
     }
     if (!SET().keys && e.key !== "Escape") return;
@@ -808,7 +900,9 @@ window.UI = (function () {
     const me = g.human;
     const promptBtn = (i) => { const b = $("#prompt-btns").children[i]; if (b && !$("#prompt").classList.contains("hidden")) { b.click(); return true; } return false; };
     let done = true;
-    if (promptKind === "choose") {
+    if (promptKind === "choose" || promptKind === "pick") {
+      if (n) promptBtn(n - 1); else if ((k === "Enter" || k === "y") && promptKind === "pick") promptBtn(0); else done = false;
+    } else if (false) {
       if (n) promptBtn(n - 1); else done = false;
     } else if (promptKind === "respond" || promptKind === "confirm") {
       if (n && promptKind === "respond") { const c = me.hand[n - 1]; if (c && respondCards.includes(c.id)) finishRespond({ card: c }); else done = false; }
@@ -838,5 +932,5 @@ window.UI = (function () {
   }
 
   return { attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, skillNote, banner, phase, toast,
-    humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, gameOver, bindButtons, cardEl, portrait, expr };
+    humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, gameOver, bindButtons, cardEl, portrait, expr };
 })();
