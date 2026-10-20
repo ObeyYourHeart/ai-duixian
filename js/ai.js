@@ -175,7 +175,8 @@ window.AI = (function () {
       const t = richest(ts, p);
       if (t && p.hand.length >= (Engine.T.buyCost ? 2 : 0)) return { skill: "buy", target: t };
     }
-    if (g.canSkill(p, "reset") && !risky(5 - p.hand.length) && (p.hand.length <= 1 || (p.hp <= 1 && p.hand.length <= 2))) return { skill: "reset" };
+    // GPT 重置：降智了、或者手里没什么牌，就把自己重置一遍（顺便核弹炸场）
+    if (g.canSkill(p, "reset") && !risky(Engine.T.resetDraw) && (p.dumb || p.hand.length <= 1 || (p.hp <= 1 && p.hand.length <= 2))) return { skill: "reset" };
     // 1. 摸牌
     if (H("hongbao").length && !risky(2)) return use(H("hongbao")[0]);
     // 1b. 装备：没装备就穿上，有更好的就换

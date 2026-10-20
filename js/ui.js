@@ -149,6 +149,7 @@ window.UI = (function () {
       if (p.banned) st += '<span class="ban">🚫 封号中</span>';
       if (p.muted) st += '<span>🔇 禁言中</span>';
       if (p.dumb) st += '<span class="dumb">❓ 降智中</span>';
+      if (p.newVer) st += '<span class="boost">✨ 新版本</span>';
       if (p.offline) st += '<span>📵 断网中</span>';
       if (p.boost) st += '<span class="boost">🔥 加班中</span>';
       if (g.bomb && g.bomb.holder === p) st += '<span class="bomb">💣 宕机预警</span>';
@@ -673,7 +674,8 @@ window.UI = (function () {
     }
     respondCards = opt.cards.map((c) => c.id);
     mode = "respond"; selected = null; clearTimeout(autoT);
-    const btns = [[`打出${d.name}`, () => finishRespond({ card: opt.cards[0] }), true], ["不出", () => finishRespond(null)]];
+    const c0 = opt.cards[0], swap = c0 && c0.k !== opt.kind;            // GPT 六边形：没有这张，就拿另一张顶上
+    const btns = [[swap ? `用${CD[c0.k].name}当${d.name}` : `打出${d.name}`, () => finishRespond({ card: c0 }), true], ["不出", () => finishRespond(null)]];
     const auto = opt.kind === "yidu" || opt.kind === "shuaiguo" ? () => finishRespond(null) : () => finishRespond({ card: opt.cards[0] });
     showPrompt(text, btns, timerMs(), auto, "respond");
     sync();

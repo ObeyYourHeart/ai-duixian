@@ -16,7 +16,8 @@ window.Engine = (function () {
     thinkDraw: 1, thinkRate: 0.6, thinkDefuse: 0.2,                       // 大 DeepSeek 深思：摸牌阶段多摸几张；摸到宕机时自己推理拆掉的概率
     searchPeek: 3, searchDraw: 1,                         // Gemini 搜索：偷看几张、再摸几张
     polishExtra: 2, polishExtra2p: 1,                                       // Claude 润色：整手重写时多摸几张
-    zuiyingCost: 1,                                       // GPT 嘴硬：弃几张硬顶
+    zuiyingCost: 1,                                       // 嘴硬：弃几张硬顶（v12 起没人有）
+    freshTurns: 2, freshTucao: 1, dumbRate: 0.4, resetDraw: 6, resetNuke: true,   // GPT：新版本强几个回合、多吐槽几次；之后每回合降智的概率；重置后摸几张、发布会核弹
     busyRate: 0.08,                                       // 小 DeepSeek 服务器繁忙
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
@@ -63,7 +64,7 @@ window.Engine = (function () {
         stats: { dmg: 0, taken: 0, used: 0 },
       }));
       for (const p of this.players) for (const s of p.ch.skills) if (s.uses) p.uses[s.id] = keys.length === 2 && s.uses2p != null ? s.uses2p : s.uses;
-      for (const p of this.players) { p.game = this; p.lean = 0; }
+      for (const p of this.players) { p.game = this; p.lean = 0; p.fresh = this.hasSkill(p, "reset") ? T.freshTurns : 0; p.newVer = false; }
       if (this.mode === "team") { const T2 = opts.teams || [0, 1, 1, 0]; for (const p of this.players) p.team = T2[p.i]; }   // 默认座位：你-敌-敌-友
       if (this.mode === "id5") {
         const roles = opts.roles || shuffle(["lord", "loyal", "rebel", "rebel", "spy"]);
@@ -112,7 +113,7 @@ window.Engine = (function () {
     others(p) { return this.players.filter((q) => q.alive && q !== p); }
     has(p, k) { return p.hand.filter((c) => c.k === k); }
     hasSkill(p, id) { return p.ch.skills.some((s) => s.id === id); }
-    limitTucao(p) { const base = 1 + (this.round >= T.rageRound ? 1 : 0) + (p.equip && p.equip.k === "xianka" ? 1 : 0); return p.dumb ? 0 : p.sale ? (T.saleExtra == null ? 99 : base + T.saleExtra) : base; }
+    limitTucao(p) { const base = 1 + (this.round >= T.rageRound ? 1 : 0) + (p.equip && p.equip.k === "xianka" ? 1 : 0) + (p.newVer ? T.freshTucao : 0); return p.dumb ? 0 : p.sale ? (T.saleExtra == null ? 99 : base + T.saleExtra) : base; }
     handLimit(p) { return Math.max(0, p.hp) + (T.hand[p.key] || 0) + (p.equip && p.equip.k === "chongdianbao" ? T.powerbank : 0); }
     // 一个人的“牌”（手牌 + 装备），白嫖 / 撤回从里面随机挑
     cardsOf(t) { return t.equip ? [...t.hand, t.equip] : t.hand.slice(); }
@@ -288,7 +289,7 @@ window.Engine = (function () {
     }
 
     async turn(p) {
-      p.tucao = 0; p.used = {}; p.hits = {}; p.dumb = false; p.sale = false; p.boost = false; p.evidence = null;
+      p.tucao = 0; p.used = {}; p.hits = {}; p.dumb = false; p.sale = false; p.boost = false; p.evidence = null; p.newVer = false;
       this.ui.setTurn(p); this.ui.sync();
       this.ui.phase(`${p.name} 的回合`);
       await wait(300);
@@ -297,6 +298,15 @@ window.Engine = (function () {
         this.ui.sys(`${p.name} 的账号被封，这回合跳过`, "bad"); this.ui.say(p, "hurt", true);
         await wait(1000);
         return;
+      }
+      // GPT：刚发布的新版本更强；过了这阵子就会降智
+      if (this.hasSkill(p, "reset")) {
+        if (p.fresh > 0) { p.fresh--; p.newVer = true; this.ui.log(p, "✨ 新版本刚发布：这回合可以多【吐槽】1 次"); }
+        else if (Math.random() < T.dumbRate) {
+          p.dumb = true; this.ui.skillNote(p, "降智"); this.ui.say(p, "dumb", true);
+          this.ui.log(p, "发布一周了……降智了：这回合不能【吐槽】"); await wait(600);
+        }
+        this.ui.sync();
       }
       if (p.key === "grok" && p.hand.length < T.grokFloor) {          // Grok 千金：爸爸送的
         this.ui.skillNote(p, SN("grok", "rich")); this.ui.say(p, "dad", true);
@@ -638,7 +648,7 @@ window.Engine = (function () {
     }
     // GPT 嘴硬：没有反驳时弃牌硬顶
     async zuiying(t, p) {
-      if (t.key !== "gpt" || !t.alive || t.used.zuiying || t.hand.length < T.zuiyingCost) return false;
+      if (!this.hasSkill(t, "zuiying") || !t.alive || t.used.zuiying || t.hand.length < T.zuiyingCost) return false;
       const go = t.human ? await this.ui.humanConfirm(`没有【反驳】……【${SN("gpt", "zuiying")}】弃 ${T.zuiyingCost} 张牌硬顶回去？`) : AI.wantZuiying(this, t, p);
       if (!go) return false;
       const picks = this.dropRandom(t, T.zuiyingCost);              // 随机弃掉——嘴硬是要付出代价的
@@ -658,7 +668,8 @@ window.Engine = (function () {
     // 询问响应：kind = fanbo / tucao / yidu。返回是否打出
     async ask(p, kind, ctx) {
       if (!p.alive) return false;
-      const cards = this.has(p, kind);
+      const alt = this.hasSkill(p, "hexa") && (kind === "fanbo" || kind === "tucao") ? (kind === "fanbo" ? "tucao" : "fanbo") : null;
+      const cards = alt ? [...this.has(p, kind), ...this.has(p, alt)] : this.has(p, kind);
       if (!cards.length) {
         if (p.human && kind !== "yidu") { this.ui.toast(`没有【${CD[kind].name}】`); await wait(350); }
         return false;
@@ -671,8 +682,11 @@ window.Engine = (function () {
       if (!card) return false;
       this.takeFromHand(p, card); this.toDiscard(card);
       this.ui.sync();
-      this.ui.log(p, `打出<b>【${CD[kind].name}】</b>`);
-      if (kind === "fanbo") this.ui.say(p, "dodge");
+      if (card.k !== kind) {                                       // 六边形：拿别的牌顶上
+        this.ui.skillNote(p, SN(p.key, "hexa")); this.ui.say(p, "hexa", true);
+        this.ui.log(p, `【${SN(p.key, "hexa")}】打出<b>【${CD[card.k].name}】</b>当【${CD[kind].name}】`);
+      } else this.ui.log(p, `打出<b>【${CD[kind].name}】</b>`);
+      if (kind === "fanbo" && card.k === kind) this.ui.say(p, "dodge");
       if (kind === "tucao" && Math.random() < 0.6) this.ui.say(p, "attack");
       await this.ui.showCard(p, card, []);
       return true;
@@ -870,11 +884,26 @@ window.Engine = (function () {
         await wait(300);
         await this.draw(p, m, true); await wait(300);
       } else if (id === "reset") {
-        this.ui.skill(p, SN("gpt", "reset")); this.ui.say(p, "reset", true); Sound.sfx("fanfare_short", 0.6);
-        this.ui.log(p, `【${SN("gpt", "reset")}】额度重置，大家都有份！`);
+        // 重置的是她自己：弃光手牌、重新摸，变回新版本；发布那一下像核弹炸场
+        const n = p.hand.length;
+        for (const c of p.hand.splice(0)) this.toDiscard(c);
+        p.dumb = false; p.newVer = true; p.fresh = Math.max(0, T.freshTurns - 1);
+        this.ui.skill(p, SN(p.key, "reset")); this.ui.say(p, "reset", true); Sound.sfx("fanfare_short", 0.6);
+        this.ui.log(p, `【${SN(p.key, "reset")}】把自己重置了一遍（弃掉 ${n} 张），新版本发布！`); this.ui.sync();
         await wait(700);
-        await this.draw(p, Math.max(0, 5 - p.hand.length), true);
-        for (const q of this.others(p)) await this.draw(q, 1, true);
+        await this.draw(p, T.resetDraw, true);
+        if (T.resetNuke && p.alive && !this.over) {
+          this.ui.banner("💥 新版本发布！"); Sound.sfx("bomb", 0.6);
+          this.ui.sys(`${p.name} 的新版本像核弹一样炸场：所有对手要打出【反驳】，否则心态 −1`, "bad"); await wait(500);
+          let j = p.i;
+          for (let k = 0; k < this.players.length - 1 && !this.over; k++) {
+            j = (j + 1) % this.players.length;
+            const t = this.players[j];
+            if (!t.alive || t === p || !this.rivals(p).includes(t)) continue;
+            const ok = await this.ask(t, "fanbo", { from: p, card: { k: "shuaping" } });
+            if (!ok) await this.damage(p, t, 1);
+          }
+        }
       } else if (id === "beg") {
         this.ui.skill(p, SN("xds", "beg")); this.ui.say(p, t.key === "gpt" ? "beg_gpt" : t.key === "claude" ? "beg_claude" : "beg", true);
         await wait(600);
