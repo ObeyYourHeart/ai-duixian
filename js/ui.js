@@ -166,9 +166,11 @@ window.UI = (function () {
     $("#risk").textContent = g.deck.length ? ` ${Math.round(bl / g.deck.length * 100)}%` : "";
     const kn = g.human.alive ? g.known(g.human, 5) : [];
     let last = kn.length; while (last > 0 && !kn[last - 1]) last--;
-    const kb = $("#known");
-    kb.classList.toggle("hidden", !last);
-    if (last) kb.innerHTML = '<span class="kt">👁 你看过的牌堆顶</span>' + kn.slice(0, last).map((c, i) => `<span class="kc${c && c.k === "dangji" ? " boom" : c ? "" : " unk"}">${i + 1}. ${c ? CD[c.k].name : "？"}</span>`).join("");
+    const kb = $("#known"), math = g.human.alive && g.hasSkill(g.human, "math") ? g.bombSpots() : null;   // ChatGPT 演算：宕机在第几张
+    kb.classList.toggle("hidden", !last && !(math && math.length));
+    if (math && math.length) kb.innerHTML = '<span class="kt">🧮 演算</span>' + `<span class="kc boom">宕机在第 ${math.join("、")} 张</span>` +
+      kn.slice(0, last).map((c, i) => c && c.k !== "dangji" ? `<span class="kc">${i + 1}. ${CD[c.k].name}</span>` : "").join("");
+    else if (last) kb.innerHTML = '<span class="kt">👁 你看过的牌堆顶</span>' + kn.slice(0, last).map((c, i) => `<span class="kc${c && c.k === "dangji" ? " boom" : c ? "" : " unk"}">${i + 1}. ${c ? CD[c.k].name : "？"}</span>`).join("");
     renderHand();
     renderSkills();
   }
