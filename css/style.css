@@ -63,14 +63,14 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 .pick img { position: absolute; left: 50%; top: 4px; width: 214px; transform: translateX(-50%); }
 .pick .pn { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 4px; background: var(--c); color: #fff; font-family: var(--title); font-size: 28px; text-align: center; white-space: nowrap; }
 .pick .pn.long { font-size: 22px; padding: 11px 2px; }
-#sel-detail { width: 520px; border-radius: 26px; background: rgba(255, 255, 255, .86); border: 4px solid #fff; position: relative; overflow: hidden;
+#sel-detail { width: 600px; border-radius: 26px; background: rgba(255, 255, 255, .86); border: 4px solid #fff; position: relative; overflow: hidden;
   box-shadow: 0 10px 30px rgba(70, 50, 140, .2); }
-.sd-portrait { position: absolute; left: -70px; top: 30px; width: 340px; height: 600px; }
-.sd-portrait img { width: 340px; filter: drop-shadow(0 8px 14px rgba(70, 50, 140, .25)); }
-.sd-info { position: absolute; right: 18px; top: 24px; bottom: 18px; width: 232px; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+
+
+
 /* 按钮固定在面板底部，技能说明太长时在中间滚动 */
-.sd-info > * { flex: none; }
-.sd-info #sd-skills { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+
+
 .sd-name { font-family: var(--title); font-size: 40px; color: var(--c, #5a4aa8); }
 .sd-title { font-size: 18px; color: var(--ink2); font-weight: 700; }
 .sd-bio { font-size: 14px; line-height: 1.45; color: var(--ink2); font-weight: 700; }
@@ -310,16 +310,16 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #stage.portrait .sel-head { left: 16px; right: 16px; top: calc(24px + var(--dy) / 10); flex-direction: column; gap: 14px; }
 #stage.portrait .sel-head .logo.mid { font-size: 56px; }
 #stage.portrait .mode { font-size: 22px; padding: 8px 18px; }
-#stage.portrait .sel-body { left: 16px; right: 16px; top: calc(190px + var(--dy) / 10); bottom: calc(20px + var(--dy) / 10); flex-direction: column; gap: 16px; }
+#stage.portrait .sel-body { left: 16px; right: 16px; top: calc(236px + var(--dy) / 10); bottom: calc(20px + var(--dy) / 10); flex-direction: column; gap: 16px; }
 #stage.portrait #sel-grid { flex: none; gap: 10px; }
 #stage.portrait .pick { height: calc(220px + var(--dy) / 5); }
 #stage.portrait .pick img { width: calc(190px + var(--dy) / 6); }
 #stage.portrait .pick .pn { font-size: 20px; padding: 6px 2px; }
 #stage.portrait .pick .pn.long { font-size: 15px; padding: 8px 1px; }
 #stage.portrait #sel-detail { width: auto; flex: 1; }
-#stage.portrait .sd-portrait { left: -14px; top: 12px; width: 270px; }
-#stage.portrait .sd-portrait img { width: 270px; }
-#stage.portrait .sd-info { right: 18px; top: 22px; bottom: 18px; width: calc(100% - 280px); }
+
+
+
 #stage.portrait .sd-name { font-size: 52px; }
 #stage.portrait .sd-title { font-size: 22px; }
 #stage.portrait .sd-bio { font-size: 17px; }
@@ -465,3 +465,45 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #stage.tiny #ctip { font-size: 28px; max-width: 700px; }
 #stage.tiny .skpop b { font-size: 38px; } #stage.tiny .skpop span { font-size: 24px; }
 #stage.tiny #skillbox .pchip { font-size: 24px; }
+
+/* v16b 选人界面：上面头像 + 基本信息，下面整宽技能列表，按钮在底 */
+#sel-detail { display: flex; flex-direction: column; padding: 16px 18px 14px; gap: 8px; }
+.sd-top { display: flex; gap: 14px; flex: none; }
+.sd-portrait { flex: none; width: 190px; height: 250px; border-radius: 20px; overflow: hidden; background: var(--l); border: 3px solid #fff; box-shadow: 0 4px 14px rgba(70, 50, 140, .15); }
+.sd-portrait img { width: 100%; height: auto; display: block; transform: scale(1.25); transform-origin: 50% 8%; }
+.sd-head { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.sd-name { line-height: 1.05; }
+.sd-hp span { letter-spacing: 1px; }
+.sd-rels { display: flex; flex-wrap: wrap; gap: 5px; }
+.sd-rels span { font-size: 14px; font-weight: 800; background: #f3f0ff; border-radius: 10px; padding: 2px 8px 2px 2px; cursor: help; }
+.sd-rels b { color: #fff; border-radius: 8px; padding: 0 6px; margin-right: 4px; font-size: 13px; }
+.sd-rels .ally b { background: var(--good); } .sd-rels .friend b { background: #6c9cf0; } .sd-rels .rival b { background: var(--bad); }
+.sd-bio { -webkit-line-clamp: 3 !important; }
+.sd-sk-head { flex: none; font-family: var(--title); font-size: 22px; color: var(--c); margin-top: 2px; }
+.sd-sk-head small { font-family: inherit; font-size: 14px; color: #9a93bf; margin-left: 6px; }
+#sel-detail #sd-skills { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; gap: 6px; }
+.sd-skill { padding: 7px 12px; }
+.sd-skill b { font-size: 21px; }
+.sd-btns { flex: none; display: flex; gap: 10px; }
+.sd-btns #btn-back { flex: 1; } .sd-btns #btn-go { flex: 2.2; }
+/* 角色格：角上标心态、技能数 */
+.pick .pbadge { position: absolute; left: 6px; top: 6px; right: 6px; display: flex; justify-content: space-between; pointer-events: none; }
+.pick .pbadge span { font-size: 14px; font-weight: 800; color: var(--c); background: rgba(255, 255, 255, .9); border-radius: 9px; padding: 1px 7px; }
+.mode-desc { position: absolute; right: 4px; top: 76px; font-size: 16px; font-weight: 800; color: #6b5fb0; background: rgba(255, 255, 255, .72); border-radius: 12px; padding: 3px 12px; white-space: nowrap; }
+#stage.portrait .sd-portrait { width: 200px; height: 270px; }
+#stage.portrait .sd-rels span { font-size: 18px; } #stage.portrait .sd-rels b { font-size: 16px; }
+#stage.portrait .sd-sk-head { font-size: 28px; } #stage.portrait .sd-sk-head small { font-size: 18px; }
+#stage.portrait .pick .pbadge span { font-size: 15px; }
+#stage.portrait .mode-desc { position: static; font-size: 19px; white-space: normal; text-align: center; }
+
+/* 技能一行：名字 + 主动/被动 + 一句话，点开看完整说明 */
+.sd-skill .sd-row { display: flex; align-items: center; gap: 8px; }
+.sd-skill .sd-row b { flex: none; font-size: 22px; }
+.sd-skill .sd-row em { flex: none; margin-left: 0; background: #9a93bf; }
+.sd-skill .sd-row em.active { background: var(--c); }
+.sd-skill .sd-row .sd-short { flex: 1; min-width: 0; margin: 0; font-size: 16px; }
+.sd-skill .sd-row i { flex: none; font-style: normal; color: var(--c); font-size: 14px; transition: transform .15s; }
+.sd-skill.open .sd-row i { transform: rotate(180deg); }
+.sd-skill p { margin-top: 4px; }
+#stage.portrait .sd-skill .sd-row b { font-size: 26px; }
+#stage.portrait .sd-skill .sd-row .sd-short { font-size: 20px; }

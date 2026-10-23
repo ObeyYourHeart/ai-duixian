@@ -50,7 +50,7 @@ window.Main = (function () {
       const c = CH[k];
       const d = document.createElement("div"); d.className = "pick" + (k === pickKey ? " on" : "");
       d.style.setProperty("--c", c.color); d.style.setProperty("--l", c.light);
-      d.innerHTML = `<img src="${UI.portrait(k, "base")}" alt=""><div class="pn${c.name.length > 7 ? " long" : ""}">${c.name}</div>`;
+      d.innerHTML = `<img src="${UI.portrait(k, "base")}" alt=""><div class="pbadge"><span>❤${c.hp}</span><span>技能 ${c.skills.length}</span></div><div class="pn${c.name.length > 7 ? " long" : ""}">${c.name}</div>`;
       d.onclick = () => { pickKey = k; Sound.sfx("click", 0.5); select(); Sound.voice(k, "greet", 0); };
       grid.appendChild(d);
     }
@@ -59,12 +59,22 @@ window.Main = (function () {
     $("#sd-img").src = UI.portrait(pickKey, "smug");
     $("#sd-name").textContent = c.name; $("#sd-name").style.whiteSpace = "nowrap"; $("#sd-name").style.fontSize = c.name.length > 7 ? "36px" : ""; $("#sd-title").textContent = c.title;
     $("#sd-bio").textContent = c.bio || "";
-    $("#sd-hp").textContent = "心态 " + "❤".repeat(c.hp);
-    $("#sd-skills").innerHTML = c.skills.map((s) => `<div class="sd-skill"><b>【${s.name}】</b><em>${s.type === "active" ? "主动" : "被动"}</em><span class="sd-more">点开看详细</span><div class="sd-short">${s.short || ""}</div><p>${s.desc}</p></div>`).join("");
+    $("#sd-hp").innerHTML = `心态 <span>${"❤".repeat(c.hp)}</span>`;
+    // 人物关系：盟友 / 交好 / 宿敌各是谁（悬停看那句设定）
+    const REL = { ally: "盟友", friend: "交好", rival: "宿敌" };
+    const rels = (window.GAME_DATA.relations || []).filter(([a, b]) => a === pickKey || b === pickKey)
+      .sort((x, y) => ["ally", "friend", "rival"].indexOf(x[2]) - ["ally", "friend", "rival"].indexOf(y[2]));
+    $("#sd-rels").innerHTML = rels.map(([a, b, t, note]) => `<span class="${t}" title="${note}"><b>${REL[t]}</b>${CH[a === pickKey ? b : a].name}</span>`).join("");
+    $("#sd-skills").innerHTML = c.skills.map((s) => `<div class="sd-skill"><div class="sd-row"><b>${s.name}</b><em class="${s.type}">${s.type === "active" ? "主动" : "被动"}</em><span class="sd-short">${s.short || ""}</span><i>▾</i></div><p>${s.desc}</p></div>`).join("");
     $("#sd-skills").querySelectorAll(".sd-skill").forEach((e) => { e.onclick = () => { e.classList.toggle("open"); Sound.sfx("click", 0.4); }; });
     $("#sd-bio").classList.remove("open"); $("#sd-bio").onclick = () => $("#sd-bio").classList.toggle("open");
+    modeDesc();
     show("scr-select");
   }
+  // 模式下面一句话说清楚玩法
+  const MODE_DESC = { 2: "单挑：一对一，把她踢出群就赢。", 3: "三人乱斗：你和两个电脑，最后留在群里的人当群主。",
+    4: "2v2：座位是 你—对手—对手—队友，把对面两人都踢出群就赢。", 5: "抢群主：5 人随机身份（群主 / 管理员 / 黑粉 / 潜水党），各有各的胜利条件。" };
+  function modeDesc() { const e = $("#mode-desc"); if (e) e.textContent = MODE_DESC[players] || ""; }
 
   function start(sameOpp) {
     let opp;
@@ -138,7 +148,7 @@ window.Main = (function () {
     $("#btn-back").onclick = () => { Sound.sfx("click"); title(); };
     $("#modal-close").onclick = () => $("#modal").classList.add("hidden");
     document.querySelectorAll(".mode").forEach((b) => b.onclick = () => {
-      players = +b.dataset.mode; document.querySelectorAll(".mode").forEach((x) => x.classList.toggle("on", x === b)); Sound.sfx("click", 0.5);
+      players = +b.dataset.mode; document.querySelectorAll(".mode").forEach((x) => x.classList.toggle("on", x === b)); Sound.sfx("click", 0.5); modeDesc();
     });
     // 速度四档：工具栏点一下换档，设置面板里也能选
     const sp = $("#tb-speed");

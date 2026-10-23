@@ -43,20 +43,24 @@
           <button class="mode" data-mode="4">2v2</button>
           <button class="mode" data-mode="5">抢群主</button>
         </div>
+        <div class="mode-desc" id="mode-desc"></div>
       </div>
       <div class="sel-body">
         <div id="sel-grid"></div>
         <div id="sel-detail">
-          <div class="sd-portrait"><img id="sd-img" alt=""></div>
-          <div class="sd-info">
-            <div class="sd-name" id="sd-name"></div>
-            <div class="sd-title" id="sd-title"></div>
-            <div class="sd-bio" id="sd-bio"></div>
-            <div class="sd-hp" id="sd-hp"></div>
-            <div id="sd-skills"></div>
-            <button class="btn primary" id="btn-go">选她出战</button>
-            <button class="btn small" id="btn-back">返回</button>
+          <div class="sd-top">
+            <div class="sd-portrait"><img id="sd-img" alt=""></div>
+            <div class="sd-head">
+              <div class="sd-name" id="sd-name"></div>
+              <div class="sd-title" id="sd-title"></div>
+              <div class="sd-hp" id="sd-hp"></div>
+              <div class="sd-rels" id="sd-rels"></div>
+              <div class="sd-bio" id="sd-bio"></div>
+            </div>
           </div>
+          <div class="sd-sk-head">技能 <small>点一下看完整说明</small></div>
+          <div id="sd-skills"></div>
+          <div class="sd-btns"><button class="btn small" id="btn-back">返回</button><button class="btn primary" id="btn-go">选她出战</button></div>
         </div>
       </div>
     </section>
