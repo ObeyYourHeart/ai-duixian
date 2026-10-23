@@ -136,7 +136,7 @@ window.Main = (function () {
       return `<h2>卡牌图鉴 <small>共 ${total} 张，外加按人数埋进去的【宕机】</small></h2>` +
         ["basic", "trick", "equip", "bomb"].map((t) => grp(t).length ? `<h3>${TYPE[t]}</h3><div class="ru-cards">${grp(t).map(cardTile).join("")}</div>` : "").join("");
     }],
-    ["chars", "角色与技能", () => `<h2>角色与技能 <small>技能有的人两个、有的人更多，看设定</small></h2>
+    ["chars", "角色与技能", () => `<h2>角色与技能 <small>每人三到五个技能，看设定多少</small></h2>
       <div class="ru-chars">${keys.map((k) => { const c = CH[k]; return `<div class="ru-ch" style="--c:${c.color};--l:${c.light}">
         <div class="ru-ch1"><img src="${UI.portrait(k, "avatar")}" alt=""><div><b>${c.name}</b><small>${c.title}</small><span>${"❤".repeat(c.hp)}</span></div></div>
         <div class="ru-sks">${c.skills.map((s) => `<div class="ru-sk" title="${s.desc}"><b>${s.name}</b><em class="${s.type}">${s.type === "active" ? "主动" : "被动"}</em><span>${s.short || s.desc}</span></div>`).join("")}</div></div>`; }).join("")}</div>

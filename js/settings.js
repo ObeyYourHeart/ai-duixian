@@ -52,17 +52,18 @@ window.Settings = (function () {
           <h3>节奏</h3>
           <div class="set-row"><label>游戏速度</label>${seg("speed", SPEEDS.map((s, i) => [i, s.name]))}</div>
           <div class="set-row"><label>思考时间</label>${seg("timer", [[4, "4 秒"], [6, "6 秒"], [10, "10 秒"], [0, "不限时"]])}</div>
-          <p class="set-note">被吐槽、要不要发动技能时的倒计时；时间到了按默认处理。</p>
+          <p class="set-note">被吐槽、问你要不要发动技能时的倒计时，时间到了按默认处理。</p>
         </div>
         <div class="set-col">
           <h3>出牌</h3>
           <div class="set-row"><label>出牌方式</label>${seg("click", [[2, "点两下"], [1, "点一下"]])}</div>
-          <p class="set-note">点两下：先选中看清效果，再点一次出牌。点一下：直接出（要选目标的牌仍然要点对手）。也可以把牌拖到对手身上。</p>
+          <p class="set-note">点两下：先看清效果再出。点一下：直接出。要选目标的牌，再点对手或拖到她身上。</p>
           <div class="set-row"><label>被吐槽时</label>${seg("respond", [["ask", "每次问我"], ["auto", "自动应对"]])}</div>
+          <p class="set-note">自动应对：有【反驳】【已读不回】就按电脑的判断自动打出，不再弹提示。</p>
           <div class="set-row"><label>自动结束回合</label>${seg("autoEnd", [["1", "开"], ["0", "关"]])}</div>
           <p class="set-note">没有能出的牌、也没有能用的技能时，自动帮你结束回合。</p>
           <div class="set-row"><label>键盘快捷键</label>${seg("keys", [["1", "开"], ["0", "关"]])}</div>
-          <p class="set-note keys">数字键 1–9 选牌，再按一次出牌 · 选目标时按对手头上的数字 · 空格 结束回合 · Enter 确认 · Esc 取消 · Q / W 技能</p>
+          <p class="set-note keys">1–9 选牌（再按一次出牌）· 选目标时按对手头上的数字 · Enter 确认 · 空格 结束回合 · Q / W / E 技能 · Esc 取消 / 关窗口</p>
         </div>
       </div>
       <div class="set-foot"><button class="btn small" id="set-full">全屏</button><button class="btn small" id="set-reset">恢复默认</button></div>`;

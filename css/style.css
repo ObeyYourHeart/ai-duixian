@@ -59,7 +59,6 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 .parade img { height: 270px; margin: 0 -26px; filter: drop-shadow(0 8px 12px rgba(70, 50, 140, .25)); animation: bob 2.8s ease-in-out infinite; }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 .title-btns { position: absolute; bottom: calc(120px + var(--dy) / 3); left: 0; right: 0; display: flex; justify-content: center; gap: 28px; }
-.foot { position: absolute; bottom: 26px; left: 0; right: 0; text-align: center; color: #6b6585; font-size: 18px; }
 
 /* ---------- 选人 ---------- */
 .sel-head { position: absolute; left: 50px; right: 50px; top: calc(28px + var(--dy) / 4); display: flex; align-items: center; justify-content: space-between; }
@@ -317,7 +316,6 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #stage.portrait .parade img { height: 290px; margin: 0 -40px; }
 #stage.portrait .title-btns { top: calc(844px + var(--dy) / 2); bottom: auto; left: 50%; right: auto; width: 680px; transform: translateX(-50%); flex-wrap: wrap; gap: 22px; }
 #stage.portrait .title-btns .btn { width: 320px; padding: 16px 0; font-size: 34px; }
-#stage.portrait .foot { bottom: 40px; font-size: 16px; padding: 0 30px; }
 /* 选人：上面 5 列小卡，下面详情 */
 #stage.portrait .sel-head { left: 16px; right: 16px; top: calc(24px + var(--dy) / 10); flex-direction: column; gap: 14px; }
 #stage.portrait .sel-head .logo.mid { font-size: 52px; }

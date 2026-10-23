@@ -73,6 +73,7 @@ window.UI = (function () {
   }
   function center(p) { const q = pos(p), s = seatScale(p); return { x: q.x + HERO_W * s / 2, y: q.y + (HERO_H / 2 - 20) * s }; }
   function portrait(key, e) { return A(`assets/img/${key}_${e}.webp`); }
+  const pkey = (p) => (p.disguise ? "xds_cl" : p.key);              // 变身的小DeepSeek 换伪装立绘
 
   // ---------------------------------------------------------------- 牌面
   function cardEl(c, big) {
@@ -154,6 +155,8 @@ window.UI = (function () {
       if (p.dumb) st += '<span class="dumb">❓ 降智中</span>';
       if (p.offline) st += '<span>📵 断网中</span>';
       if (p.boost) st += '<span class="boost">🔥 加班中</span>';
+      if (p.napping) st += '<span>😴 补觉中</span>';
+      if (p.disguise) st += '<span class="boost">🎭 冒充 Claude</span>';
       if (g.bomb && g.bomb.holder === p) st += '<span class="bomb">💣 宕机预警</span>';
       if (p.equip) st += `<span class="eq">${EQ_ICON[p.equip.k] || "🧰"} ${CD[p.equip.k].name}</span>`;
       h.querySelector(".status").innerHTML = st;
@@ -258,12 +261,15 @@ window.UI = (function () {
     if (s.id === "dumb" && p.dumb) out.push("现在降智中");
     if (s.id === "fact" && p.used && p.used.fact) out.push("这轮核实过");
     if (s.id === "fans" && p.used && p.used.fans) out.push("这轮刷过礼物");
+    if (s.id === "disguise" && p.disguise) out.push("伪装中");
+    if (s.id === "nap" && p.napping) out.push("睡着了");
     if (s.id === "math" && p.human && g.bombSpots) { const sp = g.bombSpots(); if (sp.length) out.push(`宕机在第 ${sp.join("、")} 张`); }
     return out;
   }
   function heroStatus(p) {
     const st = [];
     if (p.banned) st.push("🚫 封号中"); if (p.muted) st.push("🔇 禁言中"); if (p.dumb) st.push("❓ 降智中");
+    if (p.napping) st.push("😴 补觉中"); if (p.disguise) st.push("🎭 正在冒充 Claude");
     if (p.offline) st.push("📵 断网中"); if (p.boost) st.push("🔥 加班中");
     return st;
   }
@@ -439,10 +445,10 @@ window.UI = (function () {
   function expr(p, e, ms) {
     const img = heroes[p.i] && heroes[p.i].querySelector(".por img");
     if (!img) return;
-    img.src = portrait(p.key, e);
+    img.src = portrait(pkey(p), e);
     heroes[p.i].querySelector(".por").animate([{ transform: "translateX(-50%) scale(1.06)" }, { transform: "translateX(-50%) scale(1)" }], { duration: 220, easing: "ease-out" });
     clearTimeout(exprTimers[p.i]);
-    if (ms && p.alive) exprTimers[p.i] = setTimeout(() => { if (p.alive && g) img.src = portrait(p.key, "base"); }, ms);
+    if (ms && p.alive) exprTimers[p.i] = setTimeout(() => { if (p.alive && g) img.src = portrait(pkey(p), "base"); }, ms);
   }
   const HURT_KEYS = ["hurt", "out", "stolen", "fury", "halluc", "low", "mourn"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
     "polish", "zuiying", "beg", "beg_gpt", "beg_claude", "claw", "dad", "maint", "long", "busy", "fed", "think", "sis", "search", "know", "sorry", "bundle", "sale",
@@ -566,6 +572,16 @@ window.UI = (function () {
     c.innerHTML = `<img src="${portrait(p.key, "smug")}" alt=""><div class="ct2">${p.name} 发动技能</div><div class="ct1">${name}</div>${sk && sk.short ? `<div class="ct3">${sk.short}</div>` : ""}`;
     $("#fx").appendChild(c); setTimeout(() => c.remove(), 1300 * Engine.speed + 100);
   }
+  // 变身：换伪装立绘、名牌改成“Claude？”
+  function disguise(p, on) {
+    const h = heroes[p.i]; if (!h) return;
+    h.classList.toggle("disguised", on);
+    h.querySelector(".por img").src = portrait(pkey(p), "base");
+    h.querySelector(".plate b").textContent = on ? "Claude？" : p.name;
+    h.querySelector(".plate small").textContent = on ? "（其实是小DeepSeek）" : p.ch.title;
+    if (on) sparks(p, "#f0a050", 18);
+    sync();
+  }
   function skillNote(p, name) { Sound.sfx("chime", 0.5); skillPop(p, name); sync(); }
   function skillPop(p, name) {
     const s = p.ch.skills.find((x) => x.name === name);
@@ -579,7 +595,7 @@ window.UI = (function () {
   // ---------------------------------------------------------------- 玩家：出牌阶段
   function humanPlay(p) {
     mode = "play"; selected = null; skillMode = null;
-    const how = SET().click === 1 ? "点牌直接出，要选目标的再点对手，或把牌拖到她身上。" : "点两下出牌，或把牌拖出去；要选目标的拖到对手身上。";
+    const how = SET().click === 1 ? "点牌直接出；要选目标的，再点对手或拖到她身上。" : "点一张牌看效果，再点一次出牌（也可以直接拖出去）。";
     hint((p.dumb ? "你降智了，不能【吐槽】。" : "轮到你了！") + how + (SET().keys ? '<small class="kb"><br>数字键选牌 · 空格结束回合</small>' : ""));
     Sound.sfx("chime", 0.5);
     sync();
@@ -607,7 +623,7 @@ window.UI = (function () {
   function checkAutoEnd(ms) {
     clearTimeout(autoT);
     if (!SET().autoEnd || mode !== "play" || busy || anyMove()) return;
-    hint("没有能出的牌、也没有能用的技能了，马上自动结束回合……");
+    hint("没有能出的牌和能用的技能了，马上自动结束回合……");
     autoT = setTimeout(() => { if (g && mode === "play" && !busy && !drag && !anyMove()) endPlay(); }, ms);
   }
   // 目标：发光 + 头上标数字（按从左到右），数字键可以直接选
@@ -624,7 +640,7 @@ window.UI = (function () {
     try { await fn(); } finally { busy = false; }
     if (playResolve) armNudge();
     selected = null; skillMode = null;
-    if (!g || g.over || !g.human.alive) { endPlay(); return; }
+    if (!g || g.over || !g.human.alive || g.human.skipRest) { endPlay(); return; }
     hint("继续出牌、用技能，或点【结束回合】。");
     sync();
     checkAutoEnd(1100);
@@ -1012,5 +1028,5 @@ window.UI = (function () {
   }
 
   return { attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, skillNote, banner, phase, toast,
-    humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, gameOver, bindButtons, cardEl, portrait, expr };
+    humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr };
 })();

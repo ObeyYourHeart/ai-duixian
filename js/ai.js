@@ -164,12 +164,14 @@ window.AI = (function () {
       if (t) return { skill: "beg", target: t };
     }
     if (g.canSkill(p, "polish") && !risky(p.hand.length + 1) && polishGain(g, p) > 0) return { skill: "polish" };
+    // 小DeepSeek 变身：冒充 Claude，顺手学她润色——手里的牌不好就变
+    if (g.canSkill(p, "disguise") && g.round >= 2 && !risky(p.hand.length + 1) && polishGain(g, p) > 0) return { skill: "disguise" };
     if (g.canSkill(p, "search")) return { skill: "search" };
     if (g.canSkill(p, "qingke")) { const t = treatTarget(g, p); if (t && (t !== p || p.hp <= p.maxHp - 1)) return { skill: "qingke", target: t }; }
     if (g.canSkill(p, "bundle") && !risky(3)) { if (Engine.T.bundleRandom) return { skill: "bundle" }; const t = giftTarget(g, p); if (t) return { skill: "bundle", target: t }; }
     if (g.canSkill(p, "halluc") && (Engine.T.hallucCost ? p.hand.length >= 2 : true) && p.hp >= 2) return { skill: "halluc" };
     if (g.canSkill(p, "recall")) return { skill: "recall" };
-    if (g.canSkill(p, "copy")) return { skill: "copy" };
+    if (g.canSkill(p, "luckybag") && (p.hand.length <= 2 || g.round >= 3)) return { skill: "luckybag" };
     if (g.canSkill(p, "opensrc") && g.rivals(p).reduce((n, q) => n + q.hand.length, 0) >= 4 && (g.round >= 2 || r() < 0.3)) return { skill: "opensrc" };
     if (g.canSkill(p, "paint") && !H("naicha").length && (p.hp < p.maxHp || g.round >= 3)) return { skill: "paint" };
     if (g.canSkill(p, "steal")) { const t = richest(g.skillTargets(p, "steal"), p); if (t) return { skill: "steal", target: t }; }
@@ -237,6 +239,8 @@ window.AI = (function () {
       const t = ev || pickTarget(g, p, others); if (t) return use(H("tucao")[0], [t]);
     }
     if (g.canSkill(p, "reset") && g.round >= 4 && p.hand.length <= 2) return { skill: "reset" };
+    // GLM 补觉：能出的都出完了、心态不满，就睡一觉（这回合不再出牌）
+    if (g.canSkill(p, "nap") && (p.hp <= p.maxHp - 2 || p.hp <= 2)) return { skill: "nap" };
     return null;
   }
 

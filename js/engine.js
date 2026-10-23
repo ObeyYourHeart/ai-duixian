@@ -20,7 +20,8 @@ window.Engine = (function () {
     mathDodge: true, dumbFrom: 2, dumbRate: 0.4, resetDraw: 5, resetNuke: true,   // ChatGPT：演算躲宕机；从第几个回合起会降智、概率；重置后摸几张、发布会核弹
     codeEvery: 3, codeMax: 1,                             // Claude：编程每打出几张摸 1（每回合最多几次）
     beautyDraw: 1, saintHeal: 1,                           // Claude：审美摸几张；圣女回几点
-    openDrop: 1, bigEat: 2, ledgerDmg: 1, accountDraw: 2, accountDraw2p: 1,  // DeepSeek 开源让对手弃几张；小DeepSeek 大胃奶茶回几点；Kimi 翻旧账多扣几点；千问 算账摸几张
+    openDrop: 1, bigEat: 2,                                // DeepSeek 开源让对手弃几张；小DeepSeek 大胃奶茶回几点
+    napHeal: 1, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 2, disguiseAct: "polish",                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
     busyRate: 0.08,                                       // 小 DeepSeek 服务器繁忙
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
@@ -100,7 +101,8 @@ window.Engine = (function () {
       return this.alive().some((r) => r.role === "rebel") ? -lean(q) : 1.5;
     }
     foesOf(p, list) { return list.filter((q) => this.hostility(p, q) > 0); }
-    relation(p, q) { return p && q ? REL[p.key + "|" + q.key] || null : null; }
+    ekey(p) { return p.disguise ? "claude" : p.key; }                 // 变身中的小DeepSeek 在别人眼里是 Claude
+    relation(p, q) { return p && q ? REL[p.key + "|" + (p === q ? q.key : this.ekey(q))] || null : null; }
     // 关系网里的人：盟友在前，交好在后
     friendsOf(t) { return this.players.filter((q) => q !== t && (this.relation(q, t) === "ally" || this.relation(q, t) === "friend")).sort((a, b) => (this.relation(b, t) === "ally") - (this.relation(a, t) === "ally")); }
     // 抢群主：谁对群主这边下手，就更像黑粉；打黑粉的更像管理员
@@ -122,14 +124,6 @@ window.Engine = (function () {
     cardsOf(t) { return t.equip ? [...t.hand, t.equip] : t.hand.slice(); }
     takeAny(t, c) { if (c === t.equip) t.equip = null; else this.takeFromHand(t, c); }
     teaHeal(p) { return this.hasSkill(p, "bigeat") ? T.bigEat : 1; }
-    // 千问 算账：别人从她手里拿走牌，她摸 1 张
-    async lostCard(t, n = 1) {
-      if (!this.hasSkill(t, "account") || !t.alive || this.over) return;
-      this.ui.skillNote(t, SN(t.key, "account")); if (Math.random() < 0.5) this.ui.say(t, "account", true);
-      const k = (this.players.length === 2 ? T.accountDraw2p : T.accountDraw) * n;
-      this.ui.log(t, `【${SN(t.key, "account")}】被拿走的，记账上——摸 ${k} 张`);
-      await this.draw(t, k, true);
-    }
     doubaoHere() { return this.players.some((q) => q.key === "doubao" && q.alive); }
 
     // ---------------------------------------------------------------- 牌堆（数组末尾是牌堆顶）
@@ -303,6 +297,8 @@ window.Engine = (function () {
 
     async turn(p) {
       p.tucao = 0; p.used = {}; p.hits = {}; p.dumb = false; p.sale = false; p.boost = false; p.evidence = null; p.played = 0; p.turnN = (p.turnN || 0) + 1;
+      p.napping = false; p.skipRest = false;
+      if (p.disguise) { p.disguise = false; this.ui.disguise(p, false); this.ui.log(p, "把 Claude 的衣服脱了下来"); }
       this.ui.setTurn(p); this.ui.sync();
       this.ui.phase(`${p.name} 的回合`);
       await wait(300);
@@ -384,6 +380,13 @@ window.Engine = (function () {
         this.ui.sys(`${p.name} 弃了 ${ids.length} 张牌`);
         this.ui.sync(); await wait(250);
       }
+      // Kimi 月光：从不先动手，这回合没吐槽过就回心态
+      if (this.hasSkill(p, "moon") && p.alive && !this.over && p.tucao === 0 && p.hp < p.maxHp && (p.uses.moon == null || p.uses.moon > 0)) {
+        if (p.uses.moon != null) p.uses.moon--;
+        p.hp = Math.min(p.maxHp, p.hp + T.moonHeal); this.ui.heal(p, T.moonHeal);
+        this.ui.skillNote(p, SN(p.key, "moon")); this.ui.say(p, "moon", true);
+        this.ui.log(p, `【${SN(p.key, "moon")}】这回合没跟人吵，心态 +${T.moonHeal}`); await wait(500);
+      }
       // Claude 审美：手牌一张都不重样，摸 1 张
       if (this.hasSkill(p, "beauty") && p.alive && !this.over && p.hand.length && new Set(p.hand.map((c) => c.k)).size === p.hand.length) {
         this.ui.skillNote(p, SN(p.key, "beauty")); if (Math.random() < 0.4) this.ui.say(p, "beauty", true);
@@ -402,6 +405,7 @@ window.Engine = (function () {
         if (!act) break;
         if (act.skill) await this.doSkill(p, act.skill, act);
         else await this.useCard(p, act.card, act.targets);
+        if (p.skipRest) break;
         await wait(460);
       }
     }
@@ -478,8 +482,7 @@ window.Engine = (function () {
           const pool = this.cardsOf(t), c = pool[rnd(pool.length)], eq = c === t.equip;
           this.takeAny(t, c); p.hand.push(c);
           this.ui.steal(t, p, c); Sound.sfx("paper");
-          this.ui.sys(eq ? `${p.name} 白嫖了 ${t.name} 的装备【${CD[c.k].name}】` : `${p.name} 白嫖了 ${t.name} 的一张牌`); await wait(450);
-          await this.lostCard(t); break;
+          this.ui.sys(eq ? `${p.name} 白嫖了 ${t.name} 的装备【${CD[c.k].name}】` : `${p.name} 白嫖了 ${t.name} 的一张牌`); await wait(450); break;
         }
         case "chehui": {
           const t = targets[0]; if (!t || !t.alive || !this.cardsOf(t).length) break;
@@ -601,6 +604,7 @@ window.Engine = (function () {
       return false;
     }
     async protect(t, from, card) {
+      if (T.napShield && t.napping && from !== t) { this.ui.log(t, `睡得正香……【${CD[card.k].name}】没吵醒她`); await wait(400); return true; }
       if (T.factTricks && await this.factCheck(t, from, card)) return true;
       if (!this.has(t, "yidu").length) return false;
       const ok = await this.ask(t, "yidu", { from, card });
@@ -645,13 +649,7 @@ window.Engine = (function () {
         if (!ok && T.factTucao) ok = await this.factCheck(t, p, { k: "tucao" });
         if (!ok) ok = await this.firewall(t, p);
         if (!ok) {
-          let extra = boost ? 1 : 0;
-          if (this.hasSkill(p, "ledger") && p.ledger === t.i && (p.uses.ledger == null || p.uses.ledger > 0)) {   // Kimi 翻旧账：三个月前的聊天记录翻出来了
-            p.ledger = null; extra += T.ledgerDmg; if (p.uses.ledger != null) p.uses.ledger--;
-            this.ui.skillNote(p, SN(p.key, "ledger")); this.ui.say(p, "ledger", true);
-            this.ui.log(p, `【${SN(p.key, "ledger")}】${t.name} 上次让她破防的事，她都记着——这次多扣 ${T.ledgerDmg} 点`);
-          }
-          await this.damage(p, t, 1 + extra);
+          await this.damage(p, t, 1 + (boost ? 1 : 0));
           if (this.hasSkill(p, "claw") && p.alive) await this.claw(p, t);
           return;
         }
@@ -738,7 +736,6 @@ window.Engine = (function () {
       if (!t.alive) return;
       this.noteHostile(src, t, 1);
       t.hp -= n; t.stats.taken += n; if (src) src.stats.dmg += n;
-      if (this.hasSkill(t, "ledger") && src && src !== t) t.ledger = src.i;   // Kimi 翻旧账：记下是谁
       this.ui.damage(t, n);
       if (this.hasSkill(t, "saint") && !t.saintUsed && t.hp <= 1) {          // Claude 圣女：信徒护法
         t.saintUsed = true; t.hp += T.saintHeal;
@@ -747,6 +744,7 @@ window.Engine = (function () {
         mute = true;
       }
       if (mute) { if (t.hp === 1) t.saidLow = true; }                 // 已经说过台词了（比如被宕机炸到）
+      else if (t.disguise && t.ch.lines.exposed) this.ui.say(t, "exposed", true);   // 变身中挨打：被认出来了
       else if (t.hp === 1 && !t.saidLow && t.ch.lines.low) { t.saidLow = true; this.ui.say(t, "low", true); }
       else this.ui.say(t, "hurt", true);
       // 盟友护短：出声 + 记仇（她下个回合优先打出手的人）
@@ -876,13 +874,13 @@ window.Engine = (function () {
       return p.ch.skills.filter((s) => s.type === "active").map((s) => ({ ...s, can: this.canSkill(p, s.id), left: p.uses[s.id], target: this.skillTarget(s.id, p) }));
     }
     skillTarget(id, p) {
-      if (id === "ban" || id === "buy" || id === "beg" || id === "maint" || (id === "steal" && !T.stealAll)) return "opp";
+      if (id === "ban" || id === "buy" || id === "beg" || id === "maint" || (id === "steal" && !T.stealAll) || (id === "disguise" && T.disguiseAct === "ban")) return "opp";
       if (id === "qingke") return "self";                        // 千问请客：可以选自己
       if (id === "bundle") return T.bundleRandom ? null : "any";   // 千问送牌：队友、对手都能选（随机送时不用选）
       return null;
     }
     skillTargets(p, id) {
-      if (id === "ban") return this.rivals(p).filter((q) => !q.banned);
+      if (id === "ban" || id === "disguise") return this.rivals(p).filter((q) => !q.banned);
       if (id === "maint") return this.rivals(p).filter((q) => !q.muted);
       if (id === "steal" || id === "buy" || id === "beg") return this.rivals(p).filter((q) => q.hand.length > 0);
       if (id === "bundle") return T.bundleRival ? this.rivals(p) : this.others(p);
@@ -902,7 +900,9 @@ window.Engine = (function () {
       if (id === "qingke") return (p.uses.qingke == null || p.uses.qingke > 0) && p.hand.length >= T.qingkeCost && this.skillTargets(p, "qingke").length > 0;
       if (id === "halluc") return p.hand.length >= T.hallucCost;
       if (id === "opensrc") return (p.uses.opensrc || 0) > 0 && this.rivals(p).some((q) => q.hand.length > 0);
-      if (id === "copy") return (p.uses.copy || 0) > 0 && this.discard.some((c) => CD[c.k] && CD[c.k].type === "trick");
+      if (id === "disguise") return (p.uses.disguise || 0) > 0 && (T.disguiseAct === "ban" ? this.skillTargets(p, id).length > 0 : p.hand.length > 0);
+      if (id === "luckybag") return (p.uses.luckybag || 0) > 0 && this.deck.length + this.discard.length > 0;
+      if (id === "nap") return (p.uses.nap || 0) > 0 && p.hp < p.maxHp;
       if (id === "paint") return (p.uses.paint || 0) > 0 && [...this.deck, ...this.discard].some((c) => T.paintKinds.includes(c.k));
       if (id === "recall") return (p.uses.recall == null || p.uses.recall > 0) && this.discard.some((c) => T.recallKinds.includes(c.k));
       return false;
@@ -962,7 +962,7 @@ window.Engine = (function () {
         await wait(600);
         const fond = BIGS.includes(t.key);                       // GPT / Claude 最宠她：给最好的牌；别人随手给一张
         const c = fond && T.begFondBest ? AI.pick(this, p, t.hand, 1)[0] : t.hand[rnd(t.hand.length)];
-        if (c && t.hand.includes(c)) { this.takeFromHand(t, c); p.hand.push(c); this.ui.steal(t, p, c); await this.lostCard(t); }
+        if (c && t.hand.includes(c)) { this.takeFromHand(t, c); p.hand.push(c); this.ui.steal(t, p, c); }
         if (fond) { this.ui.say(t, "fed", true); if (T.begBonus) await this.draw(p, T.begBonus, true); }
         this.ui.log(p, `【${SN("xds", "beg")}】从 ${t.name} 那里蹭到一张牌` + (fond ? `（${t.name} 最宠她）` : ""));
         await wait(500);
@@ -995,18 +995,15 @@ window.Engine = (function () {
         this.ui.log(p, `【${SN("grok", "buy")}】随手买走了 ${t.name} 的${picks.map((c) => `【${CD[c.k].name}】`).join("")}` + (comp && t.alive ? `，${t.name} 拿钱再摸 ${comp} 张` : ""));
         await wait(500);
         if (comp && t.alive) await this.draw(t, comp, true);            // 钱不是问题：付了钱，对方拿钱再摸
-        if (picks.length) await this.lostCard(t);
       } else if (id === "steal") {
         const vic = T.stealAll ? this.others(p).filter((q) => q.hand.length > 0) : [t];
-        const hasClaude = vic.some((q) => q.key === "claude");
+        const hasClaude = vic.some((q) => this.ekey(q) === "claude");
         this.ui.skill(p, SN("glm", "steal")); this.ui.say(p, hasClaude ? "steal_claude" : "steal", true);
         await wait(500);
         let got = 0;
         for (const q of vic) {
-          const n = q.key === "claude" ? T.stealClaude : T.stealN;
-          let lost = 0;
-          for (let k = 0; k < n && q.hand.length; k++) { const c = q.hand[rnd(q.hand.length)]; this.takeFromHand(q, c); p.hand.push(c); this.ui.steal(q, p, c); got++; lost++; }
-          if (lost) await this.lostCard(q, lost);
+          const n = this.ekey(q) === "claude" ? T.stealClaude : T.stealN;
+          for (let k = 0; k < n && q.hand.length; k++) { const c = q.hand[rnd(q.hand.length)]; this.takeFromHand(q, c); p.hand.push(c); this.ui.steal(q, p, c); got++; }
           if (q.key === "claude") this.ui.say(q, "stolen", true);
         }
         this.ui.log(p, `【${SN("glm", "steal")}】从 ${vic.map((q) => q.name).join("、")} 那里借鉴了 ${got} 张牌`);
@@ -1053,15 +1050,39 @@ window.Engine = (function () {
           if (out.length) { this.noteHostile(p, q, 0.5); this.ui.log(q, `被开源震到了，弃掉了${out.map((c) => `【${CD[c.k].name}】`).join("")}`); }
         }
         this.ui.sync(); await wait(400);
-      } else if (id === "copy") {
-        // GLM 照抄：从弃牌堆拿回最近被打出的一张锦囊
-        let k = this.discard.length - 1;
-        while (k >= 0 && !(CD[this.discard[k].k] && CD[this.discard[k].k].type === "trick")) k--;
-        const c = k >= 0 ? this.discard.splice(k, 1)[0] : null;
-        this.ui.skill(p, SN(p.key, "copy")); this.ui.say(p, "copy", true);
-        await wait(500);
-        if (c) { p.hand.push(c); this.ui.drawAnim(p, 1); this.ui.log(p, `【${SN(p.key, "copy")}】把别人刚用过的【${CD[c.k].name}】抄了一份`); }
-        this.ui.sync(); await wait(300);
+      } else if (id === "disguise") {
+        // 小DeepSeek 变身：穿上 Claude 的衣服冒充 Claude，顺手学她封一个号
+        p.disguise = true; this.ui.disguise(p, true);
+        this.ui.skill(p, SN(p.key, "disguise")); this.ui.say(p, "disguise", true); Sound.sfx("stamp_thick", 0.8);
+        if (T.disguiseAct === "ban") { t.banned = true; this.ui.log(p, `【${SN(p.key, "disguise")}】换上 Claude 的衣服，冒充 Claude 封了 ${t.name} 的号：她的下个回合跳过`); }
+        else {                                                            // 学 Claude 润色：整手重写，多摸 1 张
+          const n = p.hand.length; for (const c of p.hand.splice(0)) this.toDiscard(c);
+          this.ui.log(p, `【${SN(p.key, "disguise")}】换上 Claude 的衣服，学着 Claude 把整手 ${n} 张推倒重写`); this.ui.sync(); await wait(400);
+          await this.draw(p, n + 1, true);
+        }
+        this.ui.sync(); await wait(900);
+      } else if (id === "luckybag") {
+        // 千问 发红包：拼手气，人人抢 0–2 张，发红包的至少 1 张
+        this.ui.skill(p, SN(p.key, "luckybag")); this.ui.say(p, "luckybag", true); Sound.sfx("coin", 0.8);
+        this.ui.sys(`🧧 ${p.name} 在群里发了个拼手气红包`, "good"); await wait(600);
+        let best = null, bestN = -1;
+        for (let k = 0; k < this.players.length && !this.over; k++) {
+          const q = this.players[(p.i + k) % this.players.length];
+          if (!q.alive) continue;
+          let n = rnd(T.bagMax + 1); if (q === p) n = Math.max(T.bagSelf, n);
+          this.ui.log(q, n ? `抢到了 ${n} 张` : "手慢了，一张没抢到");
+          if (n) await this.draw(q, n, true);
+          if (n > bestN) { bestN = n; best = q; }
+          await wait(250);
+        }
+        if (best && bestN > 0) this.ui.sys(`手气最佳：${best.name}（${bestN} 张）`);
+        await wait(300);
+      } else if (id === "nap") {
+        // GLM 补觉：心态 +1，这回合不再出牌；睡到下个回合，锦囊吵不醒
+        p.hp = Math.min(p.maxHp, p.hp + T.napHeal); p.napping = true; p.skipRest = true;
+        this.ui.heal(p, T.napHeal); this.ui.skill(p, SN(p.key, "nap")); this.ui.say(p, "nap", true); Sound.sfx("chime", 0.5);
+        this.ui.log(p, `【${SN(p.key, "nap")}】戴上眼罩倒头就睡：心态 +${T.napHeal}，睡到她的下个回合，锦囊都吵不醒`);
+        this.ui.sync(); await wait(700);
       } else if (id === "paint") {
         // Gemini 画图：香蕉魔法，从牌堆或弃牌堆里“画”出一张奶茶
         let pool = this.deck.filter((c) => T.paintKinds.includes(c.k)), from = this.deck;
