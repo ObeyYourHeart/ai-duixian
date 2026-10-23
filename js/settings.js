@@ -64,7 +64,7 @@ window.Settings = (function () {
           <p class="set-note">没有能出的牌、也没有能用的技能时，自动帮你结束回合。</p>
           <div class="set-row"><label>键盘快捷键</label>${seg("keys", [["1", "开"], ["0", "关"]])}</div>
           <div class="set-row"><label>电脑扔道具</label>${seg("props", [["on", "会扔"], ["off", "不扔"]])}</div>
-          <p class="set-note">点任何一位角色，能朝她扔番茄、鸡蛋，或者送咖啡、鲜花、点赞。关掉后电脑不会主动扔，你自己照样能扔。</p>
+          <p class="set-note">点任何一位角色，能朝她点踩、糊个报错弹窗，或者送算力、点赞，还有你自己的专属道具。关掉后电脑不会主动扔，你自己照样能扔。</p>
           <p class="set-note keys">1–9 选牌（再按一次出牌）· 选目标时按对手头上的数字 · Enter 确认 · 空格 结束回合 · Q / W / E 技能 · Esc 取消 / 关窗口</p>
         </div>
       </div>

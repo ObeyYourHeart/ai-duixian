@@ -241,18 +241,64 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #stage.portrait #hinfo .hp-b { font-size: 18px; } #stage.portrait #hinfo .hp-b img { width: 62px; height: 62px; } #stage.portrait #hinfo .hp-note { font-size: 17px; }
 #stage.tiny #hinfo .hp-b { font-size: 19px; } #stage.tiny #hinfo .hp-b img { width: 60px; height: 60px; } #stage.tiny #hinfo .hp-note { font-size: 18px; }
 .prop-fly { position: absolute; width: 84px; height: 84px; object-fit: contain; pointer-events: none; z-index: 60; filter: drop-shadow(0 6px 8px rgba(60, 50, 120, .3)); }
-.prop-splat { position: absolute; width: 200px; height: 200px; object-fit: contain; pointer-events: none; z-index: 59; transform: translate(-50%, -50%) rotate(var(--r));
-  animation: splat 2.6s ease-out forwards; }
+#hinfo .hp-b.sig { position: relative; border-color: #ffc83c; background: linear-gradient(#fffaf0, #fff1cf); }
+#hinfo .hp-b.sig::after { content: "专属"; position: absolute; top: -8px; right: -4px; font-size: 11px; color: #fff; background: #f0a030; border-radius: 8px; padding: 0 5px; line-height: 16px; }
+/* 砸中效果的说明小字 */
+.prop-stamp em, .prop-land em, .prop-splat2 em, .prop-rocket em { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); white-space: nowrap; font-style: normal;
+  font-family: var(--title); font-size: 17px; color: var(--acc-ink); background: rgba(255, 255, 255, .95); border: 2px solid #fff; border-radius: 12px; padding: 2px 10px;
+  box-shadow: 0 3px 10px rgba(60, 50, 120, .2); }
+.prop-stamp, .prop-land, .prop-splat2, .prop-rocket, .prop-win, .prop-seal { position: absolute; pointer-events: none; z-index: 59; }
+/* 点踩 / 点赞：图标砰地盖上去 */
+.prop-stamp { transform: translate(-50%, -50%) rotate(var(--r)); animation: stampin 1.9s ease-out forwards; }
+.prop-stamp img { width: 130px; height: 130px; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(60, 50, 120, .3)); }
+.prop-stamp.bad em { color: #7a6a95; }
+@keyframes stampin { 0% { transform: translate(-50%, -50%) rotate(var(--r)) scale(2.2); opacity: 0; } 12% { transform: translate(-50%, -50%) rotate(var(--r)) scale(.92); opacity: 1; }
+  20% { transform: translate(-50%, -50%) rotate(var(--r)) scale(1); } 80% { opacity: 1; } 100% { transform: translate(-50%, -60%) rotate(var(--r)) scale(1); opacity: 0; } }
+/* 报错弹窗：一个小系统窗口糊在卡上 */
+.prop-win { width: 230px; transform: translate(-50%, -50%) rotate(var(--r)); background: #fff; border: 2px solid #c9cde0; border-radius: 10px; overflow: hidden;
+  box-shadow: 0 10px 26px rgba(40, 40, 90, .35); font-size: 15px; color: #3d3f5c; animation: winpop 2.3s ease-out forwards; }
+.prop-win .pw-t { display: flex; justify-content: space-between; align-items: center; background: linear-gradient(#f1f3fa, #e3e7f3); padding: 3px 8px; font-size: 13px; font-weight: 800; color: #5b6080; }
+.prop-win .pw-t i { font-style: normal; width: 18px; height: 18px; line-height: 18px; text-align: center; border-radius: 4px; background: #ff6b6b; color: #fff; font-size: 11px; }
+.prop-win .pw-b { display: flex; align-items: center; gap: 8px; padding: 12px 12px 8px; font-weight: 800; line-height: 1.3; }
+.prop-win .pw-b b { flex: none; width: 30px; height: 30px; line-height: 30px; text-align: center; font-size: 20px; color: #fff; background: #ffb020; border-radius: 50%; }
+.prop-win .pw-f { text-align: right; padding: 0 10px 9px; }
+.prop-win .pw-f span { display: inline-block; font-size: 13px; font-weight: 800; color: #fff; background: #4aa8ff; border-radius: 6px; padding: 2px 14px; animation: winok 2.3s linear forwards; }
+@keyframes winpop { 0% { transform: translate(-50%, -50%) rotate(var(--r)) scale(.3); opacity: 0; } 10% { transform: translate(-50%, -50%) rotate(var(--r)) scale(1.08); opacity: 1; }
+  18% { transform: translate(-50%, -50%) rotate(var(--r)) scale(1); } 78% { transform: translate(-50%, -50%) rotate(var(--r)) scale(1); opacity: 1; }
+  84% { transform: translate(-50%, -50%) rotate(var(--r)) scale(.96); } 100% { transform: translate(-50%, -50%) rotate(var(--r)) scale(.6); opacity: 0; } }
+@keyframes winok { 0%, 76% { filter: none; } 80% { filter: brightness(.8); } 100% { filter: brightness(.8); } }
+/* Claude 封号章：红色印章 */
+.prop-seal { transform: translate(-50%, -50%) rotate(var(--r)); animation: sealin 2s ease-out forwards; }
+.prop-seal b { display: block; font-family: var(--title); font-weight: normal; font-size: 54px; letter-spacing: 6px; color: #e03a3a; padding: 6px 16px 4px 22px; border: 6px double #e03a3a;
+  border-radius: 12px; background: rgba(255, 255, 255, .55); text-shadow: 0 0 1px #e03a3a; mix-blend-mode: multiply; }
+@keyframes sealin { 0% { transform: translate(-50%, -50%) rotate(var(--r)) scale(2.6); opacity: 0; } 10% { transform: translate(-50%, -50%) rotate(var(--r)) scale(.9); opacity: 1; }
+  18% { transform: translate(-50%, -50%) rotate(var(--r)) scale(1); } 85% { opacity: 1; } 100% { transform: translate(-50%, -50%) rotate(var(--r)) scale(1); opacity: 0; } }
+/* 糊脸 / 蘑菇云 / 长卷轴 */
+.prop-splat2 { transform: translate(-50%, -50%) rotate(var(--r)); animation: splat 2.6s ease-out forwards; }
+.prop-splat2 img { width: 200px; height: 200px; object-fit: contain; }
+.prop-splat2.nuke { animation: mushroom 2.6s ease-out forwards; } .prop-splat2.nuke img { width: 230px; height: 230px; }
+.prop-splat2.scroll img { width: 240px; height: 240px; }
 @keyframes splat { 0% { transform: translate(-50%, -50%) rotate(var(--r)) scale(.3); opacity: 0; } 8% { transform: translate(-50%, -50%) rotate(var(--r)) scale(1.12, .9); opacity: 1; }
   16% { transform: translate(-50%, -50%) rotate(var(--r)) scale(1); } 70% { transform: translate(-50%, -42%) rotate(var(--r)) scale(1); opacity: 1; } 100% { transform: translate(-50%, -30%) rotate(var(--r)) scale(1); opacity: 0; } }
-.prop-land { position: absolute; pointer-events: none; z-index: 59; transform: translate(-50%, -50%); animation: propland 1.7s ease-out forwards; }
+@keyframes mushroom { 0% { transform: translate(-50%, -30%) scale(.2); opacity: 0; } 15% { transform: translate(-50%, -55%) scale(1.1); opacity: 1; } 25% { transform: translate(-50%, -55%) scale(1); }
+  75% { transform: translate(-50%, -62%) scale(1.03); opacity: 1; } 100% { transform: translate(-50%, -75%) scale(1.08); opacity: 0; } }
+/* 落地：大白饭、小鱼干、枕头、外卖、显卡、嘉年华 */
+.prop-land { transform: translate(-50%, -50%); animation: propland 1.7s ease-out forwards; }
 .prop-land img { width: 110px; height: 110px; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(60, 50, 120, .3)); }
-.prop-land b { position: absolute; right: -18px; top: -6px; font-family: var(--title); font-size: 40px; color: #ffb020; -webkit-text-stroke: 2px #fff; paint-order: stroke; }
 .prop-land i { position: absolute; top: 0; left: 50%; font-style: normal; font-size: 26px; color: #ff6b9a; animation: heartup 1.5s ease-out forwards; opacity: 0; }
+.prop-land i.z { color: #8b7bd8; font-family: var(--title); font-size: 30px; }
 .prop-land i:nth-of-type(2) { animation-delay: .25s; margin-left: -30px; } .prop-land i:nth-of-type(3) { animation-delay: .5s; margin-left: 22px; }
 @keyframes propland { 0% { transform: translate(-50%, -50%) scale(.4); opacity: 0; } 15% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; } 25% { transform: translate(-50%, -50%) scale(1); }
   75% { transform: translate(-50%, -62%) scale(1); opacity: 1; } 100% { transform: translate(-50%, -80%) scale(.9); opacity: 0; } }
 @keyframes heartup { 0% { transform: translateY(0) scale(.5); opacity: 0; } 25% { opacity: 1; } 100% { transform: translateY(-70px) scale(1.2); opacity: 0; } }
+/* Grok 的火箭：落到卡上再冲天 */
+.prop-rocket { transform: translate(-50%, -50%); animation: rocketup 1.8s ease-in forwards; }
+.prop-rocket img { width: 120px; height: 120px; object-fit: contain; filter: drop-shadow(0 0 12px rgba(255, 170, 60, .8)); }
+@keyframes rocketup { 0% { transform: translate(-50%, -50%) scale(.5); opacity: 0; } 12% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; } 45% { transform: translate(-50%, -55%) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -360px) scale(.8); opacity: 0; } }
+/* 送算力：卡片带电一闪 */
+.hero.charged { animation: charged 1.3s ease-out; }
+@keyframes charged { 0%, 100% { box-shadow: none; } 15%, 45%, 75% { box-shadow: 0 0 0 4px #fff, 0 0 26px 10px rgba(95, 216, 255, .9); } 30%, 60% { box-shadow: 0 0 0 3px #bff0ff, 0 0 12px 4px rgba(95, 216, 255, .5); } }
 @keyframes msgin { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 #actions { position: absolute; right: 22px; top: calc(606px + var(--dy)); width: 370px; height: 272px; display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
@@ -620,6 +666,8 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .ru-props { display: flex; gap: 14px; flex-wrap: wrap; margin: 6px 0 4px; }
 .ru-props span { display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: var(--title); font-size: 17px; color: var(--acc-ink); background: #fff; border-radius: 16px; padding: 8px 14px 6px; }
 .ru-props img { width: 64px; height: 64px; object-fit: contain; }
+.ru-props small { font-family: var(--body, inherit); font-size: 12px; font-weight: 800; color: #8a83a8; }
+.ru-props.sig span { min-width: 96px; } .ru-props.sig b { font-weight: normal; }
 .ru-modes > div { background: #fff; border-radius: 18px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
 .ru-modes > div > b { font-family: var(--title); font-weight: normal; font-size: 28px; color: #5a4aa8; }
 .ru-modes span { font-size: 16px; line-height: 1.6; color: #4a4270; font-weight: 600; }

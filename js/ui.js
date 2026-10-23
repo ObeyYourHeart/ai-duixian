@@ -286,7 +286,7 @@ window.UI = (function () {
       <div class="hi-stat"><span>❤ 心态 ${Math.max(0, p.hp)} / ${p.maxHp}</span><span>🂠 手牌 ${p.hand.length}（上限 ${g.handLimit(p)}）</span>${p.equip ? `<span>🧰 ${CD[p.equip.k].name}</span>` : ""}${side ? `<span>${side}</span>` : ""}${p.alive ? "" : "<span>已退群</span>"}</div>
       ${st.length ? `<div class="hi-st">${st.join(" · ")}</div>` : ""}
       ${rel ? `<div class="hi-rel ${rel}"><b>${REL_NAME[rel]}</b>${relRow}</div>` : ""}
-      ${p !== me && window.Props ? `<div class="hi-props"><div class="hp-row">${Props.ORDER.map((k) => `<button class="hp-b" data-k="${k}" title="${Props.KINDS[k].name}"><img src="${A(`assets/img/prop_${k}.webp`)}" alt=""><span>${Props.KINDS[k].name}</span></button>`).join("")}</div>
+      ${p !== me && window.Props ? `<div class="hi-props"><div class="hp-row">${Props.kindsFor(me).map((k) => `<button class="hp-b${Props.KINDS[k].owner ? " sig" : ""}" data-k="${k}" title="${Props.KINDS[k].name}${Props.KINDS[k].owner ? "（你的专属）" : ""}"><img src="${A(`assets/img/prop_${k}.webp`)}" alt=""><span>${Props.KINDS[k].name}</span></button>`).join("")}</div>
         <div class="hp-note">${Props.meaning(g, me, p)}</div></div>` : ""}
       <div class="hi-skills">${p.ch.skills.map((s) => {
         const ss = skillState(p, s);
@@ -551,36 +551,56 @@ window.UI = (function () {
       $("#fx").appendChild(s); setTimeout(() => s.remove(), 750);
     }
   }
-  // ---------------------------------------------------------------- 互动道具：抛物线飞过去，砸中后番茄 / 鸡蛋糊在卡上，咖啡冒热气，鲜花撒花瓣，点赞 +1
-  const PROP_SFX = { tomato: ["slap2", 0.5], egg: ["egg_crack", 0.6], coffee: ["slurp", 0.45], flower: ["sparkle", 0.5], like: ["ding", 0.45] };
+  // ---------------------------------------------------------------- 互动道具：抛物线飞过去，砸中后按种类出效果（盖章、弹窗、糊脸、落地、带电、火箭、烟花）
+  const PROP_SFX = { dislike: ["stamp", 0.5], error: ["glitch_vhs", 0.35], gpu: ["spell2", 0.4], like: ["ding", 0.45], ban: ["stamp_thick", 0.7], nuke: ["bomb", 0.3],
+    rice: ["plop", 0.5], fish: ["pop_small", 0.5], banana: ["slap2", 0.5], rocket: ["whoosh_cartoon", 0.5], pillow: ["boing", 0.45], carnival: ["yay", 0.35], scroll: ["paper", 0.6], takeout: ["notify", 0.45] };
+  const ERRORS = ["服务器繁忙，请稍后再试", "网络开小差了，请重试", "请求太频繁，请稍后", "内容生成失败，请重新生成", "Error 500：内部错误"];
   function throwProp(from, to, kind) {
     if (!g || !heroes[to.i]) return;
-    const a = center(from), b = center(to), fx = $("#fx");
+    const K = Props.KINDS[kind], a = center(from), b = center(to), fx = $("#fx");
     const it = el("img", "prop-fly"); it.src = A(`assets/img/prop_${kind}.webp`);
     it.style.left = a.x + "px"; it.style.top = a.y + "px"; fx.appendChild(it);
-    const dx = b.x - a.x, dy = b.y - a.y, lift = Math.min(260, 90 + Math.hypot(dx, dy) * 0.25), spin = kind === "tomato" || kind === "egg" ? 540 : 0;
+    const dx = b.x - a.x, dy = b.y - a.y, lift = Math.min(260, 90 + Math.hypot(dx, dy) * 0.25), spin = K.bad && kind !== "error" && kind !== "ban" ? 540 : 0;
     Sound.sfx("whoosh_little", 0.35);
     const fly = it.animate([
       { transform: "translate(-50%, -50%) scale(.7) rotate(0deg)" },
       { transform: `translate(calc(-50% + ${dx / 2}px), calc(-50% + ${dy / 2 - lift}px)) scale(1.15) rotate(${spin / 2}deg)`, offset: 0.5 },
       { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1) rotate(${spin}deg)` }], { duration: 620, easing: "cubic-bezier(.3,.1,.5,1)" });
-    const done = () => { it.remove(); propHit(to, kind, b); };
-    fly.onfinish = done; fly.oncancel = () => it.remove();
+    fly.onfinish = () => { it.remove(); propHit(to, kind, b); }; fly.oncancel = () => it.remove();
+  }
+  function propFx(cls, html, c, ms) {
+    const e = el("div", cls, html); e.style.left = c.x + "px"; e.style.top = c.y + "px"; $("#fx").appendChild(e); setTimeout(() => e.remove(), ms); return e;
+  }
+  function shakeHero(p) {
+    const h = heroes[p.i];
+    if (h) h.animate([{ transform: "translateX(0)" }, { transform: "translateX(-8px) rotate(-1.5deg)" }, { transform: "translateX(6px) rotate(1deg)" }, { transform: "translateX(0)" }], { duration: 360 });
   }
   function propHit(p, kind, c) {
-    const fx = $("#fx"), h = heroes[p.i];
-    const [sfx, v] = PROP_SFX[kind]; Sound.sfx(sfx, v);
-    if (kind === "tomato" || kind === "egg") {
-      const s = el("img", "prop-splat"); s.src = A(`assets/img/splat_${kind}.webp`);
-      s.style.left = c.x + "px"; s.style.top = c.y + "px"; s.style.setProperty("--r", (Math.random() * 50 - 25) + "deg"); fx.appendChild(s);
-      setTimeout(() => s.remove(), 2600);
-      if (h) h.animate([{ transform: "translateX(0)" }, { transform: "translateX(-8px) rotate(-1.5deg)" }, { transform: "translateX(6px) rotate(1deg)" }, { transform: "translateX(0)" }], { duration: 360 });
-      return;
+    const K = Props.KINDS[kind], [sfx, v] = PROP_SFX[kind] || ["plop", 0.4];
+    Sound.sfx(sfx, v);
+    const img = `<img src="${A(`assets/img/prop_${kind}.webp`)}" alt="">`, cap = K.cap ? `<em>${K.cap}</em>` : "";
+    const r = (Math.random() * 30 - 15).toFixed(1) + "deg";
+    if (K.fx === "stamp") { const e = propFx("prop-stamp" + (K.bad ? " bad" : ""), img + cap, c, 1900); e.style.setProperty("--r", r); if (K.bad) shakeHero(p); else sparks(p, "#ffd35a", 12); }
+    else if (K.fx === "window") {
+      const e = propFx("prop-win", `<div class="pw-t"><span>系统提示</span><i>✕</i></div><div class="pw-b"><b>⚠</b>${ERRORS[Math.floor(Math.random() * ERRORS.length)]}</div><div class="pw-f"><span>确定</span></div>`, c, 2300);
+      e.style.setProperty("--r", r); shakeHero(p);
+    } else if (K.fx === "seal") { const e = propFx("prop-seal", "<b>封号</b>", c, 2000); e.style.setProperty("--r", (-14 + Math.random() * 8).toFixed(1) + "deg"); shakeHero(p); }
+    else if (K.fx === "splat") {
+      const e = propFx("prop-splat2 " + kind, `<img src="${A(`assets/img/splat_${kind === "nuke" ? "mushroom" : kind}.webp`)}" alt="">${cap}`, c, 2600);
+      e.style.setProperty("--r", kind === "nuke" ? "0deg" : r); shakeHero(p);
+    } else if (K.fx === "charge") {
+      propFx("prop-land", img + cap, c, 1700);
+      const h = heroes[p.i]; if (h) { h.classList.remove("charged"); void h.offsetWidth; h.classList.add("charged"); setTimeout(() => h.classList.remove("charged"), 1300); }
+      sparks(p, "#5fd8ff", 14);
+    } else if (K.fx === "rocket") { propFx("prop-rocket", img + cap, c, 1800); sparks(p, "#ffb347", 14); }
+    else if (K.fx === "fireworks") {
+      propFx("prop-land", img + cap, c, 1800);
+      ["#ff6b9a", "#ffd35a", "#5fd8ff", "#9b7bff"].forEach((col, i) => setTimeout(() => sparks(p, col, 12), i * 180));
+    } else {
+      const extra = K.hearts ? "<i>♥</i><i>♥</i><i>♥</i>" : K.zzz ? "<i class=\"z\">Z</i><i class=\"z\">z</i><i class=\"z\">Z</i>" : "";
+      propFx("prop-land", img + cap + extra, c, 1700);
+      if (K.zzz) shakeHero(p);
     }
-    const s = el("div", "prop-land " + kind, `<img src="${A(`assets/img/prop_${kind}.webp`)}" alt="">${kind === "like" ? "<b>+1</b>" : kind === "coffee" ? "<i>♥</i><i>♥</i><i>♥</i>" : ""}`);
-    s.style.left = c.x + "px"; s.style.top = c.y + "px"; fx.appendChild(s);
-    setTimeout(() => s.remove(), 1700);
-    if (kind === "flower") sparks(p, "#ffa8c8", 16);
   }
   function damage(p, n) {
     const h = heroes[p.i];

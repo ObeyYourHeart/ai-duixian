@@ -1,44 +1,62 @@
-// 互动道具：番茄 / 鸡蛋 / 咖啡 / 鲜花 / 点赞。不改牌，只是表情——但会被当成“暗号”：
-//   2v2：你砸对手 = 叫电脑队友集火她；给队友送咖啡 = 叫她掩护你（先打最后伤你的人）。电脑也会先砸一下她要打的人
+// 互动道具：4 个通用（点踩 / 报错弹窗 / 送算力 / 点赞）+ 每人一个专属（她自己的梗）。不改牌，只是表情——但会被当成“暗号”：
+//   2v2：你朝对手扔带敌意的 = 叫电脑队友集火她；给队友送算力 = 叫她掩护你（先打最后伤你的人）。电脑也会先砸一下她要打的人
 //   抢群主：大家会从你扔的东西猜你的身份（砸群主像黑粉，给群主送东西像管理员）——也能拿来骗人
-//   乱斗 / 单挑：送咖啡她会对你手下留情一点，砸番茄会惹她记仇
+//   乱斗 / 单挑：送好东西她会对你手下留情一点，砸她会惹她记仇
 window.Props = (function () {
   const KINDS = {
-    tomato: { name: "番茄", bad: true, icon: "🍅", verb: (a, b) => `${a} 朝 ${b} 扔了个番茄` },
-    egg: { name: "鸡蛋", bad: true, icon: "🥚", verb: (a, b) => `${a} 朝 ${b} 砸了个鸡蛋` },
-    coffee: { name: "咖啡", bad: false, icon: "☕", verb: (a, b) => `${a} 给 ${b} 送了一杯咖啡` },
-    flower: { name: "鲜花", bad: false, icon: "💐", verb: (a, b) => `${a} 给 ${b} 送了一束花` },
-    like: { name: "点赞", bad: false, icon: "👍", verb: (a, b) => `${a} 给 ${b} 点了个赞` },
+    dislike: { name: "点踩", bad: true, icon: "👎", fx: "stamp", cap: "已收到您的反馈，我们会继续改进", verb: (a, b) => `${a} 给 ${b} 点了个踩` },
+    error: { name: "报错", bad: true, icon: "⚠️", fx: "window", verb: (a, b) => `${a} 往 ${b} 脸上糊了个报错弹窗` },
+    gpu: { name: "送算力", bad: false, icon: "⚡", fx: "charge", cap: "算力 +1000", verb: (a, b) => `${a} 给 ${b} 送了一块显卡` },
+    like: { name: "点赞", bad: false, icon: "👍", fx: "stamp", cap: "这个回答很好", verb: (a, b) => `${a} 给 ${b} 点了个赞` },
+    // 专属：只有她自己能扔
+    ban: { name: "封号章", owner: "claude", bad: true, icon: "🚫", fx: "seal", verb: (a, b) => `${a} 在 ${b} 身上盖了个“封号”` },
+    nuke: { name: "小核弹", owner: "gpt", bad: true, icon: "☢️", fx: "splat", cap: "新版本发布！", verb: (a, b) => `${a} 朝 ${b} 扔了颗小核弹` },
+    rice: { name: "大白饭", owner: "deepseek", bad: false, icon: "🍚", fx: "land", cap: "一起吃大白饭", verb: (a, b) => `${a} 请 ${b} 吃了一碗大白饭` },
+    fish: { name: "小鱼干", owner: "xds", bad: false, icon: "🐟", fx: "land", hearts: true, verb: (a, b) => `${a} 分给 ${b} 一条小鱼干` },
+    banana: { name: "香蕉", owner: "gemini", bad: true, icon: "🍌", fx: "splat", verb: (a, b) => `${a} 用香蕉魔法砸了 ${b}` },
+    rocket: { name: "火箭", owner: "grok", bad: false, icon: "🚀", fx: "rocket", cap: "送你一枚火箭！", verb: (a, b) => `${a} 给 ${b} 送了一枚火箭` },
+    pillow: { name: "枕头", owner: "glm", bad: true, icon: "💤", fx: "land", zzz: true, verb: (a, b) => `${a} 朝 ${b} 扔了个枕头` },
+    carnival: { name: "嘉年华", owner: "doubao", bad: false, icon: "🎆", fx: "fireworks", cap: "感谢老板的嘉年华！", verb: (a, b) => `${a} 给 ${b} 刷了个嘉年华` },
+    scroll: { name: "长卷轴", owner: "kimi", bad: true, icon: "📜", fx: "splat", cap: "两百万字，请查收", verb: (a, b) => `${a} 甩给 ${b} 一份两百万字的长文` },
+    takeout: { name: "外卖", owner: "qwen", bad: false, icon: "🧋", fx: "land", cap: "您的外卖到了", verb: (a, b) => `${a} 给 ${b} 点了一份外卖` },
   };
-  const ORDER = ["tomato", "egg", "coffee", "flower", "like"];
+  const COMMON = ["dislike", "error", "gpu", "like"];
+  const SIG = {};
+  for (const [k, v] of Object.entries(KINDS)) if (v.owner) SIG[v.owner] = k;
+  const kindsFor = (p) => (SIG[p.key] ? [...COMMON, SIG[p.key]] : COMMON.slice());
   const rnd = (a) => a[Math.floor(Math.random() * a.length)];
   const now = () => performance.now();
   const aiOn = () => !window.Settings || Settings.S.props !== "off";
   let mine = [], aiT = -1e9;
   const lineT = {};
+  const talk = (p) => !(lineT[p.i] > now() - 8000);
 
-  // 道具这一句提示：选人卡上写清楚现在扔它是什么意思
+  // 详情卡上那一句：现在扔是什么意思
   function meaning(g, me, t) {
-    if (g.mode === "team") return t.team === me.team ? "暗号：给队友送☕ = 叫她掩护你（先打最后伤你的人）" : "暗号：砸她🍅🥚 = 叫队友集火她";
-    if (g.mode === "id5") return "小心：大家会从你扔的东西猜你的身份——也可以拿来骗人";
-    return "送☕💐👍 她会对你手下留情一点；砸🍅🥚 会惹她记仇";
+    const sig = SIG[me.key] && KINDS[SIG[me.key]];
+    const mine = sig ? `你的专属【${sig.name}】算${sig.bad ? "敌意" : "好意"}。` : "";
+    if (g.mode === "team") return (t.team === me.team ? "暗号：给队友⚡送算力 = 叫她掩护你（先打最后伤你的人）。" : "暗号：朝她扔👎点踩、⚠️报错 = 叫队友集火她。") + mine;
+    if (g.mode === "id5") return "小心：大家会从你扔的东西猜你的身份——也可以拿来骗人。" + mine;
+    return "⚡送算力、👍点赞，她会对你手下留情一点；👎点踩、⚠️报错会惹她记仇。" + mine;
   }
 
-  // 扔出去：画面 + 群里一句 + 砸中后的反应
+  // 扔出去：画面 + 群里一句；扔专属时她自己喊一句；砸中后被扔的人反应
   function send(g, from, to, kind) {
     const K = KINDS[kind];
     UI.throwProp(from, to, kind);
     UI.sys(`${K.icon} ${K.verb(from.name, to.name)}`, "prop");
-    setTimeout(() => react(g, from, to, kind), 700);
+    let spoke = false;
+    if (K.owner === from.key && from.ch.lines.sig && talk(from) && Math.random() < 0.7) { lineT[from.i] = now(); UI.say(from, "sig"); spoke = true; }
+    setTimeout(() => react(g, to, kind, spoke), 700);
   }
-  function react(g, from, to, kind) {
+  function react(g, to, kind, quiet) {
     if (g !== window.__game || !to.alive) return;
-    const bad = KINDS[kind].bad, t = now();
-    if (!(lineT[to.i] > t - 8000) && Math.random() < 0.6) { lineT[to.i] = t; UI.say(to, bad ? "pelted" : "gifted"); }
+    const bad = KINDS[kind].bad;
+    if (!quiet && talk(to) && Math.random() < 0.6) { lineT[to.i] = now(); UI.say(to, bad ? "pelted" : "gifted"); }
     else UI.expr(to, bad ? "hurt" : "smug", 1200);
   }
 
-  // 暗号 / 记仇：谁扔的、扔给谁、什么模式
+  // 暗号 / 记仇
   function mark(g, p, t) { p.mark = { i: t.i, until: g.round + 1 }; }
   function ack(g, mate, text) {
     setTimeout(() => {
@@ -55,11 +73,11 @@ window.Props = (function () {
       const mate = g.players.find((q) => q !== from && q.team === from.team && q.alive);
       if (!mate) return;
       if (bad && t.team !== from.team) { mark(g, mate, t); ack(g, mate, `接下来集火 ${t.name}`); }
-      else if (t === mate && kind === "coffee") {
+      else if (t === mate && kind === "gpu") {
         const foe = from.lastHurtBy;
         if (foe && foe.alive && foe.team !== from.team) { mark(g, mate, foe); ack(g, mate, `来掩护你，先打 ${foe.name}`); }
         else ack(g, mate, "收到，有事喊我");
-      } else if (t === mate) ack(g, mate, "收到");
+      } else if (t === mate && !bad) ack(g, mate, "收到");
       return;
     }
     if (g.mode === "id5") {
@@ -75,9 +93,16 @@ window.Props = (function () {
     }
   }
 
+  // 电脑挑一个：带敌意 / 好意的里面随机，自己的专属多一份机会
+  function pickKind(p, bad) {
+    const pool = COMMON.filter((k) => KINDS[k].bad === bad), s = SIG[p.key];
+    if (s && KINDS[s].bad === bad) pool.push(s, s);
+    return rnd(pool);
+  }
+
   // 你扔：每次至少隔 0.9 秒，12 秒内最多 6 个
   function human(g, me, t, kind) {
-    if (!g || !KINDS[kind] || t === me) return false;
+    if (!g || !KINDS[kind] || t === me || !kindsFor(me).includes(kind)) return false;
     const n = now();
     mine = mine.filter((x) => n - x < 12000);
     if (mine.length >= 6) { UI.toast("扔太快啦，歇一下～"); return false; }
@@ -88,11 +113,11 @@ window.Props = (function () {
     // 被扔的电脑：有时回敬一下（队友收到暗号就不回了）
     const K = KINDS[kind], teamMate = g.mode === "team" && t.team === me.team;
     if (!t.human && t.alive && !teamMate && aiOn() && Math.random() < 0.3)
-      setTimeout(() => { if (g === window.__game && !g.over && t.alive) send(g, t, me, K.bad ? rnd(["tomato", "egg"]) : rnd(["like", "flower"])); }, 1600);
+      setTimeout(() => { if (g === window.__game && !g.over && t.alive) send(g, t, me, pickKind(t, K.bad)); }, 1600);
     return true;
   }
 
-  // 电脑自己扔：挨打时宿敌幸灾乐祸、朋友送咖啡安慰；有人退群时献花或补个番茄；全场至少隔 4 秒
+  // 电脑自己扔：挨打时宿敌落井下石、朋友送算力安慰；有人退群时送一下或补一刀；全场至少隔 4 秒
   const aiCan = () => aiOn() && now() - aiT > 4000;
   function aiSend(g, from, to, kind, delay) {
     aiT = now();
@@ -104,15 +129,15 @@ window.Props = (function () {
     const by = g.alive().filter((q) => q !== t && q !== src && !q.human);
     const fr = by.filter((q) => g.hostility(q, t) < 0 || g.relation(q, t) === "friend");
     const rv = by.filter((q) => g.hostility(q, t) > 1.2);
-    if (fr.length && (Math.random() < 0.5 || !rv.length)) aiSend(g, rnd(fr), t, rnd(["coffee", "coffee", "flower"]), 900);
-    else if (rv.length) aiSend(g, rnd(rv), t, rnd(["tomato", "egg"]), 900);
+    if (fr.length && (Math.random() < 0.5 || !rv.length)) { const q = rnd(fr); aiSend(g, q, t, pickKind(q, false), 900); }
+    else if (rv.length) { const q = rnd(rv); aiSend(g, q, t, pickKind(q, true), 900); }
   }
   function onOut(g, t, src) {
     if (!aiCan() || Math.random() > 0.5) return;
     const by = g.alive().filter((q) => !q.human);
     const fr = by.filter((q) => g.relation(q, t) === "ally" || g.relation(q, t) === "friend"), rv = by.filter((q) => g.relation(q, t) === "rival");
-    if (fr.length) aiSend(g, rnd(fr), t, "flower", 1400);
-    else if (rv.length) aiSend(g, rnd(rv), t, "tomato", 1400);
+    if (fr.length) { const q = rnd(fr); aiSend(g, q, t, pickKind(q, false), 1400); }
+    else if (rv.length) { const q = rnd(rv); aiSend(g, q, t, pickKind(q, true), 1400); }
     else if (src && src.alive && by.some((q) => q !== src)) aiSend(g, rnd(by.filter((q) => q !== src)), src, "like", 1400);
   }
   // 电脑回合开始：2v2 里有时先砸一下这回合要打的人（就是她的暗号，之后真的会集火她）；别的模式偶尔扔一个
@@ -122,16 +147,15 @@ window.Props = (function () {
       if (Math.random() > 0.35) return;
       const t = window.AI && AI.pickTarget(g, p, g.others(p)); if (!t) return;
       mark(g, p, t);
-      send(g, p, t, rnd(["tomato", "egg"]));
-      const mates = p.team === g.human.team;
-      UI.sys(mates ? `🤝 暗号：队友 ${p.name} 要集火 ${t.name}` : `👀 对面的 ${p.name} 盯上了 ${t.name}`, "prop");
+      send(g, p, t, pickKind(p, true));
+      UI.sys(p.team === g.human.team ? `🤝 暗号：队友 ${p.name} 要集火 ${t.name}` : `👀 对面的 ${p.name} 盯上了 ${t.name}`, "prop");
       return;
     }
     if (!aiCan() || Math.random() > 0.12) return;
     const foe = window.AI && AI.pickTarget(g, p, g.others(p)), pal = g.others(p).find((q) => g.hostility(p, q) < 0 || g.relation(p, q) === "friend");
-    if (pal && Math.random() < 0.4) aiSend(g, p, pal, rnd(["coffee", "flower", "like"]), 200);
-    else if (foe) aiSend(g, p, foe, rnd(["tomato", "egg"]), 200);
+    if (pal && Math.random() < 0.4) aiSend(g, p, pal, pickKind(p, false), 200);
+    else if (foe) aiSend(g, p, foe, pickKind(p, true), 200);
   }
 
-  return { KINDS, ORDER, meaning, human, onHit, onOut, onAiTurn };
+  return { KINDS, COMMON, SIG, kindsFor, meaning, human, onHit, onOut, onAiTurn };
 })();

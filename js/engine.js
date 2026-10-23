@@ -180,6 +180,8 @@ window.Engine = (function () {
       let how = null;
       if (this.hasSkill(p, "think") && Math.random() < T.thinkDefuse) how = "think";
       else if (hasR || hasS) how = p.human ? await this.ui.humanBomb(hasR, hasS) : AI.bombChoice(this, p, hasR, hasS);
+      // 等她选的时候手牌可能变了（牌被拿走了）：要用的牌已经不在，就只能硬吃
+      if ((how === "reboot" && !this.has(p, "chongqi").length) || (how === "shuaiguo" && !this.has(p, "shuaiguo").length)) how = null;
       if (how === "shuaiguo") {
         const u = p.human ? await this.ui.humanChoose(outs, "【甩锅】把宕机甩给谁？") : (AI.pickTarget(this, p, outs) || outs[0]);
         const c = this.has(p, "shuaiguo")[0];
@@ -217,6 +219,7 @@ window.Engine = (function () {
       if (T.sorryBoom) await this.sorry(p);
     }
     takeFromHand(p, card) {
+      if (!card) return card;
       const i = p.hand.findIndex((c) => c.id === card.id);
       if (i >= 0) p.hand.splice(i, 1);
       return card;
