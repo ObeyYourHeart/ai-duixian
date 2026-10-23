@@ -44,6 +44,7 @@ window.AI = (function () {
     s -= ((p.hits && p.hits[q.i]) || 0) * 2.2;
     s += ((p.grudge && p.grudge[q.i]) || 0) * 1.5;
     if (p.mark && p.mark.i === q.i && g.round <= p.mark.until) s += 5;   // 互动道具的暗号：队友叫我集火她
+    if (q.band && q.band.length) s += q.band.length * Engine.T.bandThreat;   // Kimi 的乐队快到齐了：趁她开唱前先打她
     if (g.round <= 1 && q.human) s -= 1.5;
     return s + hostile(g, p, q) * 1.2;
   }
@@ -164,7 +165,7 @@ window.AI = (function () {
       const t = fond.length ? richest(fond, p) : richest(ts, p);
       if (t) return { skill: "beg", target: t };
     }
-    if (g.canSkill(p, "burst")) return { skill: "burst" };                 // Kimi：气满了先一鸣惊人
+    if (g.canSkill(p, "live")) return { skill: "live" };                   // Kimi：乐队到齐，先开演唱会
     if (g.canSkill(p, "polish") && !risky(p.hand.length + 1) && polishGain(g, p) > 0) return { skill: "polish" };
     // 小DeepSeek 变身：冒充 Claude，顺手学她润色——手里的牌不好就变
     if (g.canSkill(p, "disguise") && g.round >= 2 && !risky(p.hand.length + 1) && polishGain(g, p) > 0) return { skill: "disguise" };
@@ -173,6 +174,12 @@ window.AI = (function () {
     if (g.canSkill(p, "bundle") && !risky(3)) { if (Engine.T.bundleRandom) return { skill: "bundle" }; const t = giftTarget(g, p); if (t) return { skill: "bundle", target: t }; }
     if (g.canSkill(p, "halluc") && (Engine.T.hallucCost ? p.hand.length >= 2 : true) && p.hp >= 2) return { skill: "halluc" };
     if (g.canSkill(p, "recall")) return { skill: "recall" };
+    // Kimi 排练：吐槽够用、或者乐队差最后一名、或者这回合已经吐槽完了，就写一首新歌；只有 1 张又能把人踢出群时先留着打
+    if (g.canSkill(p, "rehearse")) {
+      const nT = H("tucao").length, band = (p.band || []).length, spent = p.tucao >= g.limitTucao(p);
+      const kill = enemies.some((q) => q.hp <= 1);
+      if (nT >= 2 || spent || band >= Engine.T.bandMax - 1 || (!kill && enemies.length >= 2)) return { skill: "rehearse" };
+    }
     if (g.canSkill(p, "luckybag") && (p.hand.length <= 2 || g.round >= 3)) return { skill: "luckybag" };
     if (g.canSkill(p, "opensrc") && g.rivals(p).reduce((n, q) => n + q.hand.length, 0) >= 4 && (g.round >= 2 || r() < 0.3)) return { skill: "opensrc" };
     if (g.canSkill(p, "paint") && !H("naicha").length && (p.hp < p.maxHp || g.round >= 3)) return { skill: "paint" };
@@ -226,9 +233,7 @@ window.AI = (function () {
       if (t && (H("tucao").length >= 2 || t.hand.length <= 1 || (t.hp <= 1 && H("tucao").length >= 1))) return use(H("dantiao")[0], [t]);
     }
     // 6a. 截图 + 加班：准备好再吐槽
-    const holding = g.hasSkill(p, "hold") && (p.breath || 0) < Engine.T.holdMax && p.tucao === 0;   // Kimi 憋气：能忍就忍，只为踢人出群开口
-    const finish = holding ? enemies.find((q) => q.hp <= 1) : null;
-    const canT = H("tucao").length && p.tucao < g.limitTucao(p) && (!holding || finish);
+    const canT = H("tucao").length && p.tucao < g.limitTucao(p);
     if (canT && H("jietu").length && !p.evidence) {
       const t = pickTarget(g, p, enemies.filter((q) => q.hand.length > 0)) || pickTarget(g, p, enemies);
       if (t) return use(H("jietu")[0], [t]);
@@ -240,7 +245,7 @@ window.AI = (function () {
     // 7. 吐槽
     if (H("tucao").length && p.tucao < g.limitTucao(p)) {
       const ev = p.evidence && p.evidence.alive && g.rivals(p).includes(p.evidence) ? p.evidence : null;   // 截过图的那个先打
-      const t = holding ? finish : ev || pickTarget(g, p, others); if (t) return use(H("tucao")[0], [t]);
+      const t = ev || pickTarget(g, p, others); if (t) return use(H("tucao")[0], [t]);
     }
     if (g.canSkill(p, "reset") && g.round >= 4 && p.hand.length <= 2) return { skill: "reset" };
     // GLM 补觉：能出的都出完了、心态不满，就睡一觉（这回合不再出牌）

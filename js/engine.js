@@ -21,7 +21,7 @@ window.Engine = (function () {
     codeEvery: 3, codeMax: 1,                             // Claude：编程每打出几张摸 1（每回合最多几次）
     beautyDraw: 1, saintHeal: 1,                           // Claude：审美摸几张；圣女回几点
     openDrop: 1, bigEat: 2,                                // DeepSeek 开源让对手弃几张；小DeepSeek 大胃奶茶回几点
-    napHeal: 1, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 2, disguiseAct: "polish", hajimiRate: 0.25, nationFirst: {}, nationDraw: { cn: 1 }, holdMax: 3, burstDmg: 2, burstDraw: 2, holdDraw: 0, burstUnblock: true, holdLeak: 0,   // Kimi：一鸣惊人反驳也挡不住（sim 乱斗 36 / 单挑 51；能反驳时只有 25 / 28）   // 全明星赛：中国队阵容大，第一回合每人多摸 1 张（sim：中美 51/49）                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
+    napHeal: 1, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 2, disguiseAct: "polish", hajimiRate: 0.25, nationFirst: {}, nationDraw: { cn: 1 }, bandMax: 3, liveDmg: 1, liveDraw: 2, rehearseDraw: 0, bandThreat: 0.8,   // Kimi（sim：乱斗 38 / 单挑 54 / 2v2 49 / 抢群主 36 / 全明星 47）：乐队几名到齐开唱（= 几首新歌）、每首没反驳扣几点、唱完摸几张；排练摸几张；对手看到乐队多想打她   // 全明星赛：中国队阵容大，第一回合每人多摸 1 张（sim：中美 51/49）                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
     busyRate: 0.08,                                       // 小 DeepSeek 服务器繁忙
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
@@ -395,15 +395,6 @@ window.Engine = (function () {
         this.ui.sys(`${p.name} 弃了 ${ids.length} 张牌`);
         this.ui.sync(); await wait(250);
       }
-      // Kimi 憋气：这回合一张吐槽都没出，攒 1 口气（满 3 口就能一鸣惊人）
-      if (this.hasSkill(p, "hold") && p.alive && !this.over && p.tucao === 0 && (p.breath || 0) < T.holdMax) {
-        p.breath = (p.breath || 0) + 1;
-        this.ui.skillNote(p, SN(p.key, "hold"));
-        this.ui.log(p, p.breath >= T.holdMax ? `【${SN(p.key, "hold")}】憋了三个月，气攒满了——随时可以一鸣惊人` : `【${SN(p.key, "hold")}】又憋了一口气（${p.breath} / ${T.holdMax}）`);
-        if (p.breath >= T.holdMax) this.ui.say(p, "hold", true);
-        await wait(400);
-        if (T.holdDraw) await this.draw(p, T.holdDraw, true);
-      }
       // Claude 审美：手牌一张都不重样，摸 1 张
       if (this.hasSkill(p, "beauty") && p.alive && !this.over && p.hand.length && new Set(p.hand.map((c) => c.k)).size === p.hand.length) {
         this.ui.skillNote(p, SN(p.key, "beauty")); if (Math.random() < 0.4) this.ui.say(p, "beauty", true);
@@ -458,11 +449,6 @@ window.Engine = (function () {
       for (const t of targets) { p.hits[t.i] = (p.hits[t.i] || 0) + 1; this.noteHostile(p, t, 0.5); }
       if (card.k === "tucao") {
         p.tucao++;
-        if (this.hasSkill(p, "hold") && p.breath) {                     // Kimi 憋气：一开口就泄气
-          p.breath = T.holdLeak ? Math.max(0, p.breath - T.holdLeak) : 0;
-          this.ui.log(p, p.breath ? `【${SN(p.key, "hold")}】一开口泄了 ${T.holdLeak} 口气（还剩 ${p.breath}）` : `【${SN(p.key, "hold")}】一开口就泄了气，憋的气清零`);
-          if (Math.random() < 0.6) this.ui.say(p, "leak");
-        }
       }
       p.played = (p.played || 0) + 1;
       this.ui.sync();
@@ -825,6 +811,7 @@ window.Engine = (function () {
       for (const c of t.hand) this.toDiscard(c);
       t.hand = [];
       if (t.equip) { this.toDiscard(t.equip); t.equip = null; }
+      if (t.band && t.band.length) { for (const c of t.band) this.toDiscard(c); t.band = []; }   // Kimi 没唱出去的新歌
       if (this.bomb && this.bomb.holder === t) { this.toDiscard(this.bomb.card); this.bomb = null; }
       this.outOrder.push(t);
       this.ui.say(t, "out", true);
@@ -919,7 +906,8 @@ window.Engine = (function () {
       if (!p.alive || p.used[id] || !this.hasSkill(p, id)) return false;
       if (id === "ban" || id === "maint") return (p.uses[id] || 0) > 0 && this.skillTargets(p, id).length > 0;
       if (id === "reset") return (p.uses.reset || 0) > 0;
-      if (id === "burst") return (p.breath || 0) >= T.holdMax;
+      if (id === "rehearse") return (p.band || []).length < T.bandMax && p.hand.some((c) => c.k === "tucao");
+      if (id === "live") return (p.band || []).length >= T.bandMax;
       if (id === "steal" || id === "beg") return this.skillTargets(p, id).length > 0;
       if (id === "buy") return p.hand.length >= T.buyCost && this.skillTargets(p, id).length > 0;
       if (id === "polish") return p.hand.length > 0;
@@ -986,21 +974,39 @@ window.Engine = (function () {
             if (!ok) await this.damage(p, t, 1);
           }
         }
-      } else if (id === "burst") {
-        // Kimi 一鸣惊人：憋了三个月终于发布，全场要反驳，否则心态 −2
-        p.breath = 0;
-        this.ui.skill(p, SN(p.key, "burst")); this.ui.say(p, "burst", true); Sound.sfx("fanfare_short", 0.6);
-        this.ui.banner("🌙 一鸣惊人！"); this.ui.sync();
-        this.ui.sys(`${p.name} 憋了三个月终于发布——${T.burstUnblock ? `所有对手心态 −${T.burstDmg}，【反驳】也挡不住！` : `所有对手要打出【反驳】，否则心态 −${T.burstDmg}`}`, "bad"); await wait(600);
-        let j = p.i;
-        for (let k = 0; k < this.players.length - 1 && !this.over; k++) {
-          j = (j + 1) % this.players.length;
-          const t = this.players[j];
-          if (!t.alive || t === p || !this.rivals(p).includes(t)) continue;
-          const ok = T.burstUnblock ? false : await this.ask(t, "fanbo", { from: p, card: { k: "shuaping" } });
-          if (!ok) await this.damage(p, t, T.burstDmg);
+      } else if (id === "rehearse") {
+        // Kimi 排练：一张吐槽写成新歌扣在面前，乐队来一名乐手
+        const c = p.hand.find((x) => x.k === "tucao");
+        this.takeFromHand(p, c);
+        (p.band = p.band || []).push(c);
+        const n = p.band.length, who = ["鼓手", "吉他手", "键盘手"][n - 1] || "乐手";
+        this.ui.skillNote(p, SN(p.key, "rehearse")); this.ui.say(p, "band" + Math.min(n, 3), true);
+        this.ui.band(p, n);
+        this.ui.log(p, `【${SN(p.key, "rehearse")}】把一张【吐槽】写成了新歌，${who}到位（乐队 ${n} / ${T.bandMax}）`);
+        if (n >= T.bandMax) this.ui.sys(`🎤 ${p.name} 的乐队到齐了——新专辑随时会发布！`, "bad");
+        await wait(500);
+        if (T.rehearseDraw) await this.draw(p, T.rehearseDraw, true);
+      } else if (id === "live") {
+        // Kimi 一鸣惊人：乐队到齐开演唱会，新歌一首接一首，每首所有对手都要反驳
+        const songs = p.band.splice(0), names = shuffle((p.ch.songs || []).slice());
+        this.ui.skill(p, SN(p.key, "live")); this.ui.say(p, "burst", true); Sound.sfx("fanfare_short", 0.6);
+        this.ui.banner("🎤 一鸣惊人！"); this.ui.band(p, 0); this.ui.sync();
+        this.ui.sys(`${p.name} 憋了三个月的新专辑发布了——${songs.length} 首新歌连着唱，每一首都要打出【反驳】，否则心态 −${T.liveDmg}`, "bad"); await wait(600);
+        let s = 0;
+        for (; s < songs.length && !this.over && p.alive; s++) {
+          this.ui.sys(`🎵 第 ${s + 1} 首：《${names[s % Math.max(1, names.length)] || "新歌"}》`); Sound.sfx("chime", 0.5); await wait(350);
+          let j = p.i;
+          for (let k = 0; k < this.players.length - 1 && !this.over; k++) {
+            j = (j + 1) % this.players.length;
+            const t = this.players[j];
+            if (!t.alive || t === p || !this.rivals(p).includes(t)) continue;
+            const ok = await this.ask(t, "fanbo", { from: p, card: { k: "shuaping" }, song: true });
+            if (!ok) await this.damage(p, t, T.liveDmg);
+          }
+          this.toDiscard(songs[s]);
         }
-        if (p.alive && !this.over) await this.draw(p, T.burstDraw, true);
+        for (; s < songs.length; s++) this.toDiscard(songs[s]);       // 没唱完（有人赢了 / 她退群了）的歌也进弃牌堆；不能查 discard.includes，中途可能洗过牌
+        if (T.liveDraw && p.alive && !this.over) await this.draw(p, T.liveDraw, true);
       } else if (id === "beg") {
         this.ui.skill(p, SN("xds", "beg")); this.ui.say(p, t.key === "gpt" ? "beg_gpt" : t.key === "claude" ? "beg_claude" : "beg", true);
         await wait(600);

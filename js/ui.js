@@ -94,12 +94,12 @@ window.UI = (function () {
     $("#chat-n").textContent = g.players.length;
     $("#chat-name").textContent = g.nation ? "AI 全明星赛" : "AI娘 相亲相爱一家人";
     for (const p of g.players) {
-      const h = el("div", "hero");
+      const h = el("div", "hero" + (p.ch.skills.some((s) => s.id === "rehearse") ? " has-band" : ""));
       h.style.setProperty("--c", p.ch.color); h.style.setProperty("--l", p.ch.light);
       const tags = p.ch.skills.map((s) => `<span class="${s.type}" title="${s.short || s.desc}">${s.name}</span>`).join("");
       h.innerHTML = `<div class="por"><img src="${portrait(p.key, "base")}" alt=""></div><div class="flash"></div><div class="hp"></div>
         <div class="cnt"><i></i><span>0</span></div><div class="status"></div><div class="stags${p.ch.skills.length > 3 ? " many" : ""}">${tags}</div>
-        <div class="plate"><b>${p.name}</b><small>${p.ch.title}</small></div>${p.human ? '<div class="you">你</div>' : ""}<div class="side"></div><div class="tnum"></div>`;
+        <div class="plate"><b>${p.name}</b><small>${p.ch.title}</small></div>${p.human ? '<div class="you">你</div>' : ""}${p.ch.skills.some((s) => s.id === "rehearse") ? '<div class="band"></div>' : ""}<div class="side"></div><div class="tnum"></div>`;
       // 点技能名直接打开详情卡；但她正被当作目标时，点哪里都算选她
       h.querySelectorAll(".stags span").forEach((sp, k) => sp.addEventListener("click", (ev) => {
         if (h.classList.contains("target")) return;
@@ -166,6 +166,16 @@ window.UI = (function () {
       if (g.bomb && g.bomb.holder === p) st += '<span class="bomb">💣 宕机预警</span>';
       if (p.equip) st += `<span class="eq">${EQ_ICON[p.equip.k] || "🧰"} ${CD[p.equip.k].name}</span>`;
       h.querySelector(".status").innerHTML = st;
+      const bd = h.querySelector(".band");
+      if (bd) {                                                    // Kimi 的乐队：到了几名乐手，空位是虚线
+        const n = (p.band || []).length;
+        if (+bd.dataset.n !== n || !bd.children.length) {
+          bd.dataset.n = n;
+          bd.innerHTML = [1, 2, 3].slice(0, Engine.T.bandMax).map((k) => `<i class="${k <= n ? "on" : ""}${k === n && bandNew[p.i] ? " new" : ""}"><img src="${A(`assets/img/kimi_band${Math.min(k, 3)}.webp`)}" alt=""></i>`).join("");
+          bandNew[p.i] = false;
+        }
+        bd.classList.toggle("full", n >= Engine.T.bandMax);
+      }
       const sd = h.querySelector(".side"), lab = sideLabel(p);
       sd.className = "side" + (lab ? " " + lab.cls : ""); sd.textContent = lab ? lab.text : "";
     }
@@ -269,8 +279,8 @@ window.UI = (function () {
     if (s.id === "fans" && p.used && p.used.fans) out.push("这轮刷过礼物");
     if (s.id === "disguise" && p.disguise) out.push("伪装中");
     if (s.id === "nap" && p.napping) out.push("睡着了");
-    if (s.id === "hold") out.push(`气 ${p.breath || 0} / ${Engine.T.holdMax}`);
-    if (s.id === "burst") out.push((p.breath || 0) >= Engine.T.holdMax ? "气满了，能发布" : `还差 ${Engine.T.holdMax - (p.breath || 0)} 口气`);
+    if (s.id === "rehearse") out.push(`乐队 ${(p.band || []).length} / ${Engine.T.bandMax}`);
+    if (s.id === "live") out.push((p.band || []).length >= Engine.T.bandMax ? "乐队到齐，能开唱" : `还差 ${Engine.T.bandMax - (p.band || []).length} 名乐手`);
     if (s.id === "math" && p.human && g.bombSpots) { const sp = g.bombSpots(); if (sp.length) out.push(`宕机在第 ${sp.join("、")} 张`); }
     return out;
   }
@@ -278,7 +288,7 @@ window.UI = (function () {
     const st = [];
     if (p.banned) st.push("🚫 封号中"); if (p.muted) st.push("🔇 禁言中"); if (p.dumb) st.push("❓ 降智中");
     if (p.napping) st.push("😴 补觉中"); if (p.disguise) st.push("🎭 正在冒充 Claude");
-    if (p.breath) st.push(`🫧 憋气 ${p.breath} / ${Engine.T.holdMax}`);
+    if (p.band && p.band.length) st.push(`🎸 乐队 ${p.band.length} / ${Engine.T.bandMax}${p.band.length >= Engine.T.bandMax ? "，随时开唱" : ""}`);
     if (p.offline) st.push("📵 断网中"); if (p.boost) st.push("🔥 加班中");
     return st;
   }
@@ -551,6 +561,14 @@ window.UI = (function () {
     e.style.left = c.x - 60 + "px"; e.style.top = c.y - 40 + "px";
     $("#fx").appendChild(e); setTimeout(() => e.remove(), 1100);
   }
+  // Kimi 排练：新乐手登场（n = 现在几名；0 = 开唱后散场）
+  const bandNew = {};
+  function band(p, n) {
+    bandNew[p.i] = n > 0;
+    sparks(p, n > 0 ? "#b9a7ff" : "#ffd75a", n > 0 ? 10 : 22);
+    if (n > 0) floatText(p, `🎵 乐队 ${n} / ${Engine.T.bandMax}`, "band");
+    sync();
+  }
   function sparks(p, color, n = 12) {
     const c = center(p);
     for (let i = 0; i < n; i++) {
@@ -640,7 +658,7 @@ window.UI = (function () {
     const c = el("div", "cutin");
     c.style.setProperty("--c", p.ch.color); c.style.setProperty("--l", p.ch.light);
     const sk = p.ch.skills.find((x) => x.name === name);
-    c.innerHTML = `<img src="${p.disguise ? portrait("xds_cl", sk && sk.id === "disguise" ? "change" : "smug") : portrait(p.key, "smug")}" alt=""><div class="ct2">${p.name} 发动技能</div><div class="ct1">${name}</div>${sk && sk.short ? `<div class="ct3">${sk.short}</div>` : ""}`;
+    c.innerHTML = `<img src="${p.disguise ? portrait("xds_cl", sk && sk.id === "disguise" ? "change" : "smug") : portrait(p.key, sk && sk.id === "live" ? "live" : "smug")}" alt=""><div class="ct2">${p.name} 发动技能</div><div class="ct1">${name}</div>${sk && sk.short ? `<div class="ct3">${sk.short}</div>` : ""}`;
     $("#fx").appendChild(c); setTimeout(() => c.remove(), 1300 * Engine.speed + 100);
   }
   // 变身：换伪装立绘、名牌改成“Claude？”
@@ -827,7 +845,7 @@ window.UI = (function () {
     const d = CD[opt.kind];
     const from = opt.ctx.from;
     let text;
-    if (opt.kind === "fanbo") text = opt.ctx.card.k === "shuaping" ? `${from.name} 在刷屏！打出【反驳】？` :
+    if (opt.kind === "fanbo") text = opt.ctx.song ? `${from.name} 在唱新歌！打出【反驳】？` : opt.ctx.card.k === "shuaping" ? `${from.name} 在刷屏！打出【反驳】？` :
       `${from.name} 吐槽你！打出【反驳】？` + (opt.ctx.need === 2 ? `（${window.GAME_DATA.chars.claude.skills[0].name}：要 2 张，第 ${opt.ctx.nth + 1} 张）` : "");
     else if (opt.kind === "tucao") text = opt.ctx.duel ? `和 ${from.name} 单挑中！打出【吐槽】？` : `${from.name} 上了热搜！打出【吐槽】参与讨论？`;
     else if (opt.kind === "shuaiguo") text = `${from.name} 吐槽你！打出【甩锅】，甩给别人？`;
@@ -1105,6 +1123,6 @@ window.UI = (function () {
     const tip = $("#ctip"); if (tip) tip.className = "hidden";
   }
 
-  return { attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, skillNote, banner, phase, toast,
+  return { attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, skillNote, band, banner, phase, toast,
     humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr, throwProp, asset: A };
 })();

@@ -746,3 +746,17 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #stage.tiny #ru-main { font-size: 125%; }
 #stage.tiny .ru-list { font-size: 24px; } #stage.tiny .ru-card .ru-cd span, #stage.tiny .ru-steps span, #stage.tiny .ru-sk span, #stage.tiny .ru-modes span { font-size: 20px; }
 #stage.tiny #ru-nav button { font-size: 28px; }
+/* v23 Kimi 的乐队：排练一次来一名乐手（鼓手 / 吉他手 / 键盘手），到齐了金光闪，大家都看得见 */
+.hero .band { position: absolute; right: 5px; top: 46px; display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
+.hero .band i { width: 42px; height: 42px; border-radius: 50%; background: rgba(255, 255, 255, .55); border: 2px dashed rgba(155, 123, 255, .75); display: grid; place-items: center; overflow: hidden; }
+.hero .band i img { width: 40px; height: 40px; object-fit: cover; opacity: .25; filter: grayscale(1); }
+.hero .band i.on { background: #fff; border: 2px solid #9b7bff; box-shadow: 0 2px 6px rgba(80, 60, 160, .35); }
+.hero .band i.on img { opacity: 1; filter: none; }
+.hero .band i.new { animation: bandpop .6s cubic-bezier(.2, 1.6, .4, 1); }
+.hero .band.full i { border-color: #ffc83a; box-shadow: 0 0 0 2px #fff, 0 0 10px rgba(255, 190, 50, .85); animation: bandglow 1.4s ease-in-out infinite; }
+@keyframes bandpop { 0% { transform: scale(.2); } 100% { transform: scale(1); } }
+@keyframes bandglow { 50% { box-shadow: 0 0 0 2px #fff, 0 0 18px rgba(255, 190, 50, 1); } }
+.hero.has-band .you { right: auto; left: 8px; top: 40px; }   /* 右边一列让给乐队 */
+.hero.has-band .tnum { z-index: 3; }
+.float.band { color: #7b5cff; font-size: 34px; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .hero .band i.new, .hero .band.full i { animation: none; } }
