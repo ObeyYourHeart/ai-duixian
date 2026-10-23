@@ -111,6 +111,7 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
   border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .15); }
 .hero .stags { position: absolute; left: 6px; right: 6px; bottom: 64px; display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
 .hero .stags span { background: rgba(255, 255, 255, .94); color: var(--c); font-family: var(--title); font-size: 17px; padding: 1px 8px; border-radius: 10px; cursor: help; }
+.hero .stags.many { gap: 3px; } .hero .stags.many span { font-size: 15px; padding: 0 6px; }   /* 技能多（4 个以上）时标签小一号 */
 .hero .status { position: absolute; left: 8px; top: 74px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .hero .status span { background: rgba(42, 36, 64, .82); color: #fff; font-size: 16px; font-weight: 800; padding: 2px 9px; border-radius: 9px; }
 .hero .status .ban { background: #e53340; } .hero .status .dumb { background: #8b5cf6; }

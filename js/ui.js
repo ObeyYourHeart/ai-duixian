@@ -95,7 +95,7 @@ window.UI = (function () {
       h.style.setProperty("--c", p.ch.color); h.style.setProperty("--l", p.ch.light);
       const tags = p.ch.skills.map((s) => `<span title="${s.desc}">${s.name}</span>`).join("");
       h.innerHTML = `<div class="por"><img src="${portrait(p.key, "base")}" alt=""></div><div class="flash"></div><div class="hp"></div>
-        <div class="cnt"><i></i><span>0</span></div><div class="status"></div><div class="stags">${tags}</div>
+        <div class="cnt"><i></i><span>0</span></div><div class="status"></div><div class="stags${p.ch.skills.length > 3 ? " many" : ""}">${tags}</div>
         <div class="plate"><b>${p.name}</b><small>${p.ch.title}</small></div>${p.human ? '<div class="you">你</div>' : ""}<div class="side"></div><div class="tnum"></div>`;
       // 点技能名看说明；但她正被当作目标时，点哪里都算选她
       h.querySelectorAll(".stags span").forEach((sp, k) => sp.addEventListener("click", (ev) => {
