@@ -95,40 +95,79 @@ window.Main = (function () {
     game.run().catch((e) => console.error(e));
   }
 
-  function rules() {
-    const cards = Object.entries(CD).map(([k, d]) => `<div class="rc"><img src="${(window.ASSET && window.ASSET[`assets/img/card_${k}.webp`]) || `assets/img/card_${k}.webp`}" alt=""><b>${d.name}</b>
-      <span>${d.desc}</span><small>${{ basic: "基本牌", trick: "锦囊牌", equip: "装备牌", bomb: "炸弹" }[d.type]} ${d.type === "bomb" ? "按人数埋" : "×" + d.n}</small></div>`).join("");
-    modal(`<h2>玩法说明</h2>
-      <p>${D.world || ""}</p>
-      <p>AI娘们在群里吵起来了！每人有几点<b>心态</b>（❤），被【吐槽】又没能【反驳】就破防掉 1 点，心态掉光就<b>破防退群</b>。最后留在群里的人成为<b>群主</b>。</p>
-      <h3>💣 宕机（炸弹猫玩法）</h3>
-      <ul><li>开局牌堆里随机埋着【宕机】（单挑 1 张，三人 2 张，2v2 3 张，抢群主 2 张），每人先发 1 张【重启】。</li>
-      <li>谁摸到【宕机】谁炸：心态 −2，宕机再被随机塞回牌堆。手里有【重启】就能拆掉，然后<b>自己决定</b>把它偷偷塞回牌堆的哪里——比如下家马上要摸的最上面。手里有【甩锅】也能把宕机甩给别人。</li>
-      <li>顶栏的 💣 是牌堆里还剩几张宕机，后面是下一张摸到宕机的概率。牌越摸越少，概率越来越高。</li>
-      <li>【剧透】偷看牌堆顶 3 张；【插队】把牌堆顶 3 张重新排；【重新生成】洗乱牌堆；【摸鱼】从牌堆底摸牌。看过的牌会一直显示在牌桌上，直到有人动了牌堆。</li></ul>
-      <h3>回合流程</h3>
-      <ol><li>摸 2 张牌</li><li>出牌：想出几张出几张，但【吐槽】每回合只能用 1 次（第 3 轮起大家吵上头了，可以用 2 次）</li><li>弃牌：手牌不能超过当前心态（有的角色上限更高）</li></ol>
-      <h3>模式</h3>
-      <ul><li><b>三人乱斗</b>：最后留在群里的人当群主。</li><li><b>单挑</b>：一对一。</li>
-      <li><b>2v2</b>：座位是 你—对手—对手—队友，把对面两人都踢出群就赢；单体牌和点名技能不能对队友用；先手第一回合多摸 1 张。</li>
-      <li><b>抢群主</b>（5 人）：随机身份。<b>群主</b>公开、多 2 点心态、先手，要和暗中的<b>管理员</b>一起踢掉所有<b>黑粉</b>和<b>潜水党</b>；两个<b>黑粉</b>要把群主踢出群；<b>潜水党</b>要先帮群主清掉黑粉，最后单挑踢掉群主，自己当新群主。除了群主，身份退群后才翻开。踢掉黑粉奖励摸 3 张；群主踢了自己的管理员要弃光手牌。你退群后会加速观战到结束。</li></ul>
-      <h3>操作</h3>
-      <ul><li>点一张牌看效果，再点一次出牌；也可以直接把牌往上拖出去。要选目标的牌，点对手或把牌拖到她身上。</li>
-      <li><b>看不懂技能？点任何一张角色卡</b>（包括你自己）：会弹出她的全部技能——每个技能一句话简介 + 完整说明，还有剩几次、心态、手牌、装备、和你的关系。被动技能触发时，角色旁边也会弹出它的效果。</li>
-      <li>主动技能在右下角按钮。被吐槽时会弹出提示，倒计时结束按默认处理。</li>
-      <li>键盘：数字键 1–9 选牌（选目标时按对手头上的数字），Enter 确认，空格 结束回合，Esc 取消，Q / W 技能。</li>
-      <li>右上角 ⚙ 设置：音量、速度、思考时间、“点一下就出”、自动应对、自动结束回合。</li>
-      <li>手机竖着、横着都能玩，画面自动铺满。首页右上角和对局工具栏有【全屏】按钮；iPhone 不支持网页全屏，可以在 Safari 点「分享 → 添加到主屏幕」，从桌面图标打开就是全屏。</li></ul>
-      <h3>人物关系</h3>
-      <ul>${(D.relations || []).map(([a, b, t, note]) => `<li><b>${{ ally: "盟友", friend: "交好", rival: "宿敌" }[t]}</b>：${CH[a].name} × ${CH[b].name}——${note}</li>`).join("")}</ul>
-      <p>三人乱斗和单挑里：盟友在场上还有别人时互不吐槽，只剩她俩时「协议到期」；宿敌会优先针对对方；交好的下手轻一点。</p>
-      <h3>装备与特殊牌</h3>
-      <ul><li><b>装备</b>（绿色牌名）用了就放进自己的装备栏，一直生效；装备栏只有一格，换新的旧的就弃掉。【白嫖】【撤回】也能拿走或弃掉对方的装备。</li>
-      <li><b>【甩锅】</b>在被吐槽时打出，把吐槽转给别人；<b>【截图】</b>过的人这回合挡不了你的吐槽。</li>
-      <li><b>【甩锅】</b>摸到【宕机】时也能用：把宕机甩给另一名角色，让她拆或者炸。</li></ul>
-      <p>心态降到 0 时，手里有【奶茶】会自动喝掉自救。把别人怼到退群，你摸 2 张牌作为奖励。每位 AI娘 都有两个技能：<b>主动技</b>在出牌阶段点左下角的技能按钮发动，<b>被动技</b>自动生效。点角色卡上的技能名可以查看说明。</p>
-      <h3>卡牌（共 ${Object.values(CD).reduce((s, d) => s + d.n, 0)} 张）</h3><div class="rules-cards">${cards}</div>`);
+  // ---------------------------------------------------------------- 玩法说明（整页：左边栏目，右边内容）
+  const IMG = (p) => (window.ASSET && window.ASSET[p]) || p;
+  const TYPE = { basic: "基本牌", trick: "锦囊牌", equip: "装备牌", bomb: "炸弹" };
+  const cardTile = (k) => { const d = CD[k]; return `<div class="ru-card ${d.type}"><img src="${IMG(`assets/img/card_${k}.webp`)}" alt=""><div class="ru-cn">${d.name}</div>
+    <div class="ru-cd"><b>${d.short}</b><span>${d.desc}</span><small>${TYPE[d.type]} · ${d.type === "bomb" ? "按人数埋进牌堆" : "×" + d.n}</small></div></div>`; };
+  const RULE_TABS = [
+    ["quick", "快速上手", () => `<h2>快速上手</h2><p class="ru-lead">${D.world || ""}</p>
+      <div class="ru-steps">
+        <div><i>1</i><b>选一位 AI娘</b><span>每个人的技能不一样，选人界面点技能能看完整说明。</span></div>
+        <div><i>2</i><b>轮流出牌</b><span>回合开始摸 2 张，想出几张出几张；【吐槽】每回合限 1 次（第 3 轮起 2 次）。</span></div>
+        <div><i>3</i><b>吐槽 · 反驳 · 奶茶</b><span>吐槽让对手心态 −1；被吐槽时打【反驳】挡掉；【奶茶】回 1 点心态。</span></div>
+        <div><i>4</i><b>破防退群</b><span>心态（❤）掉光就退群，最后留在群里的人当群主。</span></div>
+        <div><i>5</i><b>小心宕机 💣</b><span>牌堆里埋着【宕机】，摸到心态 −2；有【重启】就拆掉，再偷偷塞回去坑别人。</span></div>
+      </div>
+      <div class="ru-tip">👆 看不懂技能？对局里<b>点任何一张角色卡</b>（包括你自己），都会弹出她的技能说明、还剩几次和当前状态。</div>
+      <h3>最常用的三张牌</h3><div class="ru-cards">${["tucao", "fanbo", "naicha"].map(cardTile).join("")}</div>`],
+    ["turn", "回合与胜负", () => `<h2>回合与胜负</h2>
+      <div class="ru-flow"><div><b>① 摸牌</b><span>摸 2 张（有的角色多摸）</span></div><div><b>② 出牌</b><span>随便出，吐槽限次数</span></div><div><b>③ 弃牌</b><span>手牌不能超过心态（有的角色上限更高）</span></div></div>
+      <ul class="ru-list">
+        <li><b>心态（❤）</b>每人 4 点（Kimi 5 点）。被吐槽又没挡住就 −1，掉光就<b>破防退群</b>。</li>
+        <li><b>吵上头</b>：第 3 轮起每回合可以吐槽两次，配乐也会变激烈。</li>
+        <li><b>奶茶自救</b>：心态掉到 0 时，手里有【奶茶】会自动喝掉。</li>
+        <li><b>击退奖励</b>：把别人怼到退群，你摸 2 张。</li>
+        <li><b>装备</b>（绿色牌名）用了就放进装备栏一直生效；装备栏只有一格，换新的旧的就弃掉。【白嫖】【撤回】也能拿走或弃掉对方的装备。</li>
+        <li><b>胜利</b>：三人乱斗、单挑是最后留在群里的人；2v2、抢群主看阵营（见「游戏模式」）。</li>
+      </ul>`],
+    ["bomb", "💣 宕机玩法", () => `<h2>💣 宕机玩法</h2>
+      <ul class="ru-list">
+        <li>开局牌堆里随机埋着【宕机】：单挑 1 张、三人 2 张、2v2 3 张、抢群主 2 张。每人先发 1 张【重启】。</li>
+        <li><b>谁摸到谁炸</b>：心态 −2，宕机再被随机塞回牌堆。</li>
+        <li>手里有【重启】就自动拆掉，然后<b>你来决定</b>把它偷偷塞回牌堆的哪里——塞最上面，下家一摸就炸。有【甩锅】也能把宕机甩给别人。</li>
+        <li>顶栏的 💣 是牌堆里还剩几张宕机，后面是<b>下一张摸到宕机的概率</b>。牌越摸越少，概率越高。</li>
+        <li>你看过的牌堆顶会一直显示在牌桌提示条上，直到有人动了牌堆。</li>
+      </ul>
+      <h3>相关的牌</h3><div class="ru-cards">${["dangji", "chongqi", "jutou", "chadui", "chongsheng", "moyu", "shuaiguo"].filter((k) => CD[k]).map(cardTile).join("")}</div>`],
+    ["cards", "卡牌图鉴", () => {
+      const total = Object.values(CD).reduce((s, d) => s + d.n, 0);
+      const grp = (t) => Object.keys(CD).filter((k) => CD[k].type === t);
+      return `<h2>卡牌图鉴 <small>共 ${total} 张，外加按人数埋进去的【宕机】</small></h2>` +
+        ["basic", "trick", "equip", "bomb"].map((t) => grp(t).length ? `<h3>${TYPE[t]}</h3><div class="ru-cards">${grp(t).map(cardTile).join("")}</div>` : "").join("");
+    }],
+    ["chars", "角色与技能", () => `<h2>角色与技能 <small>技能有的人两个、有的人更多，看设定</small></h2>
+      <div class="ru-chars">${keys.map((k) => { const c = CH[k]; return `<div class="ru-ch" style="--c:${c.color};--l:${c.light}">
+        <div class="ru-ch1"><img src="${UI.portrait(k, "avatar")}" alt=""><div><b>${c.name}</b><small>${c.title}</small><span>${"❤".repeat(c.hp)}</span></div></div>
+        <div class="ru-sks">${c.skills.map((s) => `<div class="ru-sk" title="${s.desc}"><b>${s.name}</b><em class="${s.type}">${s.type === "active" ? "主动" : "被动"}</em><span>${s.short || s.desc}</span></div>`).join("")}</div></div>`; }).join("")}</div>
+      <h3>人物关系</h3><ul class="ru-list">${(D.relations || []).map(([a, b, t, note]) => `<li><b class="rel ${t}">${{ ally: "盟友", friend: "交好", rival: "宿敌" }[t]}</b>${CH[a].name} × ${CH[b].name}——${note}</li>`).join("")}</ul>
+      <p class="ru-note">三人乱斗和单挑里：盟友在场上还有别人时互不吐槽，只剩她俩时「协议到期」；宿敌会优先针对对方；交好的下手轻一点。</p>`],
+    ["modes", "游戏模式", () => `<h2>游戏模式</h2><div class="ru-modes">
+      <div><b>三人乱斗</b><span>你和两个电脑，最后留在群里的人当群主。</span></div>
+      <div><b>单挑</b><span>一对一，把她踢出群就赢。</span></div>
+      <div><b>2v2</b><span>座位是 你—对手—对手—队友，把对面两人都踢出群就赢。单体牌和点名技能不能对队友用；先手第一回合多摸 1 张。</span></div>
+      <div><b>抢群主（5 人）</b><span>随机身份：<b>群主</b>公开、多 2 点心态、先手，要和暗中的<b>管理员</b>一起踢掉<b>黑粉</b>和<b>潜水党</b>；两个<b>黑粉</b>要把群主踢出群；<b>潜水党</b>先帮群主清掉黑粉，最后单挑踢掉群主自己当群主。除了群主，身份退群后才翻开。踢掉黑粉奖励摸 3 张；群主踢了自己的管理员要弃光手牌。</span></div></div>`],
+    ["ops", "操作与设置", () => `<h2>操作与设置</h2>
+      <h3>出牌</h3><ul class="ru-list"><li>点一张牌看效果，再点一次出牌；也可以直接把牌往上拖出去。要选目标的牌，点对手或把牌拖到她身上。</li>
+        <li>主动技能在右下角技能栏（按钮）；被动技能是虚线标签，自动生效，点了能看说明。</li>
+        <li>被吐槽时会弹出提示，倒计时结束按默认处理。</li></ul>
+      <h3>键盘</h3><div class="ru-keys"><span><kbd>1</kbd>–<kbd>9</kbd> 选牌 / 选目标</span><span><kbd>Enter</kbd> 确认出牌</span><span><kbd>空格</kbd> 结束回合</span>
+        <span><kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd> 技能</span><span><kbd>Y</kbd> / <kbd>N</kbd> 回答提示</span><span><kbd>Esc</kbd> 取消 / 关掉任何窗口</span></div>
+      <h3>设置（右上角 ⚙，首页也有）</h3><ul class="ru-list"><li>音乐 / 音效 / 配音音量；速度四档（工具栏上的速度按钮也能直接换档）；思考时间；点一下就出；被吐槽时问我或自动应对；没牌可出时自动结束回合；键盘快捷键开关。</li></ul>
+      <h3>手机</h3><ul class="ru-list"><li>竖着、横着都能玩，画面自动铺满。首页和对局工具栏有【全屏】按钮。</li>
+        <li>iPhone 不支持网页全屏：在 Safari 点「分享 → 添加到主屏幕」，从桌面图标打开就是全屏。</li></ul>`],
+  ];
+  let ruleTab = "quick";
+  function rules(tab) {
+    ruleTab = tab || ruleTab;
+    const nav = $("#ru-nav");
+    nav.innerHTML = RULE_TABS.map(([k, n]) => `<button data-tab="${k}" class="${k === ruleTab ? "on" : ""}">${n}</button>`).join("");
+    nav.querySelectorAll("button").forEach((b) => { b.onclick = () => { Sound.sfx("click", 0.4); rules(b.dataset.tab); }; });
+    $("#ru-main").innerHTML = RULE_TABS.find(([k]) => k === ruleTab)[2]();
+    $("#ru-main").scrollTop = 0;
+    $("#rules").classList.remove("hidden");
   }
+  function closeRules() { $("#rules").classList.add("hidden"); }
   function credits() {
     const sfx = (window.CREDITS || []).map((c) => `<li>“${c.title}” by ${c.creator} — ${c.license.toUpperCase()}</li>`).join("");
     modal(`<h2>素材署名</h2>
@@ -142,7 +181,20 @@ window.Main = (function () {
     fit(); window.addEventListener("resize", fit);
     UI.bindButtons();
     $("#btn-start").onclick = () => { Sound.track("menu"); Sound.music(Sound.S.music); Sound.sfx("click"); select(); };
-    $("#btn-rules").onclick = () => { Sound.sfx("click"); rules(); };
+    $("#btn-rules").onclick = () => { Sound.sfx("click"); rules("quick"); };
+    $("#ru-close").onclick = () => { Sound.sfx("click", 0.4); closeRules(); };
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const done = () => { e.preventDefault(); e.stopImmediatePropagation(); };
+      if (!$("#rules").classList.contains("hidden")) { closeRules(); done(); return; }
+      const md = $("#modal");
+      if (!md.classList.contains("hidden")) {
+        if ($("#modal-close").style.display !== "none") md.classList.add("hidden");
+        else { const b = $("#modal-body .pkgo .btn.primary"); if (b) b.click(); }   // 剧透 = 知道了；插队 = 按原样放回；必须挑的窗口不处理
+        done(); return;
+      }
+      if ($("#scr-select").classList.contains("active")) { $("#btn-back").click(); done(); return; }
+    }, true);
     $("#btn-credits").onclick = () => { Sound.sfx("click"); credits(); };
     $("#btn-go").onclick = () => { Sound.sfx("click"); start(false); };
     $("#btn-back").onclick = () => { Sound.sfx("click"); title(); };

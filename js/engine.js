@@ -11,7 +11,7 @@ window.Engine = (function () {
     hand: { kimi: 2, xds: 1, gpt: 2, gemini: 2, qwen: 2, claude: 1 },                    // 手牌上限加成
     extraDraw: {},                                        // 每回合多摸
     searchLook: 5, knowLook: 5,                           // Gemini 搜索：看几张；博闻：翻几张找反驳
-    sorryDraw: 3, sorryDraw2p: 2, sorryBoom: true,                        // 豆包 嘻嘻抱歉：做错事摸几张；自己宕机了也算做错事
+    sorryDraw: 4, sorryDraw2p: 2, sorryBoom: true,                        // 豆包 嘻嘻抱歉：做错事摸几张；自己宕机了也算做错事
     grokStart: 3, grokFloor: 2,                           // 千金：开局多拿；回合开始补到几张
     thinkDraw: 1, thinkRate: 0.8, thinkDefuse: 0.2,                       // 大 DeepSeek 深思：摸牌阶段多摸几张；摸到宕机时自己推理拆掉的概率
     searchPeek: 3, searchDraw: 1,                         // Gemini 搜索：偷看几张、再摸几张
@@ -20,6 +20,7 @@ window.Engine = (function () {
     mathDodge: true, dumbFrom: 2, dumbRate: 0.4, resetDraw: 5, resetNuke: true,   // ChatGPT：演算躲宕机；从第几个回合起会降智、概率；重置后摸几张、发布会核弹
     codeEvery: 3, codeMax: 1,                             // Claude：编程每打出几张摸 1（每回合最多几次）
     beautyDraw: 1, saintHeal: 1,                           // Claude：审美摸几张；圣女回几点
+    openDrop: 1, bigEat: 2, ledgerDmg: 1, accountDraw: 2, accountDraw2p: 1,  // DeepSeek 开源让对手弃几张；小DeepSeek 大胃奶茶回几点；Kimi 翻旧账多扣几点；千问 算账摸几张
     busyRate: 0.08,                                       // 小 DeepSeek 服务器繁忙
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
@@ -120,6 +121,15 @@ window.Engine = (function () {
     // 一个人的“牌”（手牌 + 装备），白嫖 / 撤回从里面随机挑
     cardsOf(t) { return t.equip ? [...t.hand, t.equip] : t.hand.slice(); }
     takeAny(t, c) { if (c === t.equip) t.equip = null; else this.takeFromHand(t, c); }
+    teaHeal(p) { return this.hasSkill(p, "bigeat") ? T.bigEat : 1; }
+    // 千问 算账：别人从她手里拿走牌，她摸 1 张
+    async lostCard(t, n = 1) {
+      if (!this.hasSkill(t, "account") || !t.alive || this.over) return;
+      this.ui.skillNote(t, SN(t.key, "account")); if (Math.random() < 0.5) this.ui.say(t, "account", true);
+      const k = (this.players.length === 2 ? T.accountDraw2p : T.accountDraw) * n;
+      this.ui.log(t, `【${SN(t.key, "account")}】被拿走的，记账上——摸 ${k} 张`);
+      await this.draw(t, k, true);
+    }
     doubaoHere() { return this.players.some((q) => q.key === "doubao" && q.alive); }
 
     // ---------------------------------------------------------------- 牌堆（数组末尾是牌堆顶）
@@ -455,7 +465,12 @@ window.Engine = (function () {
           for (const t of targets) { if (this.over) break; if (t.alive) await this.tucao(p, t, boost); }
           break;
         }
-        case "naicha": p.hp = Math.min(p.maxHp, p.hp + 1); this.ui.heal(p, 1); Sound.sfx("slurp"); await wait(450); break;
+        case "naicha": {
+          const n = this.teaHeal(p);
+          p.hp = Math.min(p.maxHp, p.hp + n); this.ui.heal(p, n); Sound.sfx("slurp");
+          if (n > 1) { this.ui.skillNote(p, SN(p.key, "bigeat")); this.ui.say(p, "bigeat", true); }
+          await wait(450); break;
+        }
         case "hongbao": Sound.sfx("coin"); await this.draw(p, 2); break;
         case "baipiao": {
           const t = targets[0]; if (!t || !t.alive || !this.cardsOf(t).length) break;
@@ -463,7 +478,8 @@ window.Engine = (function () {
           const pool = this.cardsOf(t), c = pool[rnd(pool.length)], eq = c === t.equip;
           this.takeAny(t, c); p.hand.push(c);
           this.ui.steal(t, p, c); Sound.sfx("paper");
-          this.ui.sys(eq ? `${p.name} 白嫖了 ${t.name} 的装备【${CD[c.k].name}】` : `${p.name} 白嫖了 ${t.name} 的一张牌`); await wait(450); break;
+          this.ui.sys(eq ? `${p.name} 白嫖了 ${t.name} 的装备【${CD[c.k].name}】` : `${p.name} 白嫖了 ${t.name} 的一张牌`); await wait(450);
+          await this.lostCard(t); break;
         }
         case "chehui": {
           const t = targets[0]; if (!t || !t.alive || !this.cardsOf(t).length) break;
@@ -629,7 +645,13 @@ window.Engine = (function () {
         if (!ok && T.factTucao) ok = await this.factCheck(t, p, { k: "tucao" });
         if (!ok) ok = await this.firewall(t, p);
         if (!ok) {
-          await this.damage(p, t, 1 + (boost ? 1 : 0));
+          let extra = boost ? 1 : 0;
+          if (this.hasSkill(p, "ledger") && p.ledger === t.i && (p.uses.ledger == null || p.uses.ledger > 0)) {   // Kimi 翻旧账：三个月前的聊天记录翻出来了
+            p.ledger = null; extra += T.ledgerDmg; if (p.uses.ledger != null) p.uses.ledger--;
+            this.ui.skillNote(p, SN(p.key, "ledger")); this.ui.say(p, "ledger", true);
+            this.ui.log(p, `【${SN(p.key, "ledger")}】${t.name} 上次让她破防的事，她都记着——这次多扣 ${T.ledgerDmg} 点`);
+          }
+          await this.damage(p, t, 1 + extra);
           if (this.hasSkill(p, "claw") && p.alive) await this.claw(p, t);
           return;
         }
@@ -716,6 +738,7 @@ window.Engine = (function () {
       if (!t.alive) return;
       this.noteHostile(src, t, 1);
       t.hp -= n; t.stats.taken += n; if (src) src.stats.dmg += n;
+      if (this.hasSkill(t, "ledger") && src && src !== t) t.ledger = src.i;   // Kimi 翻旧账：记下是谁
       this.ui.damage(t, n);
       if (this.hasSkill(t, "saint") && !t.saintUsed && t.hp <= 1) {          // Claude 圣女：信徒护法
         t.saintUsed = true; t.hp += T.saintHeal;
@@ -763,7 +786,7 @@ window.Engine = (function () {
       while (t.hp <= 0) {
         const tea = this.has(t, "naicha")[0];
         if (!tea) break;
-        this.takeFromHand(t, tea); this.toDiscard(tea); t.hp++;
+        this.takeFromHand(t, tea); this.toDiscard(tea); t.hp = Math.min(t.maxHp, t.hp + this.teaHeal(t)); if (t.hp <= 0) t.hp = 1;
         this.ui.log(t, "心态崩了……赶紧喝了一杯<b>【奶茶】</b>");
         this.ui.heal(t, 1); Sound.sfx("slurp"); this.ui.say(t, "heal", true);
         await this.ui.showCard(t, tea, []);
@@ -878,6 +901,8 @@ window.Engine = (function () {
       if (id === "sale") return (p.uses.sale || 0) > 0;
       if (id === "qingke") return (p.uses.qingke == null || p.uses.qingke > 0) && p.hand.length >= T.qingkeCost && this.skillTargets(p, "qingke").length > 0;
       if (id === "halluc") return p.hand.length >= T.hallucCost;
+      if (id === "opensrc") return (p.uses.opensrc || 0) > 0 && this.rivals(p).some((q) => q.hand.length > 0);
+      if (id === "copy") return (p.uses.copy || 0) > 0 && this.discard.some((c) => CD[c.k] && CD[c.k].type === "trick");
       if (id === "paint") return (p.uses.paint || 0) > 0 && [...this.deck, ...this.discard].some((c) => T.paintKinds.includes(c.k));
       if (id === "recall") return (p.uses.recall == null || p.uses.recall > 0) && this.discard.some((c) => T.recallKinds.includes(c.k));
       return false;
@@ -937,7 +962,7 @@ window.Engine = (function () {
         await wait(600);
         const fond = BIGS.includes(t.key);                       // GPT / Claude 最宠她：给最好的牌；别人随手给一张
         const c = fond && T.begFondBest ? AI.pick(this, p, t.hand, 1)[0] : t.hand[rnd(t.hand.length)];
-        if (c && t.hand.includes(c)) { this.takeFromHand(t, c); p.hand.push(c); this.ui.steal(t, p, c); }
+        if (c && t.hand.includes(c)) { this.takeFromHand(t, c); p.hand.push(c); this.ui.steal(t, p, c); await this.lostCard(t); }
         if (fond) { this.ui.say(t, "fed", true); if (T.begBonus) await this.draw(p, T.begBonus, true); }
         this.ui.log(p, `【${SN("xds", "beg")}】从 ${t.name} 那里蹭到一张牌` + (fond ? `（${t.name} 最宠她）` : ""));
         await wait(500);
@@ -970,6 +995,7 @@ window.Engine = (function () {
         this.ui.log(p, `【${SN("grok", "buy")}】随手买走了 ${t.name} 的${picks.map((c) => `【${CD[c.k].name}】`).join("")}` + (comp && t.alive ? `，${t.name} 拿钱再摸 ${comp} 张` : ""));
         await wait(500);
         if (comp && t.alive) await this.draw(t, comp, true);            // 钱不是问题：付了钱，对方拿钱再摸
+        if (picks.length) await this.lostCard(t);
       } else if (id === "steal") {
         const vic = T.stealAll ? this.others(p).filter((q) => q.hand.length > 0) : [t];
         const hasClaude = vic.some((q) => q.key === "claude");
@@ -978,7 +1004,9 @@ window.Engine = (function () {
         let got = 0;
         for (const q of vic) {
           const n = q.key === "claude" ? T.stealClaude : T.stealN;
-          for (let k = 0; k < n && q.hand.length; k++) { const c = q.hand[rnd(q.hand.length)]; this.takeFromHand(q, c); p.hand.push(c); this.ui.steal(q, p, c); got++; }
+          let lost = 0;
+          for (let k = 0; k < n && q.hand.length; k++) { const c = q.hand[rnd(q.hand.length)]; this.takeFromHand(q, c); p.hand.push(c); this.ui.steal(q, p, c); got++; lost++; }
+          if (lost) await this.lostCard(q, lost);
           if (q.key === "claude") this.ui.say(q, "stolen", true);
         }
         this.ui.log(p, `【${SN("glm", "steal")}】从 ${vic.map((q) => q.name).join("、")} 那里借鉴了 ${got} 张牌`);
@@ -1016,6 +1044,24 @@ window.Engine = (function () {
         this.ui.log(p, `【${SN("qwen", "sale")}】双十一到！这回合【吐槽】不限次数` + (T.saleDraw ? `，先囤 ${T.saleDraw} 张` : ""));
         await wait(800);
         if (T.saleDraw) await this.draw(p, T.saleDraw, true);
+      } else if (id === "opensrc") {
+        // DeepSeek 开源：发布即震动全网，所有对手随机弃牌
+        this.ui.skill(p, SN(p.key, "opensrc")); this.ui.say(p, "opensrc", true); Sound.sfx("whoosh_cartoon", 0.7);
+        await wait(700);
+        for (const q of this.rivals(p)) {
+          const out = this.dropRandom(q, T.openDrop);
+          if (out.length) { this.noteHostile(p, q, 0.5); this.ui.log(q, `被开源震到了，弃掉了${out.map((c) => `【${CD[c.k].name}】`).join("")}`); }
+        }
+        this.ui.sync(); await wait(400);
+      } else if (id === "copy") {
+        // GLM 照抄：从弃牌堆拿回最近被打出的一张锦囊
+        let k = this.discard.length - 1;
+        while (k >= 0 && !(CD[this.discard[k].k] && CD[this.discard[k].k].type === "trick")) k--;
+        const c = k >= 0 ? this.discard.splice(k, 1)[0] : null;
+        this.ui.skill(p, SN(p.key, "copy")); this.ui.say(p, "copy", true);
+        await wait(500);
+        if (c) { p.hand.push(c); this.ui.drawAnim(p, 1); this.ui.log(p, `【${SN(p.key, "copy")}】把别人刚用过的【${CD[c.k].name}】抄了一份`); }
+        this.ui.sync(); await wait(300);
       } else if (id === "paint") {
         // Gemini 画图：香蕉魔法，从牌堆或弃牌堆里“画”出一张奶茶
         let pool = this.deck.filter((c) => T.paintKinds.includes(c.k)), from = this.deck;

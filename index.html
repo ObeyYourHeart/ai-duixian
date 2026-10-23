@@ -21,8 +21,8 @@
     <!-- 标题 -->
     <section id="scr-title" class="screen active">
       <button class="icon pill" id="btn-full" title="全屏"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg><span>全屏</span></button>
-      <div class="logo big">AI娘对线</div>
-      <div class="subtitle">群聊卡牌大乱斗 · 谁先破防谁退群</div>
+      <div class="logo big"><span class="bb b1"><i>AI娘</i></span><span class="bb b2">对线！</span></div>
+      <div class="subtitle"><span class="msg"><b>群公告</b>群聊卡牌大乱斗 · 谁先破防谁退群</span></div>
       <div id="title-parade" class="parade"></div>
       <div class="title-btns">
         <button class="btn primary" id="btn-start">开始游戏</button>
@@ -36,7 +36,7 @@
     <!-- 选人 -->
     <section id="scr-select" class="screen">
       <div class="sel-head">
-        <div class="logo mid">选择你的 AI娘</div>
+        <div class="logo mid"><span class="bb b1"><i>选择你的</i></span><span class="bb b2">AI娘</span></div>
         <div class="mode-switch">
           <button class="mode on" data-mode="3">三人乱斗</button>
           <button class="mode" data-mode="2">单挑</button>
@@ -68,7 +68,7 @@
     <!-- 牌桌 -->
     <section id="scr-game" class="screen">
       <div id="topbar">
-        <div class="logo tiny">AI娘对线</div>
+        <div class="logo tiny"><span class="bb b1"><i>AI娘</i></span><span class="bb b2">对线</span></div>
         <div id="info" title="牌堆里还有几张【宕机】，后面是下一张摸到宕机的概率">第 <b id="round">1</b> 轮 · 牌堆 <b id="deck">0</b> · 💣<b id="bombs">0</b><small id="risk"></small></div>
         <div class="tb-btns">
           <button class="icon pill" id="tb-speed" title="游戏速度（点一下换档）">快</button>
@@ -98,6 +98,14 @@
     </section>
 
     <!-- 弹层 -->
+    <div id="rules" class="hidden">
+      <div class="ru-side">
+        <div class="ru-logo">玩法说明</div>
+        <div id="ru-nav"></div>
+        <button class="btn small" id="ru-close">返回 <kbd>Esc</kbd></button>
+      </div>
+      <div id="ru-main"></div>
+    </div>
     <div id="modal" class="hidden"><div class="modal-box"><div id="modal-body"></div><button class="btn" id="modal-close">关闭</button></div></div>
     <div id="toast"></div>
   </div>
