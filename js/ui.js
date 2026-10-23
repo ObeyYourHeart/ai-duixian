@@ -11,7 +11,8 @@ window.UI = (function () {
   let HS = 1, ME_S = 0.8, ME_Y = 840, OPP_S = 1;          // 竖屏：手牌缩放、自己卡的缩放和位置、对手卡缩放
   const POS = { 3: [{ x: 36, y: 568 }, { x: 760, y: 80 }, { x: 300, y: 80 }], 2: [{ x: 36, y: 568 }, { x: 530, y: 80 }],
     4: [{ x: 36, y: 568 }, { x: 980, y: 80 }, { x: 630, y: 80 }, { x: 280, y: 80 }],
-    5: [{ x: 36, y: 568 }, { x: 940, y: 80 }, { x: 720, y: 80 }, { x: 500, y: 80 }, { x: 280, y: 80 }] };
+    5: [{ x: 36, y: 568 }, { x: 940, y: 80 }, { x: 720, y: 80 }, { x: 500, y: 80 }, { x: 280, y: 80 }],
+    6: [{ x: 36, y: 568 }, { x: 1002, y: 80 }, { x: 814, y: 80 }, { x: 626, y: 80 }, { x: 438, y: 80 }, { x: 250, y: 80 }] };   // 6 人：对手卡缩到 0.84 排一行
   let PILE = { x: 710, y: 480 }, DECK = { x: 420, y: 480 };
   const EQ_ICON = { xianka: "🎮", fanghuoqiang: "🛡", chongdianbao: "🔋" };
   const HEART = '<svg class="heart%c" viewBox="0 0 24 22"><path d="M12 20.5C5 15 1.5 11.6 1.5 7.2 1.5 4 4 1.5 7.1 1.5c2 0 3.8 1 4.9 2.6C13.1 2.5 14.9 1.5 16.9 1.5 20 1.5 22.5 4 22.5 7.2c0 4.4-3.5 7.8-10.5 13.3z"/></svg>';
@@ -26,7 +27,7 @@ window.UI = (function () {
   function wait(ms) { return Engine.wait(ms); }
   // 角色卡缩放：竖屏时自己的卡 0.8；对手放不下一排时一起缩小
   function seatScale(p) {
-    if (!PORTRAIT) return 1;
+    if (!PORTRAIT) return g && g.players.length >= 6 && p.i !== 0 ? 0.84 : 1;
     return p.i === 0 ? ME_S : OPP_S;
   }
   function pos(p) {
@@ -91,6 +92,7 @@ window.UI = (function () {
     const seats = $("#seats"); seats.innerHTML = "";
     $("#pile").innerHTML = ""; $("#chat-list").innerHTML = ""; $("#fx").innerHTML = "";
     $("#chat-n").textContent = g.players.length;
+    $("#chat-name").textContent = g.nation ? "AI 全明星赛" : "AI娘 相亲相爱一家人";
     for (const p of g.players) {
       const h = el("div", "hero");
       h.style.setProperty("--c", p.ch.color); h.style.setProperty("--l", p.ch.light);
@@ -117,7 +119,9 @@ window.UI = (function () {
     relayout();
     const me = g.human;
     const GOAL = { lord: "守住群：把黑粉和潜水党都踢出群", loyal: "暗中帮群主，踢掉黑粉和潜水党", rebel: "把群主踢出群", spy: "先潜水，最后单挑踢掉群主，自己当新群主" };
-    const goal = g.mode === "team" ? `你和 <b>${g.players.find((q) => q !== me && q.team === me.team).name}</b> 一队。`
+    const NA = window.GAME_DATA.nations || {}, mates = g.players.filter((q) => q !== me && q.team === me.team).map((q) => q.name).join("、");
+    const goal = g.mode === "team" && g.nation ? `全明星赛：你在 <b>${(NA[me.ch.nation] || {}).name}</b>，队友 <b>${mates}</b>。`
+      : g.mode === "team" ? `你和 <b>${mates}</b> 一队。`
       : g.mode === "id5" ? `你的身份是 <b>${Engine.ROLE[me.role]}</b>：${GOAL[me.role]}。` : "";
     hint(`${goal}你是 <b>${me.name}</b>。<small>点任何一张角色卡，都能看她的技能和状态。</small>`);
     sync();
@@ -125,6 +129,7 @@ window.UI = (function () {
 
   // 阵营 / 身份牌：2v2 标队友和对手；抢群主只亮群主、自己和退群的人，其他人是“？”
   function sideLabel(p) {
+    if (g.mode === "team" && g.nation) return p.human ? null : { text: ((window.GAME_DATA.nations || {})[p.ch.nation] || {}).name || "", cls: (p.team === g.human.team ? "ally" : "foe") + " nat-" + p.ch.nation };
     if (g.mode === "team") return p.human ? null : p.team === g.human.team ? { text: "队友", cls: "ally" } : { text: "对手", cls: "foe" };
     if (g.mode === "id5") {
       if (p.role === "lord" || p.human || p.revealed) return { text: Engine.ROLE[p.role], cls: "role-" + p.role };
@@ -135,6 +140,7 @@ window.UI = (function () {
       const r = g.relation(p, g.human);
       if (r === "ally") return { text: "盟友", cls: "ally" };
       if (r === "rival") return { text: "宿敌", cls: "foe" };
+      if (r === "mentor") return { text: p.key === "glm" ? "师父" : "徒弟", cls: "mentor" };
     }
     return null;
   }
@@ -251,7 +257,7 @@ window.UI = (function () {
 
   // ---------------------------------------------------------------- 角色详情卡：点角色看她所有技能、实时状态、和你的关系
   let infoP = null, infoFocus = null;
-  const REL_NAME = { ally: "盟友", friend: "交好", rival: "宿敌" };
+  const REL_NAME = { ally: "盟友", friend: "交好", rival: "宿敌", mentor: "师徒" };
   function skillState(p, s) {
     const out = [];
     const left = p.uses ? p.uses[s.id] : null;
@@ -279,7 +285,7 @@ window.UI = (function () {
     const box = $("#hinfo"), me = g.human;
     const rel = p !== me && (g.mode === "ffa" || g.mode === "duel") ? g.relation(p, me) : null;
     const relRow = rel ? ((window.GAME_DATA.relations || []).find(([a, b]) => (a === p.key && b === me.key) || (a === me.key && b === p.key)) || [])[3] : "";
-    const side = g.mode === "team" && p !== me ? (p.team === me.team ? "队友" : "对手") : g.mode === "id5" ? (p.role === "lord" || p.human || p.revealed ? Engine.ROLE[p.role] : "身份未知") : "";
+    const side = g.mode === "team" && p !== me ? (g.nation ? `${((window.GAME_DATA.nations || {})[p.ch.nation] || {}).name} · ` : "") + (p.team === me.team ? "队友" : "对手") : g.mode === "id5" ? (p.role === "lord" || p.human || p.revealed ? Engine.ROLE[p.role] : "身份未知") : "";
     const st = heroStatus(p);
     box.style.setProperty("--c", p.ch.color); box.style.setProperty("--l", p.ch.light);
     box.innerHTML = `<div class="hi-head"><img src="${portrait(p.key, "avatar")}" alt=""><div class="hi-nm"><b>${p.name}</b><small>${p.ch.title}</small></div><button class="hi-x" title="关闭">✕</button></div>
@@ -1012,7 +1018,10 @@ window.UI = (function () {
       const tag = (p) => game.mode === "team" ? (p.team === me.team ? "我方" : "对方") : Engine.ROLE[p.role];
       const list = [...winners, ...game.players.filter((p) => !winners.includes(p))];
       rank = list.map((p) => `<div><span>${winners.includes(p) ? "🏆" : "　"} ${tag(p)}</span><img src="${portrait(p.key, "avatar")}" alt="">${p.name}${p.alive ? "" : "（退群）"}${stat(p)}</div>`).join("");
-      if (game.mode === "team") { title = won ? "你们赢了！" : "对面赢了……"; sub = won ? "队友配合完美。" : "下次换个打法再来！"; }
+      if (game.mode === "team" && game.nation) {
+        const wn = ((window.GAME_DATA.nations || {})[winners[0] && winners[0].ch.nation] || {}).name || "";
+        title = `${wn}赢下全明星赛！`; sub = won ? "全队配合完美，你们是冠军！" : "这次输给了对面，下次再来！";
+      } else if (game.mode === "team") { title = won ? "你们赢了！" : "对面赢了……"; sub = won ? "队友配合完美。" : "下次换个打法再来！"; }
       else {
         const SIDE = { lord: "群主守住了群！", rebel: "黑粉把群主踢出了群！", spy: "潜水党上岸，成了新群主！" };
         title = SIDE[game.side]; sub = `你的身份是【${Engine.ROLE[me.role]}】——${won ? "你赢了！" : "你输了……"}`;

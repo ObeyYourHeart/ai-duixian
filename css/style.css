@@ -115,7 +115,8 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 .hero .side { position: absolute; left: 8px; top: 40px; font-family: var(--title); font-size: 18px; color: #fff; padding: 2px 14px;
   border-radius: 12px; background: #8b84b0; box-shadow: 0 3px 8px rgba(0, 0, 0, .18); white-space: nowrap; z-index: 3; }
 .hero .side:empty { display: none; }
-.hero .side.ally { background: #34b37a; } .hero .side.foe { background: #e2525b; }
+.hero .side.ally { background: #34b37a; } .hero .side.foe { background: #e2525b; } .hero .side.mentor { background: #9b7bff; }
+.hero .side.nat-cn, .hero .side.nat-us { box-shadow: 0 0 0 2px #fff; } .hero .side.ally.nat-cn, .hero .side.ally.nat-us { background: #34b37a; }
 .hero .side.role-lord { background: linear-gradient(#ffcf5a, #ff8a3f); } .hero .side.role-loyal { background: #3f8fe8; }
 .hero .side.role-rebel { background: #e2525b; } .hero .side.role-spy { background: #7a5cd6; } .hero .side.unknown { background: #a7a2c2; }
 .hero .you { position: absolute; right: 8px; top: 48px; background: #ffcf3f; color: #fff; font-family: var(--title); font-size: 20px; width: 34px; height: 34px;
@@ -503,7 +504,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #hinfo .hi-st { font-size: 16px; font-weight: 800; color: #e2525b; margin-bottom: 6px; }
 #hinfo .hi-rel { font-size: 15px; font-weight: 700; line-height: 1.4; border-radius: 12px; padding: 6px 10px; margin-bottom: 8px; background: #f4f1ff; }
 #hinfo .hi-rel b { margin-right: 6px; color: #fff; border-radius: 8px; padding: 0 8px; font-size: 14px; }
-#hinfo .hi-rel.ally b { background: var(--good); } #hinfo .hi-rel.friend b { background: #6c9cf0; } #hinfo .hi-rel.rival b { background: var(--bad); }
+#hinfo .hi-rel.ally b { background: var(--good); } #hinfo .hi-rel.friend b { background: #6c9cf0; } #hinfo .hi-rel.rival b { background: var(--bad); } #hinfo .hi-rel.mentor b { background: #9b7bff; }
 #hinfo .hi-skills { display: flex; flex-direction: column; gap: 8px; }
 #hinfo .hi-sk { background: var(--l); border-radius: 14px; padding: 8px 12px; border: 3px solid transparent; }
 #hinfo .hi-sk.focus { border-color: var(--c); }
@@ -579,7 +580,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .sd-rels { display: flex; flex-wrap: wrap; gap: 5px; }
 .sd-rels span { font-size: 14px; font-weight: 800; background: #f3f0ff; border-radius: 10px; padding: 2px 8px 2px 2px; cursor: help; }
 .sd-rels b { color: #fff; border-radius: 8px; padding: 0 6px; margin-right: 4px; font-size: 13px; }
-.sd-rels .ally b { background: var(--good); } .sd-rels .friend b { background: #6c9cf0; } .sd-rels .rival b { background: var(--bad); }
+.sd-rels .ally b { background: var(--good); } .sd-rels .friend b { background: #6c9cf0; } .sd-rels .rival b { background: var(--bad); } .sd-rels .mentor b { background: #9b7bff; }
 .sd-bio { -webkit-line-clamp: 3 !important; }
 .sd-sk-head { flex: none; font-family: var(--title); font-size: 22px; color: var(--c); margin-top: 2px; }
 .sd-sk-head small { font-family: inherit; font-size: 14px; color: #9a93bf; margin-left: 6px; }
@@ -591,6 +592,9 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 /* 角色格：角上标心态、技能数 */
 .pick .pbadge { position: absolute; left: 6px; top: 6px; right: 6px; display: flex; justify-content: space-between; pointer-events: none; }
 .pick .pbadge span { font-size: 14px; font-weight: 800; color: var(--c); background: rgba(255, 255, 255, .9); border-radius: 9px; padding: 1px 7px; }
+.pick .pnat { display: none; position: absolute; left: 50%; bottom: 52px; transform: translateX(-50%); font-family: var(--title); font-size: 16px; color: #fff; border: 2px solid #fff; border-radius: 10px; padding: 0 10px; white-space: nowrap; pointer-events: none; }
+.pick .pnat.cn { background: #ff5a5a; } .pick .pnat.us { background: #4a7dff; } #scr-select.nation-on .pick .pnat { display: block; }
+#stage.portrait .pick .pnat { font-size: 18px; bottom: 58px; }
 .mode-desc { position: absolute; right: 4px; top: 76px; font-size: 16px; font-weight: 800; color: #6b5fb0; background: rgba(255, 255, 255, .72); border-radius: 12px; padding: 3px 12px; white-space: nowrap; }
 #stage.portrait .sd-portrait { width: 200px; height: 270px; }
 #stage.portrait .sd-rels span { font-size: 18px; } #stage.portrait .sd-rels b { font-size: 16px; }

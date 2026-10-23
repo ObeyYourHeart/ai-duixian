@@ -50,7 +50,7 @@ window.Main = (function () {
       const c = CH[k];
       const d = document.createElement("div"); d.className = "pick" + (k === pickKey ? " on" : "");
       d.style.setProperty("--c", c.color); d.style.setProperty("--l", c.light);
-      d.innerHTML = `<img src="${UI.portrait(k, "base")}" alt=""><div class="pbadge"><span>❤${c.hp}</span><span>技能 ${c.skills.length}</span></div><div class="pn${c.name.length > 7 ? " long" : ""}">${c.name}</div>`;
+      d.innerHTML = `<img src="${UI.portrait(k, "base")}" alt=""><div class="pbadge"><span>❤${c.hp}</span><span>技能 ${c.skills.length}</span></div><div class="pn${c.name.length > 7 ? " long" : ""}">${c.name}</div>${c.nation ? `<div class="pnat ${c.nation}">${(D.nations || {})[c.nation].name}</div>` : ""}`;
       d.onclick = () => { pickKey = k; Sound.sfx("click", 0.5); select(); Sound.voice(k, "greet", 0); };
       grid.appendChild(d);
     }
@@ -71,9 +71,9 @@ window.Main = (function () {
     $("#sd-bio").textContent = c.bio || "";
     $("#sd-hp").innerHTML = `心态 <span>${"❤".repeat(c.hp)}</span>`;
     // 人物关系：盟友 / 交好 / 宿敌各是谁（悬停看那句设定）
-    const REL = { ally: "盟友", friend: "交好", rival: "宿敌" };
+    const REL = { ally: "盟友", friend: "交好", rival: "宿敌", mentor: "师徒" };
     const rels = (window.GAME_DATA.relations || []).filter(([a, b]) => a === pickKey || b === pickKey)
-      .sort((x, y) => ["ally", "friend", "rival"].indexOf(x[2]) - ["ally", "friend", "rival"].indexOf(y[2]));
+      .sort((x, y) => ["ally", "mentor", "friend", "rival"].indexOf(x[2]) - ["ally", "mentor", "friend", "rival"].indexOf(y[2]));
     $("#sd-rels").innerHTML = rels.map(([a, b, t, note]) => `<span class="${t}" title="${note}"><b>${REL[t]}</b>${CH[a === pickKey ? b : a].name}</span>`).join("");
     $("#sd-skills").innerHTML = c.skills.map((s) => `<div class="sd-skill"><div class="sd-row"><b>${s.name}</b><em class="${s.type}">${s.type === "active" ? "主动" : "被动"}</em><span class="sd-short">${s.short || ""}</span><i>▾</i></div><p>${s.desc}</p></div>`).join("");
     $("#sd-skills").querySelectorAll(".sd-skill").forEach((e) => { e.onclick = () => { e.classList.toggle("open"); Sound.sfx("click", 0.4); }; });
@@ -83,12 +83,22 @@ window.Main = (function () {
   }
   // 模式下面一句话说清楚玩法
   const MODE_DESC = { 2: "单挑：一对一，把她踢出群就赢。", 3: "三人乱斗：你和两个电脑，最后留在群里的人当群主。",
-    4: "2v2：座位是 你—对手—对手—队友，把对面两人都踢出群就赢。", 5: "抢群主：5 人随机身份（群主 / 管理员 / 黑粉 / 潜水党），各有各的胜利条件。" };
-  function modeDesc() { const e = $("#mode-desc"); if (e) e.textContent = MODE_DESC[players] || ""; }
+    4: "2v2：座位是 你—对手—对手—队友，把对面两人都踢出群就赢。", 5: "抢群主：5 人随机身份（群主 / 管理员 / 黑粉 / 潜水党），各有各的胜利条件。",
+    6: "全明星赛：中国队对阵美国队，3v3。你选谁就进她的国家队，队友和对手各从本国随机挑。" };
+  function modeDesc() { const e = $("#mode-desc"); if (e) e.textContent = MODE_DESC[players] || ""; $("#scr-select").classList.toggle("nation-on", players === 6); }   // 全明星赛：角色格上标国家队
 
   function start(sameOpp) {
-    let opp;
-    if (sameOpp && lastOpp && !lastOpp.includes(pickKey)) opp = lastOpp;
+    let opp, teams;
+    const NAT = (k) => CH[k].nation, shuf = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+    if (players === 6) {
+      // 全明星赛：你进自己的国家队，队友和对手各从本国随机挑；座位 你—敌—友—敌—敌—友（交替坐先手队赢六成，这样坐五五开）
+      if (sameOpp && lastOpp && lastOpp.length === 5 && !lastOpp.includes(pickKey) && NAT(lastOpp[1]) === NAT(pickKey) && NAT(lastOpp[0]) !== NAT(pickKey)) opp = lastOpp;
+      else {
+        const mates = shuf(keys.filter((k) => k !== pickKey && NAT(k) === NAT(pickKey))).slice(0, 2), foes = shuf(keys.filter((k) => NAT(k) && NAT(k) !== NAT(pickKey))).slice(0, 3);
+        opp = [foes[0], mates[0], foes[1], foes[2], mates[1]];
+      }
+      teams = [0, 1, 0, 1, 1, 0];
+    } else if (sameOpp && lastOpp && lastOpp.length === players - 1 && !lastOpp.includes(pickKey)) opp = lastOpp;
     else {
       const pool = keys.filter((k) => k !== pickKey);
       for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
@@ -99,8 +109,8 @@ window.Main = (function () {
     Sound.track("battle");
     UI.detach();
     applySpeed();                                       // 上一局观战加速过，这里恢复
-    const mode = { 2: "duel", 3: "ffa", 4: "team", 5: "id5" }[players];
-    game = window.__game = new Engine.Game([pickKey, ...opp], UI, { mode });
+    const mode = { 2: "duel", 3: "ffa", 4: "team", 5: "id5", 6: "team" }[players];
+    game = window.__game = new Engine.Game([pickKey, ...opp], UI, { mode, teams, nation: players === 6 });
     UI.attach(game);
     game.run().catch((e) => console.error(e));
   }
@@ -156,7 +166,8 @@ window.Main = (function () {
       <div><b>三人乱斗</b><span>你和两个电脑，最后留在群里的人当群主。</span></div>
       <div><b>单挑</b><span>一对一，把她踢出群就赢。</span></div>
       <div><b>2v2</b><span>座位是 你—对手—对手—队友，把对面两人都踢出群就赢。单体牌和点名技能不能对队友用；先手第一回合多摸 1 张。</span></div>
-      <div><b>抢群主（5 人）</b><span>随机身份：<b>群主</b>公开、多 2 点心态、先手，要和暗中的<b>管理员</b>一起踢掉<b>黑粉</b>和<b>潜水党</b>；两个<b>黑粉</b>要把群主踢出群；<b>潜水党</b>先帮群主清掉黑粉，最后单挑踢掉群主自己当群主。除了群主，身份退群后才翻开。踢掉黑粉奖励摸 3 张；群主踢了自己的管理员要弃光手牌。</span></div></div>`],
+      <div><b>抢群主（5 人）</b><span>随机身份：<b>群主</b>公开、多 2 点心态、先手，要和暗中的<b>管理员</b>一起踢掉<b>黑粉</b>和<b>潜水党</b>；两个<b>黑粉</b>要把群主踢出群；<b>潜水党</b>先帮群主清掉黑粉，最后单挑踢掉群主自己当群主。除了群主，身份退群后才翻开。踢掉黑粉奖励摸 3 张；群主踢了自己的管理员要弃光手牌。</span></div>
+      <div><b>全明星赛（6 人）</b><span><b>中国队</b>（DeepSeek、小DeepSeek、GLM、豆包、Kimi、千问）对阵<b>美国队</b>（Claude、ChatGPT、Gemini、Grok），3v3。你选谁就进她的国家队，队友和对手各从本国随机挑；座位 你—敌—友—敌—敌—友，把对面三人都踢出群就赢。中国队阵容大，第一回合每人多摸 1 张。宿敌分到一队也得先一致对外。</span></div></div>`],
     ["props", "👍 互动与暗号", () => {
       const P = window.Props, icon = (k) => `<img src="${UI.asset(`assets/img/prop_${k}.webp`)}" alt="">`;
       return `<h2>👍 互动与暗号</h2>

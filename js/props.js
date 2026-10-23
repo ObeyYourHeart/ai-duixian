@@ -70,14 +70,15 @@ window.Props = (function () {
     if (!t.alive || g.over) return;
     if (g.mode === "team") {
       if (!from.human) return;                                         // 电脑之间的暗号由 onAiTurn 直接定
-      const mate = g.players.find((q) => q !== from && q.team === from.team && q.alive);
-      if (!mate) return;
-      if (bad && t.team !== from.team) { mark(g, mate, t); ack(g, mate, `接下来集火 ${t.name}`); }
-      else if (t === mate && kind === "gpu") {
+      const mates = g.players.filter((q) => q !== from && q.team === from.team && q.alive);
+      if (!mates.length) return;
+      const who = mates.includes(t) ? t : mates[Math.floor(Math.random() * mates.length)], all = mates.length > 1 ? "大家" : "";
+      if (bad && t.team !== from.team) { mates.forEach((m) => mark(g, m, t)); ack(g, who, `${all}接下来集火 ${t.name}`); }
+      else if (mates.includes(t) && kind === "gpu") {
         const foe = from.lastHurtBy;
-        if (foe && foe.alive && foe.team !== from.team) { mark(g, mate, foe); ack(g, mate, `来掩护你，先打 ${foe.name}`); }
-        else ack(g, mate, "收到，有事喊我");
-      } else if (t === mate && !bad) ack(g, mate, "收到");
+        if (foe && foe.alive && foe.team !== from.team) { mates.forEach((m) => mark(g, m, foe)); ack(g, t, `来掩护你，先打 ${foe.name}`); }
+        else ack(g, t, "收到，有事喊我");
+      } else if (mates.includes(t) && !bad) ack(g, t, "收到");
       return;
     }
     if (g.mode === "id5") {
@@ -127,7 +128,7 @@ window.Props = (function () {
     if (src && src !== t) t.lastHurtBy = src;
     if (!src || !t.alive || !aiCan() || Math.random() > 0.22) return;
     const by = g.alive().filter((q) => q !== t && q !== src && !q.human);
-    const fr = by.filter((q) => g.hostility(q, t) < 0 || g.relation(q, t) === "friend");
+    const fr = by.filter((q) => g.hostility(q, t) < 0 || ["friend", "mentor"].includes(g.relation(q, t)));
     const rv = by.filter((q) => g.hostility(q, t) > 1.2);
     if (fr.length && (Math.random() < 0.5 || !rv.length)) { const q = rnd(fr); aiSend(g, q, t, pickKind(q, false), 900); }
     else if (rv.length) { const q = rnd(rv); aiSend(g, q, t, pickKind(q, true), 900); }
@@ -135,7 +136,7 @@ window.Props = (function () {
   function onOut(g, t, src) {
     if (!aiCan() || Math.random() > 0.5) return;
     const by = g.alive().filter((q) => !q.human);
-    const fr = by.filter((q) => g.relation(q, t) === "ally" || g.relation(q, t) === "friend"), rv = by.filter((q) => g.relation(q, t) === "rival");
+    const fr = by.filter((q) => ["ally", "friend", "mentor"].includes(g.relation(q, t))), rv = by.filter((q) => g.relation(q, t) === "rival");
     if (fr.length) { const q = rnd(fr); aiSend(g, q, t, pickKind(q, false), 1400); }
     else if (rv.length) { const q = rnd(rv); aiSend(g, q, t, pickKind(q, true), 1400); }
     else if (src && src.alive && by.some((q) => q !== src)) aiSend(g, rnd(by.filter((q) => q !== src)), src, "like", 1400);
@@ -152,7 +153,7 @@ window.Props = (function () {
       return;
     }
     if (!aiCan() || Math.random() > 0.12) return;
-    const foe = window.AI && AI.pickTarget(g, p, g.others(p)), pal = g.others(p).find((q) => g.hostility(p, q) < 0 || g.relation(p, q) === "friend");
+    const foe = window.AI && AI.pickTarget(g, p, g.others(p)), pal = g.others(p).find((q) => g.hostility(p, q) < 0 || ["friend", "mentor"].includes(g.relation(p, q)));
     if (pal && Math.random() < 0.4) aiSend(g, p, pal, pickKind(p, false), 200);
     else if (foe) aiSend(g, p, foe, pickKind(p, true), 200);
   }

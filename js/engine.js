@@ -21,7 +21,7 @@ window.Engine = (function () {
     codeEvery: 3, codeMax: 1,                             // Claude：编程每打出几张摸 1（每回合最多几次）
     beautyDraw: 1, saintHeal: 1,                           // Claude：审美摸几张；圣女回几点
     openDrop: 1, bigEat: 2,                                // DeepSeek 开源让对手弃几张；小DeepSeek 大胃奶茶回几点
-    napHeal: 1, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 2, disguiseAct: "polish", hajimiRate: 0.25,                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
+    napHeal: 1, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 2, disguiseAct: "polish", hajimiRate: 0.25, nationFirst: {}, nationDraw: { cn: 1 },   // 全明星赛：中国队阵容大，第一回合每人多摸 1 张（sim：中美 51/49）                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
     busyRate: 0.08,                                       // 小 DeepSeek 服务器繁忙
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
@@ -70,6 +70,7 @@ window.Engine = (function () {
       for (const p of this.players) for (const s of p.ch.skills) if (s.uses) p.uses[s.id] = keys.length === 2 && s.uses2p != null ? s.uses2p : s.uses;
       for (const p of this.players) { p.game = this; p.lean = 0; p.turnN = 0; p.played = 0; }
       if (this.mode === "team") { const T2 = opts.teams || [0, 1, 1, 0]; for (const p of this.players) p.team = T2[p.i]; }   // 默认座位：你-敌-敌-友
+      this.nation = !!opts.nation;                                     // 全明星赛：中美 3v3，座位中美交替
       if (this.mode === "id5") {
         const roles = opts.roles || shuffle(["lord", "loyal", "rebel", "rebel", "spy"]);
         this.players.forEach((p, i) => { p.role = roles[i]; });
@@ -90,7 +91,7 @@ window.Engine = (function () {
         // 乱斗 / 单挑：盟友在还有别人时不互相出手；宿敌优先，交好的下手轻一点
         const r = this.relation(p, q);
         if (r === "ally") return this.alive().some((x) => x !== p && x !== q && this.relation(p, x) !== "ally") ? -1 : 1;
-        return (r === "rival" ? 1.6 : r === "friend" ? 0.5 : 1) + (p.grudge[q.i] || 0);
+        return (r === "rival" ? 1.6 : r === "friend" || r === "mentor" ? 0.5 : 1) + (p.grudge[q.i] || 0);
       }
       const lean = (r) => r.role === "lord" ? 10 : r.revealed ? ROLE_LEAN[r.role] : r.lean;
       if (p.role === "lord" || p.role === "loyal") return q.role === "lord" ? -99 : -lean(q);
@@ -104,7 +105,7 @@ window.Engine = (function () {
     ekey(p) { return p.disguise ? "claude" : p.key; }                 // 变身中的小DeepSeek 在别人眼里是 Claude
     relation(p, q) { return p && q ? REL[p.key + "|" + (p === q ? q.key : this.ekey(q))] || null : null; }
     // 关系网里的人：盟友在前，交好在后
-    friendsOf(t) { return this.players.filter((q) => q !== t && (this.relation(q, t) === "ally" || this.relation(q, t) === "friend")).sort((a, b) => (this.relation(b, t) === "ally") - (this.relation(a, t) === "ally")); }
+    friendsOf(t) { return this.players.filter((q) => q !== t && ["ally", "friend", "mentor"].includes(this.relation(q, t))).sort((a, b) => (this.relation(b, t) === "ally") - (this.relation(a, t) === "ally")); }
     // 抢群主：谁对群主这边下手，就更像黑粉；打黑粉的更像管理员
     noteHostile(a, b, w) {
       if (this.mode !== "id5" || !a || !b || a === b || a.role === "lord" || a.revealed) return;
@@ -250,7 +251,17 @@ window.Engine = (function () {
         const extra = Math.min(ms, cap) + 150 - 700 * E.speed;
         if (E.speed > 0 && extra > 0) await new Promise((r) => setTimeout(r, extra));
       };
-      if (this.mode === "team") {
+      if (this.mode === "team" && this.nation) {
+        const NA = window.GAME_DATA.nations || {}, me = this.players[0], side = (t) => this.players.filter((p) => p.team === t);
+        const nm = (t) => (NA[side(t)[0].ch.nation] || {}).name || "", list = (t) => side(t).map((p) => p.name).join("、");
+        this.ui.banner("🏆 全明星赛");
+        this.ui.sys(`🏆 AI 全明星赛：${nm(0)}（${list(0)}）对阵 ${nm(1)}（${list(1)}）`, "good");
+        this.ui.sys(`你在${nm(me.team)}，和 ${side(me.team).filter((p) => p !== me).map((p) => p.name).join("、")} 并肩作战！`, "good");
+        for (const [a, b, t] of (window.GAME_DATA.relations || [])) {            // 宿敌也得组队
+          const A = this.players.find((p) => p.key === a), B = this.players.find((p) => p.key === b);
+          if (t === "rival" && A && B && A.team === B.team) this.ui.sys(`😤 宿敌也得组队：${A.name} 和 ${B.name} 这次是队友，先一致对外`, "prop");
+        }
+      } else if (this.mode === "team") {
         const me = this.players[0], mate = this.players.find((p) => p !== me && p.team === me.team), foe = this.players.filter((p) => p.team !== me.team);
         this.ui.sys(`2v2：你和 ${mate.name} 一队，打败 ${foe.map((p) => p.name).join(" 和 ")}！`, "good");
       }
@@ -258,7 +269,7 @@ window.Engine = (function () {
         const lord = this.players.find((p) => p.role === "lord");
         this.ui.sys(`抢群主：群主是 ${lord.name}${lord.human ? "（就是你）" : ""}。你的身份是【${ROLE[this.players[0].role]}】`, "good");
       }
-      for (const p of this.players) await talk(p, "greet", this.players.length >= 4 ? 1500 : 2200);
+      for (const p of this.players) await talk(p, this.nation && p.ch.lines.allstar ? "allstar" : "greet", this.players.length >= 4 ? 1500 : 2200);
       const by = (k) => this.players.find((q) => q.key === k);
       this.banterUsed = new Set();
       const pairs = shuffle((window.GAME_DATA.pairs || []).filter(([a, , b]) => by(a) && by(b))).slice(0, this.players.length >= 4 ? 1 : 2);   // 人多时只斗一组，开场别拖太久
@@ -350,10 +361,11 @@ window.Engine = (function () {
           bottom = true; this.ui.skillNote(p, SN(p.key, "math")); this.ui.say(p, "math", true);
           this.ui.log(p, `【${SN(p.key, "math")}】算过了：牌堆顶第 ${this.knowsBomb(p, want) + 1} 张是宕机，改从牌堆底摸`); await wait(500);
         }
-        const first = this.mode === "team" && this.round === 1 && p.i === this.startIdx;   // 2v2 先手第一回合多摸 1 张（你-敌-敌-友 座位下两队五五开）
+        const first = this.mode === "team" && !this.nation && this.round === 1 && p.i === this.startIdx;   // 2v2 先手第一回合多摸 1 张（你-敌-敌-友 座位下两队五五开）
+        const nfirst = this.nation && this.round === 1 ? (T.nationFirst[p.i] || 0) + (T.nationDraw[p.ch.nation] || 0) : 0;   // 全明星赛：第一回合补牌（按座位 / 按国家）
         if (think) { this.ui.skillNote(p, SN(p.key, "think")); if (Math.random() < 0.3) this.ui.say(p, "think"); }
         const lordX = p.role === "lord" ? T.lordDraw : 0;                         // 抢群主：群主每回合多摸
-        await this.draw(p, (first ? T.teamFirstDraw : 2) + (T.extraDraw[p.key] || 0) + think + lordX, true, bottom);
+        await this.draw(p, (first ? T.teamFirstDraw : 2) + nfirst + (T.extraDraw[p.key] || 0) + think + lordX, true, bottom);
       }
       if (!cut) this.ui.sys(`${p.name} 摸牌`);
       if (this.over || !p.alive) return;
