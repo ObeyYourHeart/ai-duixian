@@ -1,6 +1,6 @@
 // 设置：速度、思考时间、出牌方式、自动结束回合、快捷键（音量存在 Sound.S 里）。存 localStorage，读不到就用默认值
 window.Settings = (function () {
-  const DEF = { speed: 2, timer: 6, click: 2, autoEnd: true, respond: "ask", keys: true };
+  const DEF = { speed: 2, timer: 6, click: 2, autoEnd: true, respond: "ask", keys: true, props: "on" };
   const SPEEDS = [{ name: "慢", v: 1.3 }, { name: "正常", v: 1 }, { name: "快", v: 0.6 }, { name: "极快", v: 0.35 }];
   const S = Object.assign({}, DEF);
   try {
@@ -63,6 +63,8 @@ window.Settings = (function () {
           <div class="set-row"><label>自动结束回合</label>${seg("autoEnd", [["1", "开"], ["0", "关"]])}</div>
           <p class="set-note">没有能出的牌、也没有能用的技能时，自动帮你结束回合。</p>
           <div class="set-row"><label>键盘快捷键</label>${seg("keys", [["1", "开"], ["0", "关"]])}</div>
+          <div class="set-row"><label>电脑扔道具</label>${seg("props", [["on", "会扔"], ["off", "不扔"]])}</div>
+          <p class="set-note">点任何一位角色，能朝她扔番茄、鸡蛋，或者送咖啡、鲜花、点赞。关掉后电脑不会主动扔，你自己照样能扔。</p>
           <p class="set-note keys">1–9 选牌（再按一次出牌）· 选目标时按对手头上的数字 · Enter 确认 · 空格 结束回合 · Q / W / E 技能 · Esc 取消 / 关窗口</p>
         </div>
       </div>

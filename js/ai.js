@@ -43,6 +43,7 @@ window.AI = (function () {
     let s = q.hand.length * 0.35 + (q.hp <= 1 ? 3 : 0) + (q.hp <= 2 ? 0.8 : 0) + r() * 2.6;
     s -= ((p.hits && p.hits[q.i]) || 0) * 2.2;
     s += ((p.grudge && p.grudge[q.i]) || 0) * 1.5;
+    if (p.mark && p.mark.i === q.i && g.round <= p.mark.until) s += 5;   // 互动道具的暗号：队友叫我集火她
     if (g.round <= 1 && q.human) s -= 1.5;
     return s + hostile(g, p, q) * 1.2;
   }

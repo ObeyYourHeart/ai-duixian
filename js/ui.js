@@ -286,6 +286,8 @@ window.UI = (function () {
       <div class="hi-stat"><span>❤ 心态 ${Math.max(0, p.hp)} / ${p.maxHp}</span><span>🂠 手牌 ${p.hand.length}（上限 ${g.handLimit(p)}）</span>${p.equip ? `<span>🧰 ${CD[p.equip.k].name}</span>` : ""}${side ? `<span>${side}</span>` : ""}${p.alive ? "" : "<span>已退群</span>"}</div>
       ${st.length ? `<div class="hi-st">${st.join(" · ")}</div>` : ""}
       ${rel ? `<div class="hi-rel ${rel}"><b>${REL_NAME[rel]}</b>${relRow}</div>` : ""}
+      ${p !== me && window.Props ? `<div class="hi-props"><div class="hp-row">${Props.ORDER.map((k) => `<button class="hp-b" data-k="${k}" title="${Props.KINDS[k].name}"><img src="${A(`assets/img/prop_${k}.webp`)}" alt=""><span>${Props.KINDS[k].name}</span></button>`).join("")}</div>
+        <div class="hp-note">${Props.meaning(g, me, p)}</div></div>` : ""}
       <div class="hi-skills">${p.ch.skills.map((s) => {
         const ss = skillState(p, s);
         return `<div class="hi-sk${s.id === infoFocus ? " focus" : ""}"><div class="hi-sk1"><b>${s.name}</b><em class="${s.type}">${s.type === "active" ? "主动" : "被动"}</em>${ss.map((x) => `<i>${x}</i>`).join("")}</div>
@@ -293,6 +295,7 @@ window.UI = (function () {
       }).join("")}</div>`;
     box.className = "";
     box.querySelector(".hi-x").onclick = (ev) => { ev.stopPropagation(); hideHeroInfo(); };
+    box.querySelectorAll(".hp-b").forEach((b) => { b.onclick = (ev) => { ev.stopPropagation(); if (Props.human(g, me, p, b.dataset.k)) hideHeroInfo(); }; });
     // 放在角色旁边：右边放得下就放右边，不然放左边；上下不出屏
     const q = pos(p), sc = seatScale(p), w = box.offsetWidth, h = box.offsetHeight;
     let x = q.x + HERO_W * sc + 14;
@@ -403,13 +406,17 @@ window.UI = (function () {
     const box = $("#skillbox"); if (!box || !g) return;
     const me = g.human;
     box.innerHTML = "";
+    const readyIds = [];
     let ki = 0;
     for (const s of g.activeSkills(me)) {
       const left = s.left != null ? `（${s.left}）` : "";
-      const b = el("button", "btn small" + (skillMode === s.id ? " primary" : ""), `${s.name}${left}` + (SET().keys && ki < 3 ? `<kbd>${"QWE"[ki]}</kbd>` : ""));
+      const ready = mode === "play" && !busy && s.can;
+      const b = el("button", "btn small" + (skillMode === s.id ? " primary" : ready ? " sk-ready" : ""), `${s.name}${left}` + (SET().keys && ki < 3 ? `<kbd>${"QWE"[ki]}</kbd>` : ""));
       ki++;
-      b.title = `【${s.name}】${s.short || ""}——${s.desc}`;
-      b.disabled = !(mode === "play" && !busy && s.can);
+      b.title = `【${s.name}】${s.short || ""}——${s.desc}` + (ready ? "（现在能用）" : "");
+      b.disabled = !ready;
+      b.style.setProperty("--ph", -(performance.now() % 2400) + "ms");   // 每次重画按钮，发光动画接着上一帧，不会一跳一跳
+      readyIds.push(ready ? s.id : null);
       b.onclick = (ev) => { ev.stopPropagation(); onSkillBtn(s); };
       box.appendChild(b);
     }
@@ -420,6 +427,8 @@ window.UI = (function () {
       ch.onclick = (ev) => { ev.stopPropagation(); showHeroInfo(me, s.id); };
       box.appendChild(ch);
     }
+    const tags = heroes[me.i] && heroes[me.i].querySelectorAll(".stags span");
+    if (tags) me.ch.skills.forEach((s, k) => tags[k] && tags[k].classList.toggle("sk-ready", readyIds.includes(s.id)));
   }
 
   // ---------------------------------------------------------------- 文字提示
@@ -451,7 +460,7 @@ window.UI = (function () {
     clearTimeout(exprTimers[p.i]);
     if (ms && p.alive) exprTimers[p.i] = setTimeout(() => { if (p.alive && g) img.src = portrait(pkey(p), "base"); }, ms);
   }
-  const HURT_KEYS = ["hurt", "out", "stolen", "fury", "halluc", "low", "mourn"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
+  const HURT_KEYS = ["hurt", "hajimi", "out", "stolen", "fury", "halluc", "low", "mourn"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
     "polish", "zuiying", "beg", "beg_gpt", "beg_claude", "claw", "dad", "maint", "long", "busy", "fed", "think", "sis", "search", "know", "sorry", "bundle", "sale",
     "ko", "def", "qingke", "qingke_self", "pact_end"];
   function say(p, key, important) {
@@ -542,6 +551,37 @@ window.UI = (function () {
       $("#fx").appendChild(s); setTimeout(() => s.remove(), 750);
     }
   }
+  // ---------------------------------------------------------------- 互动道具：抛物线飞过去，砸中后番茄 / 鸡蛋糊在卡上，咖啡冒热气，鲜花撒花瓣，点赞 +1
+  const PROP_SFX = { tomato: ["slap2", 0.5], egg: ["egg_crack", 0.6], coffee: ["slurp", 0.45], flower: ["sparkle", 0.5], like: ["ding", 0.45] };
+  function throwProp(from, to, kind) {
+    if (!g || !heroes[to.i]) return;
+    const a = center(from), b = center(to), fx = $("#fx");
+    const it = el("img", "prop-fly"); it.src = A(`assets/img/prop_${kind}.webp`);
+    it.style.left = a.x + "px"; it.style.top = a.y + "px"; fx.appendChild(it);
+    const dx = b.x - a.x, dy = b.y - a.y, lift = Math.min(260, 90 + Math.hypot(dx, dy) * 0.25), spin = kind === "tomato" || kind === "egg" ? 540 : 0;
+    Sound.sfx("whoosh_little", 0.35);
+    const fly = it.animate([
+      { transform: "translate(-50%, -50%) scale(.7) rotate(0deg)" },
+      { transform: `translate(calc(-50% + ${dx / 2}px), calc(-50% + ${dy / 2 - lift}px)) scale(1.15) rotate(${spin / 2}deg)`, offset: 0.5 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1) rotate(${spin}deg)` }], { duration: 620, easing: "cubic-bezier(.3,.1,.5,1)" });
+    const done = () => { it.remove(); propHit(to, kind, b); };
+    fly.onfinish = done; fly.oncancel = () => it.remove();
+  }
+  function propHit(p, kind, c) {
+    const fx = $("#fx"), h = heroes[p.i];
+    const [sfx, v] = PROP_SFX[kind]; Sound.sfx(sfx, v);
+    if (kind === "tomato" || kind === "egg") {
+      const s = el("img", "prop-splat"); s.src = A(`assets/img/splat_${kind}.webp`);
+      s.style.left = c.x + "px"; s.style.top = c.y + "px"; s.style.setProperty("--r", (Math.random() * 50 - 25) + "deg"); fx.appendChild(s);
+      setTimeout(() => s.remove(), 2600);
+      if (h) h.animate([{ transform: "translateX(0)" }, { transform: "translateX(-8px) rotate(-1.5deg)" }, { transform: "translateX(6px) rotate(1deg)" }, { transform: "translateX(0)" }], { duration: 360 });
+      return;
+    }
+    const s = el("div", "prop-land " + kind, `<img src="${A(`assets/img/prop_${kind}.webp`)}" alt="">${kind === "like" ? "<b>+1</b>" : kind === "coffee" ? "<i>♥</i><i>♥</i><i>♥</i>" : ""}`);
+    s.style.left = c.x + "px"; s.style.top = c.y + "px"; fx.appendChild(s);
+    setTimeout(() => s.remove(), 1700);
+    if (kind === "flower") sparks(p, "#ffa8c8", 16);
+  }
   function damage(p, n) {
     const h = heroes[p.i];
     h.classList.remove("shake"); void h.offsetWidth; h.classList.add("shake");
@@ -601,7 +641,8 @@ window.UI = (function () {
   function humanPlay(p) {
     mode = "play"; selected = null; skillMode = null;
     const how = SET().click === 1 ? "点牌直接出；要选目标的，再点对手或拖到她身上。" : "点一张牌看效果，再点一次出牌（也可以直接拖出去）。";
-    hint((p.dumb ? "你降智了，不能【吐槽】。" : "轮到你了！") + how + (SET().keys ? '<small class="kb"><br>数字键选牌 · 空格结束回合</small>' : ""));
+    const sk = g.activeSkills(p).filter((s) => s.can).map((s) => `【${s.name}】`);
+    hint((p.dumb ? "你降智了，不能【吐槽】。" : "轮到你了！") + how + (sk.length ? `<br>✨ 能用技能：${sk.join("")}` : SET().keys ? '<small class="kb"><br>数字键选牌 · 空格结束回合</small>' : ""));   // 有技能能用时这一行换成技能（按钮上本来就标了 Q/W/E）
     Sound.sfx("chime", 0.5);
     sync();
     checkAutoEnd(1600);
@@ -1033,5 +1074,5 @@ window.UI = (function () {
   }
 
   return { attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, skillNote, banner, phase, toast,
-    humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr };
+    humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr, throwProp, asset: A };
 })();

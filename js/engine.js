@@ -21,7 +21,7 @@ window.Engine = (function () {
     codeEvery: 3, codeMax: 1,                             // Claude：编程每打出几张摸 1（每回合最多几次）
     beautyDraw: 1, saintHeal: 1,                           // Claude：审美摸几张；圣女回几点
     openDrop: 1, bigEat: 2,                                // DeepSeek 开源让对手弃几张；小DeepSeek 大胃奶茶回几点
-    napHeal: 1, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 2, disguiseAct: "polish",                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
+    napHeal: 1, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 2, disguiseAct: "polish", hajimiRate: 0.25,                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
     busyRate: 0.08,                                       // 小 DeepSeek 服务器繁忙
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
@@ -399,6 +399,7 @@ window.Engine = (function () {
     }
 
     async aiPlay(p) {
+      if (window.Props) Props.onAiTurn(this, p);                      // 2v2：先砸一下要打的人（暗号）
       await wait(450);
       for (let guard = 0; guard < 24 && !this.over && p.alive; guard++) {
         const act = AI.choose(this, p);
@@ -746,7 +747,9 @@ window.Engine = (function () {
       if (mute) { if (t.hp === 1) t.saidLow = true; }                 // 已经说过台词了（比如被宕机炸到）
       else if (t.disguise && t.ch.lines.exposed) this.ui.say(t, "exposed", true);   // 变身中挨打：被认出来了
       else if (t.hp === 1 && !t.saidLow && t.ch.lines.low) { t.saidLow = true; this.ui.say(t, "low", true); }
+      else if (t.ch.lines.hajimi && (!t.saidHajimi || Math.random() < T.hajimiRate)) { t.saidHajimi = true; this.ui.say(t, "hajimi", true); }   // Gemini：我才不是哈基米！（每局第一次挨打一定说）
       else this.ui.say(t, "hurt", true);
+      if (window.Props) Props.onHit(this, src, t);                     // 互动道具：旁人砸番茄 / 送咖啡
       // 盟友护短：出声 + 记仇（她下个回合优先打出手的人）
       if (src && src !== t) for (const q of this.alive()) {
         if (q === t || q === src || this.relation(q, t) !== "ally" || this.relation(q, src) === "ally") continue;
@@ -802,6 +805,7 @@ window.Engine = (function () {
       this.outOrder.push(t);
       this.ui.say(t, "out", true);
       this.ui.out(t);
+      if (window.Props) Props.onOut(this, t, src);
       Sound.sfx("sadtrombone", 0.7);
       this.ui.sys(`${t.name} 破防退群了`, "bad");
       this.ui.sync();
