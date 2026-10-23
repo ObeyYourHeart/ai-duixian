@@ -51,7 +51,7 @@ window.UI = (function () {
       DX = 0; DY = H - 1300;
       HS = Math.max(1, Math.min(1.3, 1 + DY / 500));
       ME_S = Math.max(0.8, Math.min(1, 0.8 + DY / 1000));
-      HAND_W = W - 32; HAND_X = 16; HAND_Y = H - 220 * HS; PROMPT_Y = HAND_Y - 78;
+      HAND_W = W - 32; HAND_X = 16; HAND_Y = H - 220 * HS; PROMPT_Y = HAND_Y - 96;
       ME_Y = HAND_Y - 8 - HERO_H * ME_S;
       const n = g ? g.players.length - 1 : 2;
       OPP_S = n * HERO_W + (n - 1) * 14 <= W - 32 ? 1 : (W - 32 - (n - 1) * 12) / n / HERO_W;
@@ -64,7 +64,7 @@ window.UI = (function () {
     } else {
       HS = 1;
       DX = (W - 1600) / 2; DY = H - 900;
-      HAND_W = 900; HAND_X = 270 + DX; HAND_Y = 668 + DY; PROMPT_Y = 590 + DY; TABLE_X = 260 + DX; TABLE_Y = 390 + DY / 2;
+      HAND_W = 900; HAND_X = 270 + DX; HAND_Y = 668 + DY; PROMPT_Y = 572 + DY; TABLE_X = 260 + DX; TABLE_Y = 390 + DY / 2;
       PILE = { x: 710 + DX, y: 480 + DY / 2 }; DECK = { x: 420 + DX, y: 480 + DY / 2 };
     }
     if (!g) return;
@@ -93,14 +93,14 @@ window.UI = (function () {
     for (const p of g.players) {
       const h = el("div", "hero");
       h.style.setProperty("--c", p.ch.color); h.style.setProperty("--l", p.ch.light);
-      const tags = p.ch.skills.map((s) => `<span title="${s.desc}">${s.name}</span>`).join("");
+      const tags = p.ch.skills.map((s) => `<span class="${s.type}" title="${s.short || s.desc}">${s.name}</span>`).join("");
       h.innerHTML = `<div class="por"><img src="${portrait(p.key, "base")}" alt=""></div><div class="flash"></div><div class="hp"></div>
         <div class="cnt"><i></i><span>0</span></div><div class="status"></div><div class="stags${p.ch.skills.length > 3 ? " many" : ""}">${tags}</div>
         <div class="plate"><b>${p.name}</b><small>${p.ch.title}</small></div>${p.human ? '<div class="you">你</div>' : ""}<div class="side"></div><div class="tnum"></div>`;
-      // 点技能名看说明；但她正被当作目标时，点哪里都算选她
+      // 点技能名直接打开详情卡；但她正被当作目标时，点哪里都算选她
       h.querySelectorAll(".stags span").forEach((sp, k) => sp.addEventListener("click", (ev) => {
         if (h.classList.contains("target")) return;
-        ev.stopPropagation(); toast(`【${p.ch.skills[k].name}】${p.ch.skills[k].desc}`, 3600);
+        ev.stopPropagation(); showHeroInfo(p, p.ch.skills[k].id);
       }));
       h.addEventListener("click", () => onHeroClick(p));
       seats.appendChild(h);
@@ -110,12 +110,15 @@ window.UI = (function () {
     let tip = $("#ctip");
     if (!tip) { tip = el("div"); tip.id = "ctip"; $("#scr-game").appendChild(tip); }
     tip.className = "hidden";
+    let hi = $("#hinfo");
+    if (!hi) { hi = el("div"); hi.id = "hinfo"; $("#scr-game").appendChild(hi); }
+    hi.className = "hidden"; infoP = null;
     relayout();
     const me = g.human;
     const GOAL = { lord: "守住群：把黑粉和潜水党都踢出群", loyal: "暗中帮群主，踢掉黑粉和潜水党", rebel: "把群主踢出群", spy: "先潜水，最后单挑踢掉群主，自己当新群主" };
     const goal = g.mode === "team" ? `你和 <b>${g.players.find((q) => q !== me && q.team === me.team).name}</b> 一队。`
       : g.mode === "id5" ? `你的身份是 <b>${Engine.ROLE[me.role]}</b>：${GOAL[me.role]}。` : "";
-    hint(`${goal}你是 <b>${me.name}</b>：${me.ch.skills.map((s) => `【${s.name}】${s.desc}`).join(" ")}`);
+    hint(`${goal}你是 <b>${me.name}</b>。<small>点任何一张角色卡，都能看她的技能和状态。</small>`);
     sync();
   }
 
@@ -162,7 +165,7 @@ window.UI = (function () {
     // 炸弹猫：牌堆里还剩几张宕机、下一张是宕机的概率；你看过的牌堆顶
     const bl = g.bombsLeft();
     $("#bombs").textContent = bl;
-    $("#risk").textContent = g.deck.length ? ` ${Math.round(bl / g.deck.length * 100)}%` : "";
+    $("#risk").textContent = g.deck.length ? ` ${PORTRAIT ? "" : "下张 "}${Math.round(bl / g.deck.length * 100)}%` : "";   // 竖屏顶栏窄，只写百分比
     const kn = g.human.alive ? g.known(g.human, 5) : [];
     let last = kn.length; while (last > 0 && !kn[last - 1]) last--;
     const kb = $("#known"), math = g.human.alive && g.hasSkill(g.human, "math") ? g.bombSpots() : null;   // ChatGPT 演算：宕机在第几张
@@ -172,6 +175,7 @@ window.UI = (function () {
     else if (last) kb.innerHTML = '<span class="kt">👁 你看过的牌堆顶</span>' + kn.slice(0, last).map((c, i) => `<span class="kc${c && c.k === "dangji" ? " boom" : c ? "" : " unk"}">${i + 1}. ${c ? CD[c.k].name : "？"}</span>`).join("");
     renderHand();
     renderSkills();
+    if (infoP && !$("#hinfo").classList.contains("hidden")) showHeroInfo(infoP, infoFocus);
   }
 
   function renderHand() {
@@ -181,6 +185,7 @@ window.UI = (function () {
     for (const e of [...box.children]) existing[e.dataset.id] = e;
     const hw = HAND_W / HS;
     const step = n > 1 ? Math.min(CARD_W + 10, (hw - CARD_W) / (n - 1)) : 0;
+    box.classList.toggle("tight", step < CARD_W - 24);
     const x0 = n > 1 ? Math.max(0, (hw - (CARD_W + step * (n - 1))) / 2) : (hw - CARD_W) / 2;
     const focus = me.hand.findIndex((c) => c.id === (hoverId != null ? hoverId : selected));
     const gap = focus >= 0 ? Math.max(0, CARD_W + 6 - step) : 0;
@@ -241,6 +246,58 @@ window.UI = (function () {
     return me.hand.some((c) => g.canUse(me, c)) || g.activeSkills(me).some((s) => s.can);
   }
 
+  // ---------------------------------------------------------------- 角色详情卡：点角色看她所有技能、实时状态、和你的关系
+  let infoP = null, infoFocus = null;
+  const REL_NAME = { ally: "盟友", friend: "交好", rival: "宿敌" };
+  function skillState(p, s) {
+    const out = [];
+    const left = p.uses ? p.uses[s.id] : null;
+    if (left != null) out.push(left > 0 ? `剩 ${left} 次` : "用完了");
+    if (s.type === "active" && p.used && p.used[s.id] && g.cur === p.i) out.push("这回合用过");
+    if (s.id === "saint") out.push(p.saintUsed ? "已经护法过" : "还没触发");
+    if (s.id === "dumb" && p.dumb) out.push("现在降智中");
+    if (s.id === "fact" && p.used && p.used.fact) out.push("这轮核实过");
+    if (s.id === "fans" && p.used && p.used.fans) out.push("这轮刷过礼物");
+    if (s.id === "math" && p.human && g.bombSpots) { const sp = g.bombSpots(); if (sp.length) out.push(`宕机在第 ${sp.join("、")} 张`); }
+    return out;
+  }
+  function heroStatus(p) {
+    const st = [];
+    if (p.banned) st.push("🚫 封号中"); if (p.muted) st.push("🔇 禁言中"); if (p.dumb) st.push("❓ 降智中");
+    if (p.offline) st.push("📵 断网中"); if (p.boost) st.push("🔥 加班中");
+    return st;
+  }
+  function showHeroInfo(p, focus) {
+    if (!g) return;
+    infoP = p; infoFocus = focus || null;
+    const box = $("#hinfo"), me = g.human;
+    const rel = p !== me && (g.mode === "ffa" || g.mode === "duel") ? g.relation(p, me) : null;
+    const relRow = rel ? ((window.GAME_DATA.relations || []).find(([a, b]) => (a === p.key && b === me.key) || (a === me.key && b === p.key)) || [])[3] : "";
+    const side = g.mode === "team" && p !== me ? (p.team === me.team ? "队友" : "对手") : g.mode === "id5" ? (p.role === "lord" || p.human || p.revealed ? Engine.ROLE[p.role] : "身份未知") : "";
+    const st = heroStatus(p);
+    box.style.setProperty("--c", p.ch.color); box.style.setProperty("--l", p.ch.light);
+    box.innerHTML = `<div class="hi-head"><img src="${portrait(p.key, "avatar")}" alt=""><div class="hi-nm"><b>${p.name}</b><small>${p.ch.title}</small></div><button class="hi-x" title="关闭">✕</button></div>
+      <div class="hi-stat"><span>❤ 心态 ${Math.max(0, p.hp)} / ${p.maxHp}</span><span>🂠 手牌 ${p.hand.length}（上限 ${g.handLimit(p)}）</span>${p.equip ? `<span>🧰 ${CD[p.equip.k].name}</span>` : ""}${side ? `<span>${side}</span>` : ""}${p.alive ? "" : "<span>已退群</span>"}</div>
+      ${st.length ? `<div class="hi-st">${st.join(" · ")}</div>` : ""}
+      ${rel ? `<div class="hi-rel ${rel}"><b>${REL_NAME[rel]}</b>${relRow}</div>` : ""}
+      <div class="hi-skills">${p.ch.skills.map((s) => {
+        const ss = skillState(p, s);
+        return `<div class="hi-sk${s.id === infoFocus ? " focus" : ""}"><div class="hi-sk1"><b>${s.name}</b><em class="${s.type}">${s.type === "active" ? "主动" : "被动"}</em>${ss.map((x) => `<i>${x}</i>`).join("")}</div>
+          <div class="hi-short">${s.short || ""}</div><div class="hi-desc">${s.desc}</div></div>`;
+      }).join("")}</div>`;
+    box.className = "";
+    box.querySelector(".hi-x").onclick = (ev) => { ev.stopPropagation(); hideHeroInfo(); };
+    // 放在角色旁边：右边放得下就放右边，不然放左边；上下不出屏
+    const q = pos(p), sc = seatScale(p), w = box.offsetWidth, h = box.offsetHeight;
+    let x = q.x + HERO_W * sc + 14;
+    if (x + w > SW - 12) x = q.x - w - 14;
+    if (x < 12) x = Math.max(12, Math.min(SW - w - 12, q.x + HERO_W * sc / 2 - w / 2));
+    const y = Math.max(12, Math.min(SH - h - 12, q.y));
+    box.style.left = x + "px"; box.style.top = y + "px";
+    const f = box.querySelector(".hi-sk.focus"); if (f) f.scrollIntoView({ block: "nearest" });
+  }
+  function hideHeroInfo() { infoP = null; const b = $("#hinfo"); if (b) b.className = "hidden"; }
+
   // ---------------------------------------------------------------- 牌的说明浮窗（悬停那张 / 选中那张）
   function renderTip() {
     const tip = $("#ctip"); if (!tip || !g) return;
@@ -257,6 +314,7 @@ window.UI = (function () {
       if (d.target === "one") html += `<div class="tgo"><span>👉 点一位对手，或把牌拖到她身上${SET().keys ? '<span class="kb">；也可以按她头上的数字</span>' : ""}</span></div>`;
       else html += `<div class="tgo"><button class="btn small primary" id="tip-go">出牌</button>${SET().keys ? '<kbd class="kb">Enter</kbd>' : ""}<span>或把牌往上拖</span></div>`;
     } else if (mode === "respond" && respondCards.includes(c.id)) html += `<div class="tgo"><span>👉 点这张打出</span></div>`;
+    else if (!$("#prompt").classList.contains("hidden")) { tip.className = "hidden"; return; }
     tip.innerHTML = html;
     tip.className = "";
     const go = tip.querySelector("#tip-go");
@@ -344,12 +402,18 @@ window.UI = (function () {
       const left = s.left != null ? `（${s.left}）` : "";
       const b = el("button", "btn small" + (skillMode === s.id ? " primary" : ""), `${s.name}${left}` + (SET().keys && ki < 3 ? `<kbd>${"QWE"[ki]}</kbd>` : ""));
       ki++;
-      b.title = s.desc;
+      b.title = `【${s.name}】${s.short || ""}——${s.desc}`;
       b.disabled = !(mode === "play" && !busy && s.can);
       b.onclick = (ev) => { ev.stopPropagation(); onSkillBtn(s); };
       box.appendChild(b);
     }
-    if (!box.children.length) box.appendChild(el("div", "passive", me.ch.skills.map((s) => `【${s.name}】`).join(" ") + "（被动，自动生效）"));
+    for (const s of me.ch.skills.filter((x) => x.type !== "active")) {
+      const ss = skillState(me, s);
+      const ch = el("span", "pchip" + ((s.id === "saint" && me.saintUsed) || (s.id === "dumb" && me.dumb) ? " off" : ""), `${s.name}${ss.length ? `<small>${ss[0]}</small>` : ""}`);
+      ch.title = `【${s.name}】${s.short || s.desc}（被动，自动生效）`;
+      ch.onclick = (ev) => { ev.stopPropagation(); showHeroInfo(me, s.id); };
+      box.appendChild(ch);
+    }
   }
 
   // ---------------------------------------------------------------- 文字提示
@@ -498,10 +562,18 @@ window.UI = (function () {
     Sound.sfx("spell", 0.6);
     const c = el("div", "cutin");
     c.style.setProperty("--c", p.ch.color); c.style.setProperty("--l", p.ch.light);
-    c.innerHTML = `<img src="${portrait(p.key, "smug")}" alt=""><div class="ct2">${p.name} 发动技能</div><div class="ct1">${name}</div>`;
+    const sk = p.ch.skills.find((x) => x.name === name);
+    c.innerHTML = `<img src="${portrait(p.key, "smug")}" alt=""><div class="ct2">${p.name} 发动技能</div><div class="ct1">${name}</div>${sk && sk.short ? `<div class="ct3">${sk.short}</div>` : ""}`;
     $("#fx").appendChild(c); setTimeout(() => c.remove(), 1300 * Engine.speed + 100);
   }
-  function skillNote(p, name) { Sound.sfx("chime", 0.5); floatText(p, `【${name}】`, "heal"); sync(); }
+  function skillNote(p, name) { Sound.sfx("chime", 0.5); skillPop(p, name); sync(); }
+  function skillPop(p, name) {
+    const s = p.ch.skills.find((x) => x.name === name);
+    const c = center(p), e = el("div", "skpop", `<b>【${name}】</b>${s && s.short ? `<span>${s.short}</span>` : ""}`);
+    e.style.setProperty("--c", p.ch.color);
+    e.style.left = c.x + "px"; e.style.top = c.y - 70 + "px";
+    $("#fx").appendChild(e); setTimeout(() => e.remove(), 2000 * Math.max(0.6, Engine.speed));
+  }
   function banner(text) { const b = el("div", "banner", text); $("#fx").appendChild(b); setTimeout(() => b.remove(), 950); }
 
   // ---------------------------------------------------------------- 玩家：出牌阶段
@@ -640,8 +712,10 @@ window.UI = (function () {
   }
   function onHeroClick(p) {
     if (performance.now() - suppressClick < 350) return;
-    if (mode !== "play" || busy || !p.alive || (p.human && skillMode !== "qingke")) return;
-    const me = g.human;
+    const me = g.human, sel = selected != null && me.hand.find((x) => x.id === selected);
+    const targeting = mode === "play" && !busy && (skillMode || (sel && CD[sel.k].target === "one"));
+    if (!targeting || !p.alive || (p.human && skillMode !== "qingke")) { showHeroInfo(p); return; }
+    hideHeroInfo();
     if (skillMode) {
       const id = skillMode;
       if (!g.skillTargets(me, id).includes(p)) { toast("不能选她"); return; }
@@ -883,7 +957,9 @@ window.UI = (function () {
     $("#btn-end").title = "结束回合（空格）";
     $("#stage").addEventListener("contextmenu", (e) => { e.preventDefault(); if (g) cancelSel(); });
     $("#scr-game").addEventListener("click", (e) => {
-      if (!g || e.target.closest(".card, .hero, button, #prompt, #ctip, #chat, #actions")) return;
+      if (!g) return;
+      if (!e.target.closest("#hinfo, .hero, #skillbox")) hideHeroInfo();
+      if (e.target.closest(".card, .hero, button, #prompt, #ctip, #hinfo, #chat, #actions")) return;
       cancelSel();
     });
     document.addEventListener("keydown", onKey);
@@ -897,6 +973,7 @@ window.UI = (function () {
       if (e.key === "Enter") { const b = $("#modal-body .pkgo .btn.primary"); if (b) b.click(); }
       return;
     }
+    if (e.key === "Escape" && infoP) { hideHeroInfo(); return; }
     if (!SET().keys && e.key !== "Escape") return;
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     const n = /^[1-9]$/.test(k) ? +k : 0;

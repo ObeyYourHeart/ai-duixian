@@ -202,7 +202,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
   text-shadow: 0 1px 3px rgba(40, 20, 90, .6); white-space: nowrap; }
 #phase { position: absolute; left: 0; right: 0; bottom: -6px; text-align: center; font-size: 18px; font-weight: 800; color: #5a4aa8; text-shadow: 0 1px 0 #fff, 0 0 8px #fff; }
 
-#chat { position: absolute; right: 22px; top: 76px; width: 370px; height: calc(560px + var(--dy)); border-radius: 22px; background: rgba(255, 255, 255, .78); border: 3px solid #fff;
+#chat { position: absolute; right: 22px; top: 76px; width: 370px; height: calc(516px + var(--dy)); border-radius: 22px; background: rgba(255, 255, 255, .78); border: 3px solid #fff;
   box-shadow: 0 8px 22px rgba(70, 50, 140, .16); overflow: hidden; display: flex; flex-direction: column; }
 .chat-head { padding: 10px 14px; font-weight: 800; color: #5a4aa8; background: rgba(255, 255, 255, .8); border-bottom: 2px solid var(--line); font-size: 17px; }
 #chat-list { flex: 1; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 8px 10px; gap: 7px; }
@@ -219,7 +219,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .sys.good { color: #2a9d63; font-weight: 800; }
 @keyframes msgin { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
 
-#actions { position: absolute; right: 22px; top: calc(652px + var(--dy)); width: 370px; height: 226px; display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+#actions { position: absolute; right: 22px; top: calc(606px + var(--dy)); width: 370px; height: 272px; display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
 #hint { min-height: 54px; font-size: 18px; font-weight: 700; color: #5a4aa8; background: rgba(255, 255, 255, .78); border-radius: 16px; padding: 8px 14px; line-height: 1.4; }
 #btn-end { font-size: 34px; }
 #btn-end.ready { animation: endpulse 1.2s ease-in-out infinite; }
@@ -228,7 +228,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #skillbox .btn { font-size: 22px; padding: 7px 16px; }
 #skillbox .passive { font-size: 16px; font-weight: 800; color: #6b6585; background: rgba(255, 255, 255, .78); border-radius: 14px; padding: 8px 12px; }
 
-#prompt { position: absolute; left: calc(270px + var(--dx)); top: calc(590px + var(--dy)); width: 900px; height: 74px; border-radius: 22px; background: rgba(255, 255, 255, .95); border: 3px solid #ffcf3f;
+#prompt { position: absolute; left: calc(270px + var(--dx)); top: calc(572px + var(--dy)); width: 900px; height: 74px; border-radius: 22px; background: rgba(255, 255, 255, .95); border: 3px solid #ffcf3f;
   box-shadow: 0 8px 24px rgba(70, 50, 140, .25); display: flex; align-items: center; gap: 12px; padding: 0 14px; z-index: 30; }
 #prompt-text { flex: 1; font-size: 20px; font-weight: 800; }
 #prompt-btns { display: flex; gap: 10px; }
@@ -391,3 +391,77 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .pknote { text-align: center; color: #d8364a; font-weight: 700; font-size: 18px; margin: 4px 0 0; }
 .pkgo { display: flex; gap: 14px; justify-content: center; margin-top: 12px; }
 #stage.portrait #known { font-size: 20px; top: auto; bottom: 20px; }
+
+/* v16 技能好懂一点：角色详情卡 */
+#hinfo { position: absolute; z-index: 40; width: 400px; max-height: 620px; overflow-y: auto; scrollbar-width: thin; background: #fff; border: 4px solid var(--c); border-radius: 22px;
+  box-shadow: 0 10px 30px rgba(70, 50, 140, .25); padding: 14px 16px 12px; color: #3d3566; }
+#hinfo.hidden { display: none; }
+#hinfo .hi-head { display: flex; align-items: center; gap: 12px; }
+#hinfo .hi-head img { width: 62px; height: 62px; border-radius: 50%; border: 3px solid var(--c); background: var(--l); }
+#hinfo .hi-nm { flex: 1; display: flex; flex-direction: column; }
+#hinfo .hi-nm b { font-family: var(--title); font-weight: normal; font-size: 30px; color: var(--c); line-height: 1.1; }
+#hinfo .hi-nm small { font-size: 16px; font-weight: 700; color: #8a82b0; }
+#hinfo .hi-x { width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--l); color: var(--c); font-size: 20px; font-weight: 900; cursor: pointer; }
+#hinfo .hi-stat { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 6px; }
+#hinfo .hi-stat span { background: var(--l); border-radius: 10px; padding: 2px 10px; font-size: 16px; font-weight: 800; }
+#hinfo .hi-st { font-size: 16px; font-weight: 800; color: #e2525b; margin-bottom: 6px; }
+#hinfo .hi-rel { font-size: 15px; font-weight: 700; line-height: 1.4; border-radius: 12px; padding: 6px 10px; margin-bottom: 8px; background: #f4f1ff; }
+#hinfo .hi-rel b { margin-right: 6px; color: #fff; border-radius: 8px; padding: 0 8px; font-size: 14px; }
+#hinfo .hi-rel.ally b { background: var(--good); } #hinfo .hi-rel.friend b { background: #6c9cf0; } #hinfo .hi-rel.rival b { background: var(--bad); }
+#hinfo .hi-skills { display: flex; flex-direction: column; gap: 8px; }
+#hinfo .hi-sk { background: var(--l); border-radius: 14px; padding: 8px 12px; border: 3px solid transparent; }
+#hinfo .hi-sk.focus { border-color: var(--c); }
+#hinfo .hi-sk1 { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+#hinfo .hi-sk1 b { font-family: var(--title); font-weight: normal; font-size: 23px; color: var(--c); }
+#hinfo .hi-sk1 em { font-style: normal; font-size: 13px; font-weight: 800; color: #fff; border-radius: 8px; padding: 1px 7px; background: #9a93bf; }
+#hinfo .hi-sk1 em.active { background: var(--c); }
+#hinfo .hi-sk1 i { font-style: normal; font-size: 13px; font-weight: 800; color: var(--c); background: #fff; border-radius: 8px; padding: 1px 7px; }
+#hinfo .hi-short { font-size: 17px; font-weight: 800; margin-top: 2px; }
+#hinfo .hi-desc { font-size: 14px; font-weight: 600; line-height: 1.45; color: #6b6585; margin-top: 2px; }
+#stage.portrait #hinfo { width: 560px; max-height: 1000px; }
+#stage.portrait #hinfo .hi-short { font-size: 23px; } #stage.portrait #hinfo .hi-desc { font-size: 19px; }
+#stage.portrait #hinfo .hi-sk1 b { font-size: 28px; } #stage.portrait #hinfo .hi-stat span { font-size: 20px; }
+/* 角色卡上：主动技能实心、被动技能描边 */
+.hero .stags span.passive { background: rgba(255, 255, 255, .86); box-shadow: inset 0 0 0 2px var(--c); }
+.hero { cursor: pointer; }
+/* 自己的技能栏：被动技能标签 */
+#skillbox .pchip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--title); font-size: 19px; color: #6b6585; background: rgba(255, 255, 255, .85);
+  border: 2px dashed #b9b2dc; border-radius: 14px; padding: 4px 12px; cursor: help; }
+#skillbox .pchip small { font-family: var(--body, inherit); font-size: 13px; font-weight: 800; color: #8b6cf0; }
+#skillbox .pchip.off { opacity: .55; }
+#stage.portrait #skillbox .pchip { font-size: 23px; }
+/* 技能触发：名字 + 一句话 */
+.skpop { position: absolute; z-index: 45; transform: translate(-50%, 0); white-space: nowrap; background: #fff; border: 3px solid var(--c); border-radius: 16px; padding: 4px 14px;
+  display: flex; flex-direction: column; align-items: center; animation: skpop 2s ease-out forwards; pointer-events: none; }
+.skpop b { font-family: var(--title); font-weight: normal; font-size: 26px; color: var(--c); line-height: 1.2; }
+.skpop span { font-size: 16px; font-weight: 800; color: #4a4270; }
+@keyframes skpop { 0% { opacity: 0; transform: translate(-50%, 16px) scale(.9); } 12% { opacity: 1; transform: translate(-50%, 0) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -26px); } }
+.cutin .ct3 { position: absolute; left: 22%; top: 200px; font-size: 30px; font-weight: 800; color: #4a4270; background: #fff; border: 3px solid var(--c); padding: 2px 16px; border-radius: 14px; transform: rotate(6deg); }
+/* 手牌挤在一起：牌名靠左，露出来的一截也认得出 */
+#hand.tight .card .cn { text-align: left; padding-left: 10px; }
+#hand.tight .card .cn::first-letter { font-size: 1.05em; }
+/* 选角：技能先看一句话，点开看完整说明 */
+.sd-skill { cursor: pointer; }
+.sd-skill .sd-short { font-size: 17px; font-weight: 800; margin-top: 2px; color: #3d3566; }
+.sd-skill p { display: none; }
+.sd-skill.open p { display: block; }
+.sd-skill .sd-more { font-size: 13px; font-weight: 800; color: var(--c); margin-left: 4px; }
+.sd-skill.open .sd-more { display: none; }
+#sd-bio { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+#sd-bio.open { display: block; }
+#stage.portrait .sd-skill .sd-short { font-size: 22px; }
+
+/* 操作区：提示太长就截断，给技能栏让位置 */
+#hint { flex: 0 1 auto; min-height: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+#skillbox { flex: none; align-items: center; }
+#btn-end { flex: none; margin-top: auto; }
+
+/* 手机横屏（画面缩得很小）：详情卡、牌说明、技能提示放大 */
+#stage.tiny #hinfo { width: 600px; max-height: 820px; }
+#stage.tiny #hinfo .hi-nm b { font-size: 40px; } #stage.tiny #hinfo .hi-nm small { font-size: 22px; }
+#stage.tiny #hinfo .hi-stat span { font-size: 24px; } #stage.tiny #hinfo .hi-rel { font-size: 22px; }
+#stage.tiny #hinfo .hi-sk1 b { font-size: 34px; } #stage.tiny #hinfo .hi-sk1 em, #stage.tiny #hinfo .hi-sk1 i { font-size: 19px; }
+#stage.tiny #hinfo .hi-short { font-size: 28px; } #stage.tiny #hinfo .hi-desc { font-size: 22px; }
+#stage.tiny #ctip { font-size: 28px; max-width: 700px; }
+#stage.tiny .skpop b { font-size: 38px; } #stage.tiny .skpop span { font-size: 24px; }
+#stage.tiny #skillbox .pchip { font-size: 24px; }

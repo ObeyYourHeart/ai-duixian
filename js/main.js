@@ -28,6 +28,7 @@ window.Main = (function () {
     st.style.setProperty("--dx", portrait ? "0px" : (W - 1600) / 2 + "px");
     st.style.setProperty("--dy", (portrait ? H - 1300 : H - 900) + "px");
     st.style.transform = `scale(${Math.min(w / W, h / H)})`;
+    st.classList.toggle("tiny", !portrait && Math.min(w / W, h / H) < 0.62);   // 手机横屏：画面缩得很小，弹窗字号放大
     UI.layout(W, H, portrait);
   }
   function show(id) { document.querySelectorAll(".screen").forEach((e) => e.classList.toggle("active", e.id === id)); }
@@ -59,7 +60,9 @@ window.Main = (function () {
     $("#sd-name").textContent = c.name; $("#sd-name").style.whiteSpace = "nowrap"; $("#sd-name").style.fontSize = c.name.length > 7 ? "36px" : ""; $("#sd-title").textContent = c.title;
     $("#sd-bio").textContent = c.bio || "";
     $("#sd-hp").textContent = "心态 " + "❤".repeat(c.hp);
-    $("#sd-skills").innerHTML = c.skills.map((s) => `<div class="sd-skill"><b>【${s.name}】</b><em>${s.type === "active" ? "主动" : "被动"}</em><p>${s.desc}</p></div>`).join("");
+    $("#sd-skills").innerHTML = c.skills.map((s) => `<div class="sd-skill"><b>【${s.name}】</b><em>${s.type === "active" ? "主动" : "被动"}</em><span class="sd-more">点开看详细</span><div class="sd-short">${s.short || ""}</div><p>${s.desc}</p></div>`).join("");
+    $("#sd-skills").querySelectorAll(".sd-skill").forEach((e) => { e.onclick = () => { e.classList.toggle("open"); Sound.sfx("click", 0.4); }; });
+    $("#sd-bio").classList.remove("open"); $("#sd-bio").onclick = () => $("#sd-bio").classList.toggle("open");
     show("scr-select");
   }
 
@@ -101,6 +104,7 @@ window.Main = (function () {
       <li><b>抢群主</b>（5 人）：随机身份。<b>群主</b>公开、多 2 点心态、先手，要和暗中的<b>管理员</b>一起踢掉所有<b>黑粉</b>和<b>潜水党</b>；两个<b>黑粉</b>要把群主踢出群；<b>潜水党</b>要先帮群主清掉黑粉，最后单挑踢掉群主，自己当新群主。除了群主，身份退群后才翻开。踢掉黑粉奖励摸 3 张；群主踢了自己的管理员要弃光手牌。你退群后会加速观战到结束。</li></ul>
       <h3>操作</h3>
       <ul><li>点一张牌看效果，再点一次出牌；也可以直接把牌往上拖出去。要选目标的牌，点对手或把牌拖到她身上。</li>
+      <li><b>看不懂技能？点任何一张角色卡</b>（包括你自己）：会弹出她的全部技能——每个技能一句话简介 + 完整说明，还有剩几次、心态、手牌、装备、和你的关系。被动技能触发时，角色旁边也会弹出它的效果。</li>
       <li>主动技能在右下角按钮。被吐槽时会弹出提示，倒计时结束按默认处理。</li>
       <li>键盘：数字键 1–9 选牌（选目标时按对手头上的数字），Enter 确认，空格 结束回合，Esc 取消，Q / W 技能。</li>
       <li>右上角 ⚙ 设置：音量、速度、思考时间、“点一下就出”、自动应对、自动结束回合。</li>
