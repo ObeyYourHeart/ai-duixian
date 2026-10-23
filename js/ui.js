@@ -269,6 +269,8 @@ window.UI = (function () {
     if (s.id === "fans" && p.used && p.used.fans) out.push("这轮刷过礼物");
     if (s.id === "disguise" && p.disguise) out.push("伪装中");
     if (s.id === "nap" && p.napping) out.push("睡着了");
+    if (s.id === "hold") out.push(`气 ${p.breath || 0} / ${Engine.T.holdMax}`);
+    if (s.id === "burst") out.push((p.breath || 0) >= Engine.T.holdMax ? "气满了，能发布" : `还差 ${Engine.T.holdMax - (p.breath || 0)} 口气`);
     if (s.id === "math" && p.human && g.bombSpots) { const sp = g.bombSpots(); if (sp.length) out.push(`宕机在第 ${sp.join("、")} 张`); }
     return out;
   }
@@ -276,6 +278,7 @@ window.UI = (function () {
     const st = [];
     if (p.banned) st.push("🚫 封号中"); if (p.muted) st.push("🔇 禁言中"); if (p.dumb) st.push("❓ 降智中");
     if (p.napping) st.push("😴 补觉中"); if (p.disguise) st.push("🎭 正在冒充 Claude");
+    if (p.breath) st.push(`🫧 憋气 ${p.breath} / ${Engine.T.holdMax}`);
     if (p.offline) st.push("📵 断网中"); if (p.boost) st.push("🔥 加班中");
     return st;
   }

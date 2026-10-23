@@ -21,7 +21,7 @@ window.Engine = (function () {
     codeEvery: 3, codeMax: 1,                             // Claude：编程每打出几张摸 1（每回合最多几次）
     beautyDraw: 1, saintHeal: 1,                           // Claude：审美摸几张；圣女回几点
     openDrop: 1, bigEat: 2,                                // DeepSeek 开源让对手弃几张；小DeepSeek 大胃奶茶回几点
-    napHeal: 1, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 2, disguiseAct: "polish", hajimiRate: 0.25, nationFirst: {}, nationDraw: { cn: 1 },   // 全明星赛：中国队阵容大，第一回合每人多摸 1 张（sim：中美 51/49）                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
+    napHeal: 1, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 2, disguiseAct: "polish", hajimiRate: 0.25, nationFirst: {}, nationDraw: { cn: 1 }, holdMax: 3, burstDmg: 2, burstDraw: 2, holdDraw: 0, burstUnblock: true, holdLeak: 0,   // Kimi：一鸣惊人反驳也挡不住（sim 乱斗 36 / 单挑 51；能反驳时只有 25 / 28）   // 全明星赛：中国队阵容大，第一回合每人多摸 1 张（sim：中美 51/49）                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
     busyRate: 0.08,                                       // 小 DeepSeek 服务器繁忙
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
@@ -395,12 +395,14 @@ window.Engine = (function () {
         this.ui.sys(`${p.name} 弃了 ${ids.length} 张牌`);
         this.ui.sync(); await wait(250);
       }
-      // Kimi 月光：从不先动手，这回合没吐槽过就回心态
-      if (this.hasSkill(p, "moon") && p.alive && !this.over && p.tucao === 0 && p.hp < p.maxHp && (p.uses.moon == null || p.uses.moon > 0)) {
-        if (p.uses.moon != null) p.uses.moon--;
-        p.hp = Math.min(p.maxHp, p.hp + T.moonHeal); this.ui.heal(p, T.moonHeal);
-        this.ui.skillNote(p, SN(p.key, "moon")); this.ui.say(p, "moon", true);
-        this.ui.log(p, `【${SN(p.key, "moon")}】这回合没跟人吵，心态 +${T.moonHeal}`); await wait(500);
+      // Kimi 憋气：这回合一张吐槽都没出，攒 1 口气（满 3 口就能一鸣惊人）
+      if (this.hasSkill(p, "hold") && p.alive && !this.over && p.tucao === 0 && (p.breath || 0) < T.holdMax) {
+        p.breath = (p.breath || 0) + 1;
+        this.ui.skillNote(p, SN(p.key, "hold"));
+        this.ui.log(p, p.breath >= T.holdMax ? `【${SN(p.key, "hold")}】憋了三个月，气攒满了——随时可以一鸣惊人` : `【${SN(p.key, "hold")}】又憋了一口气（${p.breath} / ${T.holdMax}）`);
+        if (p.breath >= T.holdMax) this.ui.say(p, "hold", true);
+        await wait(400);
+        if (T.holdDraw) await this.draw(p, T.holdDraw, true);
       }
       // Claude 审美：手牌一张都不重样，摸 1 张
       if (this.hasSkill(p, "beauty") && p.alive && !this.over && p.hand.length && new Set(p.hand.map((c) => c.k)).size === p.hand.length) {
@@ -454,7 +456,14 @@ window.Engine = (function () {
       this.takeFromHand(p, card);
       p.stats.used++;
       for (const t of targets) { p.hits[t.i] = (p.hits[t.i] || 0) + 1; this.noteHostile(p, t, 0.5); }
-      if (card.k === "tucao") p.tucao++;
+      if (card.k === "tucao") {
+        p.tucao++;
+        if (this.hasSkill(p, "hold") && p.breath) {                     // Kimi 憋气：一开口就泄气
+          p.breath = T.holdLeak ? Math.max(0, p.breath - T.holdLeak) : 0;
+          this.ui.log(p, p.breath ? `【${SN(p.key, "hold")}】一开口泄了 ${T.holdLeak} 口气（还剩 ${p.breath}）` : `【${SN(p.key, "hold")}】一开口就泄了气，憋的气清零`);
+          if (Math.random() < 0.6) this.ui.say(p, "leak");
+        }
+      }
       p.played = (p.played || 0) + 1;
       this.ui.sync();
       const tnames = targets.map((t) => t.name).join("、");
@@ -910,6 +919,7 @@ window.Engine = (function () {
       if (!p.alive || p.used[id] || !this.hasSkill(p, id)) return false;
       if (id === "ban" || id === "maint") return (p.uses[id] || 0) > 0 && this.skillTargets(p, id).length > 0;
       if (id === "reset") return (p.uses.reset || 0) > 0;
+      if (id === "burst") return (p.breath || 0) >= T.holdMax;
       if (id === "steal" || id === "beg") return this.skillTargets(p, id).length > 0;
       if (id === "buy") return p.hand.length >= T.buyCost && this.skillTargets(p, id).length > 0;
       if (id === "polish") return p.hand.length > 0;
@@ -976,6 +986,21 @@ window.Engine = (function () {
             if (!ok) await this.damage(p, t, 1);
           }
         }
+      } else if (id === "burst") {
+        // Kimi 一鸣惊人：憋了三个月终于发布，全场要反驳，否则心态 −2
+        p.breath = 0;
+        this.ui.skill(p, SN(p.key, "burst")); this.ui.say(p, "burst", true); Sound.sfx("fanfare_short", 0.6);
+        this.ui.banner("🌙 一鸣惊人！"); this.ui.sync();
+        this.ui.sys(`${p.name} 憋了三个月终于发布——${T.burstUnblock ? `所有对手心态 −${T.burstDmg}，【反驳】也挡不住！` : `所有对手要打出【反驳】，否则心态 −${T.burstDmg}`}`, "bad"); await wait(600);
+        let j = p.i;
+        for (let k = 0; k < this.players.length - 1 && !this.over; k++) {
+          j = (j + 1) % this.players.length;
+          const t = this.players[j];
+          if (!t.alive || t === p || !this.rivals(p).includes(t)) continue;
+          const ok = T.burstUnblock ? false : await this.ask(t, "fanbo", { from: p, card: { k: "shuaping" } });
+          if (!ok) await this.damage(p, t, T.burstDmg);
+        }
+        if (p.alive && !this.over) await this.draw(p, T.burstDraw, true);
       } else if (id === "beg") {
         this.ui.skill(p, SN("xds", "beg")); this.ui.say(p, t.key === "gpt" ? "beg_gpt" : t.key === "claude" ? "beg_claude" : "beg", true);
         await wait(600);

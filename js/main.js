@@ -57,7 +57,7 @@ window.Main = (function () {
     }
     const c = CH[pickKey];
     const det = $("#sel-detail"); det.style.setProperty("--c", c.color); det.style.setProperty("--l", c.light);
-    $("#sd-img").src = UI.portrait(pickKey, "smug");
+    $("#sd-img").src = UI.portrait(pickKey, "pose");
     // 小DeepSeek：点“变身”轮流看伪装造型，最后变回来
     const alt = $("#sd-alt"), FORMS = ["smug", "tea", "cheer", "change", "exposed"];
     let form = -1;
@@ -65,7 +65,7 @@ window.Main = (function () {
     alt.onclick = (ev) => {
       ev.stopPropagation(); Sound.sfx("click", 0.4);
       form = form + 1 < FORMS.length ? form + 1 : -1;
-      $("#sd-img").src = form < 0 ? UI.portrait("xds", "smug") : UI.portrait("xds_cl", FORMS[form]);
+      $("#sd-img").src = form < 0 ? UI.portrait("xds", "pose") : UI.portrait("xds_cl", FORMS[form]);
       alt.textContent = form < 0 ? "🎭 变身" : form === FORMS.length - 1 ? "🎭 变回来" : `🎭 换一张 ${form + 1}/${FORMS.length}`;
     };
     $("#sd-name").textContent = c.name; $("#sd-name").style.whiteSpace = "nowrap"; $("#sd-name").style.fontSize = c.name.length > 7 ? "36px" : ""; $("#sd-title").textContent = c.title;
@@ -130,7 +130,7 @@ window.Main = (function () {
         const k = members[i];
         if (!k) { slots.push(`<div class="tm-slot empty"><span>＋</span><small>点下面的人加入</small></div>`); continue; }
         const c = CH[k], you = mine && i === 0;
-        slots.push(`<div class="tm-slot" data-k="${k}" style="--c:${c.color};--l:${c.light}"><img src="${UI.portrait(k, k === "xds" ? "base" : "smug")}" alt="">
+        slots.push(`<div class="tm-slot" data-k="${k}" style="--c:${c.color};--l:${c.light}"><img src="${UI.portrait(k, "pose")}" alt="">
           <div class="tm-nm"><b>${c.name}</b><small>${c.title}</small></div>${you ? '<i class="tm-you">你</i>' : '<i class="tm-x" title="移出">✕</i>'}</div>`);
       }
       const rels = (D.relations || []).filter(([a, b]) => members.includes(a) && members.includes(b))

@@ -164,6 +164,7 @@ window.AI = (function () {
       const t = fond.length ? richest(fond, p) : richest(ts, p);
       if (t) return { skill: "beg", target: t };
     }
+    if (g.canSkill(p, "burst")) return { skill: "burst" };                 // Kimi：气满了先一鸣惊人
     if (g.canSkill(p, "polish") && !risky(p.hand.length + 1) && polishGain(g, p) > 0) return { skill: "polish" };
     // 小DeepSeek 变身：冒充 Claude，顺手学她润色——手里的牌不好就变
     if (g.canSkill(p, "disguise") && g.round >= 2 && !risky(p.hand.length + 1) && polishGain(g, p) > 0) return { skill: "disguise" };
@@ -225,7 +226,9 @@ window.AI = (function () {
       if (t && (H("tucao").length >= 2 || t.hand.length <= 1 || (t.hp <= 1 && H("tucao").length >= 1))) return use(H("dantiao")[0], [t]);
     }
     // 6a. 截图 + 加班：准备好再吐槽
-    const canT = H("tucao").length && p.tucao < g.limitTucao(p);
+    const holding = g.hasSkill(p, "hold") && (p.breath || 0) < Engine.T.holdMax && p.tucao === 0;   // Kimi 憋气：能忍就忍，只为踢人出群开口
+    const finish = holding ? enemies.find((q) => q.hp <= 1) : null;
+    const canT = H("tucao").length && p.tucao < g.limitTucao(p) && (!holding || finish);
     if (canT && H("jietu").length && !p.evidence) {
       const t = pickTarget(g, p, enemies.filter((q) => q.hand.length > 0)) || pickTarget(g, p, enemies);
       if (t) return use(H("jietu")[0], [t]);
@@ -237,7 +240,7 @@ window.AI = (function () {
     // 7. 吐槽
     if (H("tucao").length && p.tucao < g.limitTucao(p)) {
       const ev = p.evidence && p.evidence.alive && g.rivals(p).includes(p.evidence) ? p.evidence : null;   // 截过图的那个先打
-      const t = ev || pickTarget(g, p, others); if (t) return use(H("tucao")[0], [t]);
+      const t = holding ? finish : ev || pickTarget(g, p, others); if (t) return use(H("tucao")[0], [t]);
     }
     if (g.canSkill(p, "reset") && g.round >= 4 && p.hand.length <= 2) return { skill: "reset" };
     // GLM 补觉：能出的都出完了、心态不满，就睡一觉（这回合不再出牌）
