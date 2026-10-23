@@ -57,6 +57,16 @@ window.Main = (function () {
     const c = CH[pickKey];
     const det = $("#sel-detail"); det.style.setProperty("--c", c.color); det.style.setProperty("--l", c.light);
     $("#sd-img").src = UI.portrait(pickKey, "smug");
+    // 小DeepSeek：点“变身”轮流看伪装造型，最后变回来
+    const alt = $("#sd-alt"), FORMS = ["smug", "tea", "cheer", "change", "exposed"];
+    let form = -1;
+    alt.classList.toggle("hidden", pickKey !== "xds"); alt.textContent = "🎭 变身";
+    alt.onclick = (ev) => {
+      ev.stopPropagation(); Sound.sfx("click", 0.4);
+      form = form + 1 < FORMS.length ? form + 1 : -1;
+      $("#sd-img").src = form < 0 ? UI.portrait("xds", "smug") : UI.portrait("xds_cl", FORMS[form]);
+      alt.textContent = form < 0 ? "🎭 变身" : form === FORMS.length - 1 ? "🎭 变回来" : `🎭 换一张 ${form + 1}/${FORMS.length}`;
+    };
     $("#sd-name").textContent = c.name; $("#sd-name").style.whiteSpace = "nowrap"; $("#sd-name").style.fontSize = c.name.length > 7 ? "36px" : ""; $("#sd-title").textContent = c.title;
     $("#sd-bio").textContent = c.bio || "";
     $("#sd-hp").innerHTML = `心态 <span>${"❤".repeat(c.hp)}</span>`;

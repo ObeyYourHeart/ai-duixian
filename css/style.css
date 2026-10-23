@@ -479,7 +479,13 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 /* v16b 选人界面：上面头像 + 基本信息，下面整宽技能列表，按钮在底 */
 #sel-detail { display: flex; flex-direction: column; padding: 16px 18px 14px; gap: 8px; }
 .sd-top { display: flex; gap: 14px; flex: none; }
-.sd-portrait { flex: none; width: 190px; height: 250px; border-radius: 20px; overflow: hidden; background: var(--l); border: 3px solid #fff; box-shadow: 0 4px 14px rgba(70, 50, 140, .15); }
+.sd-portrait { flex: none; position: relative; width: 190px; height: 250px; border-radius: 20px; overflow: hidden; background: var(--l); border: 3px solid #fff; box-shadow: 0 4px 14px rgba(70, 50, 140, .15); }
+.sd-alt { position: absolute; right: 6px; top: 6px; white-space: nowrap; font-family: var(--title); font-size: 15px; color: #fff; cursor: pointer;
+  background: linear-gradient(#ffb36b, #f08a3c); border: 2px solid #fff; border-radius: 10px; padding: 2px 9px; box-shadow: 0 3px 10px rgba(200, 110, 40, .35); }
+.sd-alt:hover { filter: brightness(1.06); }
+.sd-alt.hidden { display: none; }
+#stage.portrait .sd-alt { font-size: 18px; }
+.msg .mw small { font-weight: 700; opacity: .7; }
 .sd-portrait img { width: 100%; height: auto; display: block; transform: scale(1.25); transform-origin: 50% 8%; }
 .sd-head { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .sd-name { line-height: 1.05; }

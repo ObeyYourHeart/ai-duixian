@@ -435,7 +435,7 @@ window.UI = (function () {
   function log(p, html) {
     const m = el("div", "msg" + (p.human ? " me" : ""));
     m.style.setProperty("--c", p.ch.color);
-    m.innerHTML = `<img src="${portrait(p.key, "avatar")}" alt=""><div class="mb"><div class="mw">${p.name}</div><div class="mt">${html}</div></div>`;
+    m.innerHTML = `<img src="${portrait(pkey(p), "avatar")}" alt=""><div class="mb"><div class="mw">${p.disguise ? "Claude？<small>（小DeepSeek）</small>" : p.name}</div><div class="mt">${html}</div></div>`;
     $("#chat-list").appendChild(m); trimChat();
     Sound.sfx("plop", 0.35);
   }
@@ -445,6 +445,7 @@ window.UI = (function () {
   function expr(p, e, ms) {
     const img = heroes[p.i] && heroes[p.i].querySelector(".por img");
     if (!img) return;
+    if (p.disguise && e === "smug") e = ["smug", "tea", "cheer"][Math.floor(Math.random() * 3)];
     img.src = portrait(pkey(p), e);
     heroes[p.i].querySelector(".por").animate([{ transform: "translateX(-50%) scale(1.06)" }, { transform: "translateX(-50%) scale(1)" }], { duration: 220, easing: "ease-out" });
     clearTimeout(exprTimers[p.i]);
@@ -472,7 +473,8 @@ window.UI = (function () {
     if (p.human) { wrap.style.left = q.x + 20 + "px"; wrap.style.top = q.y - 14 + "px"; wrap.style.transform = "translateY(-100%)"; }
     else { wrap.style.left = Math.max(8, Math.min(q.x + 6, SW - 330)) + "px"; wrap.style.top = q.y + HERO_H * seatScale(p) + 14 + "px"; }
     $("#fx").appendChild(wrap);
-    if (HURT_KEYS.includes(key)) expr(p, "hurt", key === "out" ? 0 : 1600);
+    if (key === "exposed") expr(p, "exposed", 1800);
+    else if (HURT_KEYS.includes(key)) expr(p, "hurt", key === "out" ? 0 : 1600);
     else if (SMUG_KEYS.includes(key)) expr(p, "smug", 1400);
     setTimeout(() => wrap.remove(), Math.max(1800, text.length * 170));
     return (window.VOICES || {})[`${p.key}_${key}${idx}`] || 0;   // 配音时长（毫秒），没有配音返回 0
@@ -569,14 +571,17 @@ window.UI = (function () {
     const c = el("div", "cutin");
     c.style.setProperty("--c", p.ch.color); c.style.setProperty("--l", p.ch.light);
     const sk = p.ch.skills.find((x) => x.name === name);
-    c.innerHTML = `<img src="${portrait(p.key, "smug")}" alt=""><div class="ct2">${p.name} 发动技能</div><div class="ct1">${name}</div>${sk && sk.short ? `<div class="ct3">${sk.short}</div>` : ""}`;
+    c.innerHTML = `<img src="${p.disguise ? portrait("xds_cl", sk && sk.id === "disguise" ? "change" : "smug") : portrait(p.key, "smug")}" alt=""><div class="ct2">${p.name} 发动技能</div><div class="ct1">${name}</div>${sk && sk.short ? `<div class="ct3">${sk.short}</div>` : ""}`;
     $("#fx").appendChild(c); setTimeout(() => c.remove(), 1300 * Engine.speed + 100);
   }
   // 变身：换伪装立绘、名牌改成“Claude？”
   function disguise(p, on) {
     const h = heroes[p.i]; if (!h) return;
     h.classList.toggle("disguised", on);
-    h.querySelector(".por img").src = portrait(pkey(p), "base");
+    const img = h.querySelector(".por img");
+    clearTimeout(exprTimers[p.i]);
+    img.src = on ? portrait("xds_cl", "base") : portrait("xds_cl", "exposed");
+    if (!on) exprTimers[p.i] = setTimeout(() => { if (g && !p.disguise) img.src = portrait(p.key, "base"); }, 1200 * Math.max(0.6, Engine.speed));
     h.querySelector(".plate b").textContent = on ? "Claude？" : p.name;
     h.querySelector(".plate small").textContent = on ? "（其实是小DeepSeek）" : p.ch.title;
     if (on) sparks(p, "#f0a050", 18);
@@ -957,7 +962,7 @@ window.UI = (function () {
       title = won ? "你成了群主！" : `${w.name} 成了群主`;
       sub = won ? "全群都被你怼服了。" : me.alive ? "" : "你破防退群了……下次再来！";
     }
-    $("#modal-body").innerHTML = `<div class="result"><img src="${portrait(w.key, "smug")}" alt="">
+    $("#modal-body").innerHTML = `<div class="result"><img src="${w.disguise ? portrait("xds_cl", "cheer") : portrait(w.key, "smug")}" alt="">
       <div class="rr"><div class="rt">${title}</div>
       <p>${sub}</p>
       <div class="rank">${rank}</div>
