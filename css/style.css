@@ -670,6 +670,59 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .ru-props { display: flex; gap: 14px; flex-wrap: wrap; margin: 6px 0 4px; }
 .ru-props span { display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: var(--title); font-size: 17px; color: var(--acc-ink); background: #fff; border-radius: 16px; padding: 8px 14px 6px; }
 .ru-props img { width: 64px; height: 64px; object-fit: contain; }
+/* 全明星组队页 */
+#scr-team.active { display: flex; } #scr-team { flex-direction: column; align-items: center; padding: 26px 30px 24px; gap: 14px; }
+.tm-head { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.tm-sub { font-size: 20px; font-weight: 700; color: #4a5a90; background: rgba(255, 255, 255, .78); border-radius: 14px; padding: 4px 16px; }
+.tm-body { flex: 1; min-height: 0; width: 100%; display: flex; align-items: stretch; gap: 14px; }
+.tm-vs { flex: none; align-self: center; font-family: var(--title); font-size: 46px; color: #fff; background: var(--acc); border: 3px solid #fff; border-radius: 50%;
+  width: 84px; height: 84px; line-height: 78px; text-align: center; box-shadow: 0 6px 18px rgba(60, 90, 170, .25); }
+.tm-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; background: rgba(255, 255, 255, .72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 3px solid #fff; border-radius: 24px; padding: 14px 16px; box-shadow: 0 8px 24px rgba(60, 80, 160, .14); --n: #4a7dff; }
+.tm-side.nat-cn { --n: #ff5a5a; }
+.tm-name { display: flex; align-items: baseline; gap: 12px; }
+.tm-name b { font-family: var(--title); font-weight: normal; font-size: 34px; color: #fff; background: var(--n); border-radius: 14px; padding: 0 16px; }
+.tm-name small { font-size: 16px; font-weight: 800; color: #6b6585; }
+.tm-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.tm-slot { position: relative; height: 330px; border-radius: 18px; overflow: hidden; background: var(--l, #f1f3fa); border: 3px solid #fff; box-shadow: 0 4px 12px rgba(60, 50, 140, .14); }
+.tm-slot img { width: 100%; height: auto; display: block; transform: scale(1.25); transform-origin: 50% 6%; }
+.tm-slot .tm-nm { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 8px 6px; text-align: center; background: linear-gradient(transparent, var(--c) 60%); color: #fff; }
+.tm-slot .tm-nm b { display: block; font-family: var(--title); font-weight: normal; font-size: 28px; line-height: 1.1; }
+.tm-slot .tm-nm small { display: block; }
+.tm-slot .tm-nm small { font-size: 12px; font-weight: 700; opacity: .9; }
+.tm-slot .tm-you, .tm-slot .tm-x { position: absolute; top: 6px; right: 6px; font-style: normal; font-family: var(--title); color: #fff; border: 2px solid #fff; border-radius: 50%;
+  width: 36px; height: 36px; line-height: 32px; text-align: center; font-size: 18px; }
+.tm-slot .tm-you { background: #ffb020; } .tm-slot .tm-x { background: rgba(80, 80, 110, .55); cursor: pointer; }
+.tm-slot .tm-x:hover { background: #e2525b; }
+.tm-slot.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: rgba(255, 255, 255, .5); border: 3px dashed #c3c9e6; box-shadow: none; }
+.tm-slot.empty span { font-size: 54px; line-height: 1; color: #b4bbdc; } .tm-slot.empty small { font-size: 14px; font-weight: 700; color: #9aa0c0; }
+.tm-rels { display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; }
+.tm-rels span { font-size: 14px; font-weight: 800; color: #4a5a90; background: #fff; border-radius: 12px; padding: 3px 10px 3px 4px; display: inline-flex; align-items: center; gap: 6px; }
+.tm-rels span b { font-size: 12px; color: #fff; border-radius: 9px; padding: 1px 7px; background: #6c9cf0; }
+.tm-rels .ally b { background: var(--good); } .tm-rels .rival b { background: var(--bad); } .tm-rels .mentor b { background: #9b7bff; }
+.tm-rels .none { background: none; color: #9aa0c0; padding: 3px 0; }
+.tm-roster { display: flex; flex-wrap: wrap; gap: 8px; }
+.tm-pick { position: relative; width: 104px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px 5px; border-radius: 16px; cursor: pointer;
+  border: 3px solid #fff; background: rgba(255, 255, 255, .9); font-family: var(--title); font-size: 15px; color: var(--c); transition: transform .12s; }
+.tm-pick img { width: 72px; height: 72px; border-radius: 50%; border: 3px solid var(--c); background: var(--l); }
+.tm-pick:hover { transform: translateY(-3px); }
+.tm-pick.on { border-color: var(--n); background: var(--l); box-shadow: 0 0 0 2px var(--n); }
+.tm-pick.you { cursor: default; opacity: .75; }
+.tm-pick i { position: absolute; top: -6px; right: -4px; font-style: normal; font-size: 13px; color: #fff; background: var(--n); border: 2px solid #fff; border-radius: 10px; padding: 0 6px; }
+.tm-btns { display: flex; gap: 14px; }
+.tm-btns #tm-go { min-width: 260px; }
+#stage.portrait #scr-team { padding: 20px 16px; gap: 12px; }
+#stage.portrait .tm-body { flex-direction: column; gap: 10px; }
+#stage.portrait .tm-vs { width: 64px; height: 64px; line-height: 58px; font-size: 34px; margin: -18px 0; z-index: 2; }
+#stage.portrait .tm-slot { height: 230px; } #stage.portrait .tm-slot .tm-nm b { font-size: 24px; }
+#stage.portrait .tm-pick img { width: 64px; height: 64px; }
+#stage.portrait .tm-name b { font-size: 30px; } #stage.portrait .tm-name small { font-size: 18px; }
+#stage.portrait .tm-pick { width: 104px; font-size: 17px; }
+#stage.portrait .tm-rels span { font-size: 16px; }
+#stage.portrait .tm-sub { font-size: 18px; text-align: center; }
+#stage.portrait .tm-btns { flex-wrap: wrap; justify-content: center; } #stage.portrait .tm-btns #tm-go { min-width: 0; flex-basis: 100%; }
+#stage.tiny .tm-sub { font-size: 26px; } #stage.tiny .tm-name small { font-size: 21px; } #stage.tiny .tm-rels span { font-size: 19px; } #stage.tiny .tm-rels span b { font-size: 16px; }
+#stage.tiny .tm-pick { font-size: 20px; width: 112px; } #stage.tiny .tm-slot .tm-nm small { font-size: 16px; }
 .ru-props small { font-family: var(--body, inherit); font-size: 12px; font-weight: 800; color: #8a83a8; }
 .ru-props.sig span { min-width: 96px; } .ru-props.sig b { font-weight: normal; }
 .ru-modes > div { background: #fff; border-radius: 18px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }

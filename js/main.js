@@ -4,6 +4,7 @@ window.Main = (function () {
   const $ = (s) => document.querySelector(s);
   const keys = Object.keys(CH);
   let pickKey = "claude", players = 3, lastOpp = null, game = null, applySpeed = () => {};
+  let teamMates = [], teamFoes = [];                    // 全明星组队页挑好的队友 / 对手
 
   // 舞台跟着屏幕比例走，不留空条：
   // 横屏 16:9 正好 1600x900；16:10、4:3 加高（最多 1200），超宽屏加宽（最多 2133）。
@@ -84,7 +85,7 @@ window.Main = (function () {
   // 模式下面一句话说清楚玩法
   const MODE_DESC = { 2: "单挑：一对一，把她踢出群就赢。", 3: "三人乱斗：你和两个电脑，最后留在群里的人当群主。",
     4: "2v2：座位是 你—对手—对手—队友，把对面两人都踢出群就赢。", 5: "抢群主：5 人随机身份（群主 / 管理员 / 黑粉 / 潜水党），各有各的胜利条件。",
-    6: "全明星赛：中国队对阵美国队，3v3。你选谁就进她的国家队，队友和对手各从本国随机挑。" };
+    6: "全明星赛：中国队对阵美国队，3v3。选好你的角色，下一页自己挑队友和对手。" };
   function modeDesc() { const e = $("#mode-desc"); if (e) e.textContent = MODE_DESC[players] || ""; $("#scr-select").classList.toggle("nation-on", players === 6); }   // 全明星赛：角色格上标国家队
 
   function start(sameOpp) {
@@ -92,11 +93,11 @@ window.Main = (function () {
     const NAT = (k) => CH[k].nation, shuf = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
     if (players === 6) {
       // 全明星赛：你进自己的国家队，队友和对手各从本国随机挑；座位 你—敌—友—敌—敌—友（交替坐先手队赢六成，这样坐五五开）
-      if (sameOpp && lastOpp && lastOpp.length === 5 && !lastOpp.includes(pickKey) && NAT(lastOpp[1]) === NAT(pickKey) && NAT(lastOpp[0]) !== NAT(pickKey)) opp = lastOpp;
-      else {
-        const mates = shuf(keys.filter((k) => k !== pickKey && NAT(k) === NAT(pickKey))).slice(0, 2), foes = shuf(keys.filter((k) => NAT(k) && NAT(k) !== NAT(pickKey))).slice(0, 3);
-        opp = [foes[0], mates[0], foes[1], foes[2], mates[1]];
-      }
+      // 组队页挑的阵容（不齐就随机补满）
+      const mates = teamMates.filter((k) => k !== pickKey && NAT(k) === NAT(pickKey)), foes = teamFoes.filter((k) => NAT(k) && NAT(k) !== NAT(pickKey));
+      mates.push(...shuf(keys.filter((k) => k !== pickKey && NAT(k) === NAT(pickKey) && !mates.includes(k))).slice(0, 2 - mates.length));
+      foes.push(...shuf(keys.filter((k) => NAT(k) && NAT(k) !== NAT(pickKey) && !foes.includes(k))).slice(0, 3 - foes.length));
+      opp = [foes[0], mates[0], foes[1], foes[2], mates[1]];
       teams = [0, 1, 0, 1, 1, 0];
     } else if (sameOpp && lastOpp && lastOpp.length === players - 1 && !lastOpp.includes(pickKey)) opp = lastOpp;
     else {
@@ -113,6 +114,60 @@ window.Main = (function () {
     game = window.__game = new Engine.Game([pickKey, ...opp], UI, { mode, teams, nation: players === 6 });
     UI.attach(game);
     game.run().catch((e) => console.error(e));
+  }
+
+  // ---------------------------------------------------------------- 全明星组队：左边你的国家队，右边对手队；点人加入 / 移出，人齐了开赛
+  const REL_T = { ally: "盟友", friend: "交好", rival: "宿敌同队", mentor: "师徒" };
+  function team() {
+    const NA = D.nations || {}, me = CH[pickKey].nation, foeN = me === "cn" ? "us" : "cn";
+    if (teamMates.some((k) => CH[k].nation !== me || k === pickKey) || teamFoes.some((k) => CH[k].nation !== foeN)) { teamMates = []; teamFoes = []; }   // 换了国家：阵容作废
+    teamMates = teamMates.filter((k) => k !== pickKey);
+    const side = (el, nat, list, max, mine) => {
+      const roster = keys.filter((k) => CH[k].nation === nat);
+      const members = mine ? [pickKey, ...list] : list.slice();
+      const slots = [];
+      for (let i = 0; i < 3; i++) {
+        const k = members[i];
+        if (!k) { slots.push(`<div class="tm-slot empty"><span>＋</span><small>点下面的人加入</small></div>`); continue; }
+        const c = CH[k], you = mine && i === 0;
+        slots.push(`<div class="tm-slot" data-k="${k}" style="--c:${c.color};--l:${c.light}"><img src="${UI.portrait(k, k === "xds" ? "base" : "smug")}" alt="">
+          <div class="tm-nm"><b>${c.name}</b><small>${c.title}</small></div>${you ? '<i class="tm-you">你</i>' : '<i class="tm-x" title="移出">✕</i>'}</div>`);
+      }
+      const rels = (D.relations || []).filter(([a, b]) => members.includes(a) && members.includes(b))
+        .map(([a, b, t, note]) => `<span class="${t}" title="${note}"><b>${REL_T[t]}</b>${CH[a].name} × ${CH[b].name}</span>`).join("");
+      const tiles = roster.map((k) => {
+        const c = CH[k], on = members.includes(k), you = mine && k === pickKey;
+        return `<button class="tm-pick${on ? " on" : ""}${you ? " you" : ""}" data-k="${k}" style="--c:${c.color};--l:${c.light}" title="${c.name} · ${c.title}\n${c.skills.map((s) => `【${s.name}】${s.short || ""}`).join("\n")}">
+          <img src="${UI.portrait(k, "avatar")}" alt=""><span>${c.name}</span>${you ? "<i>你</i>" : on ? "<i>✓</i>" : ""}</button>`;
+      }).join("");
+      el.className = "tm-side nat-" + nat;
+      el.innerHTML = `<div class="tm-name"><b>${(NA[nat] || {}).name}</b><small>${mine ? "你的队伍" : "对手"} · ${members.length} / 3${nat === "cn" ? " · 阵容大：第一回合每人多摸 1 张" : ""}</small></div>
+        <div class="tm-slots">${slots.join("")}</div>
+        <div class="tm-rels">${rels || '<span class="none">队里没有特别的关系</span>'}</div>
+        <div class="tm-roster">${tiles}</div>`;
+      const toggle = (k) => {
+        if (mine && k === pickKey) { UI.toast("这是你自己：想换人点「换角色」"); return; }
+        const i = list.indexOf(k);
+        if (i >= 0) list.splice(i, 1);
+        else if (list.length >= max) { UI.toast("队伍满了：先点掉一个"); return; }
+        else { list.push(k); Sound.voice(k, "allstar", 0); }
+        Sound.sfx("click", 0.45); team();
+      };
+      el.querySelectorAll(".tm-pick").forEach((b) => { b.onclick = () => toggle(b.dataset.k); });
+      el.querySelectorAll(".tm-slot .tm-x").forEach((x) => { x.onclick = (ev) => { ev.stopPropagation(); toggle(x.closest(".tm-slot").dataset.k); }; });
+    };
+    side($("#tm-mine"), me, teamMates, 2, true);
+    side($("#tm-foe"), foeN, teamFoes, 3, false);
+    const full = teamMates.length === 2 && teamFoes.length === 3;
+    $("#tm-go").disabled = !full;
+    $("#tm-go").textContent = full ? "开始比赛" : `还差 ${2 - teamMates.length + 3 - teamFoes.length} 人`;
+    show("scr-team");
+  }
+  function teamRandom() {
+    const me = CH[pickKey].nation, shuf = (a) => a.sort(() => Math.random() - 0.5);
+    teamMates.push(...shuf(keys.filter((k) => CH[k].nation === me && k !== pickKey && !teamMates.includes(k))).slice(0, 2 - teamMates.length));
+    teamFoes.push(...shuf(keys.filter((k) => CH[k].nation && CH[k].nation !== me && !teamFoes.includes(k))).slice(0, 3 - teamFoes.length));
+    Sound.sfx("shuffle", 0.5); team();
   }
 
   // ---------------------------------------------------------------- 玩法说明（整页：左边栏目，右边内容）
@@ -167,7 +222,7 @@ window.Main = (function () {
       <div><b>单挑</b><span>一对一，把她踢出群就赢。</span></div>
       <div><b>2v2</b><span>座位是 你—对手—对手—队友，把对面两人都踢出群就赢。单体牌和点名技能不能对队友用；先手第一回合多摸 1 张。</span></div>
       <div><b>抢群主（5 人）</b><span>随机身份：<b>群主</b>公开、多 2 点心态、先手，要和暗中的<b>管理员</b>一起踢掉<b>黑粉</b>和<b>潜水党</b>；两个<b>黑粉</b>要把群主踢出群；<b>潜水党</b>先帮群主清掉黑粉，最后单挑踢掉群主自己当群主。除了群主，身份退群后才翻开。踢掉黑粉奖励摸 3 张；群主踢了自己的管理员要弃光手牌。</span></div>
-      <div><b>全明星赛（6 人）</b><span><b>中国队</b>（DeepSeek、小DeepSeek、GLM、豆包、Kimi、千问）对阵<b>美国队</b>（Claude、ChatGPT、Gemini、Grok），3v3。你选谁就进她的国家队，队友和对手各从本国随机挑；座位 你—敌—友—敌—敌—友，把对面三人都踢出群就赢。中国队阵容大，第一回合每人多摸 1 张。宿敌分到一队也得先一致对外。</span></div></div>`],
+      <div><b>全明星赛（6 人）</b><span><b>中国队</b>（DeepSeek、小DeepSeek、GLM、豆包、Kimi、千问）对阵<b>美国队</b>（Claude、ChatGPT、Gemini、Grok），3v3。你选谁就进她的国家队，再到组队页自己挑两个队友、三个对手（也可以随机补满）；座位 你—敌—友—敌—敌—友，把对面三人都踢出群就赢。中国队阵容大，第一回合每人多摸 1 张。宿敌分到一队也得先一致对外。</span></div></div>`],
     ["props", "👍 互动与暗号", () => {
       const P = window.Props, icon = (k) => `<img src="${UI.asset(`assets/img/prop_${k}.webp`)}" alt="">`;
       return `<h2>👍 互动与暗号</h2>
@@ -229,9 +284,14 @@ window.Main = (function () {
         done(); return;
       }
       if ($("#scr-select").classList.contains("active")) { $("#btn-back").click(); done(); return; }
+      if ($("#scr-team").classList.contains("active")) { $("#tm-back").click(); done(); return; }
     }, true);
     $("#btn-credits").onclick = () => { Sound.sfx("click"); credits(); };
-    $("#btn-go").onclick = () => { Sound.sfx("click"); start(false); };
+    $("#btn-go").onclick = () => { Sound.sfx("click"); if (players === 6) team(); else start(false); };   // 全明星赛先去组队页
+    $("#tm-back").onclick = () => { Sound.sfx("click"); select(); };
+    $("#tm-rand").onclick = teamRandom;
+    $("#tm-clear").onclick = () => { teamMates = []; teamFoes = []; Sound.sfx("click", 0.5); team(); };
+    $("#tm-go").onclick = () => { if (teamMates.length === 2 && teamFoes.length === 3) { Sound.sfx("click"); start(false); } };
     $("#btn-back").onclick = () => { Sound.sfx("click"); title(); };
     $("#modal-close").onclick = () => $("#modal").classList.add("hidden");
     document.querySelectorAll(".mode").forEach((b) => b.onclick = () => {
