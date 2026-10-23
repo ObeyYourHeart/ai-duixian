@@ -17,7 +17,8 @@ window.Engine = (function () {
     searchPeek: 3, searchDraw: 1,                         // Gemini 搜索：偷看几张、再摸几张
     polishExtra: 2, polishExtra2p: 1,                                       // Claude 润色：整手重写时多摸几张
     zuiyingCost: 1,                                       // 嘴硬：弃几张硬顶（v12 起没人有）
-    mathDodge: true, freshStart: 1, freshTurns: 2, freshTucao: 1, dumbRate: 0.4, resetDraw: 5, resetNuke: true,   // GPT：新版本强几个回合、多吐槽几次；之后每回合降智的概率；重置后摸几张、发布会核弹
+    mathDodge: true, dumbFrom: 2, dumbRate: 0.4, resetDraw: 5, resetNuke: true,   // ChatGPT：演算躲宕机；从第几个回合起会降智、概率；重置后摸几张、发布会核弹
+    codeEvery: 3, codeMax: 1, limitEvery: 5,              // Claude：编程每打出几张摸 1（每回合最多几次）；限额：每第几个回合额度用完
     busyRate: 0.08,                                       // 小 DeepSeek 服务器繁忙
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
@@ -64,7 +65,7 @@ window.Engine = (function () {
         stats: { dmg: 0, taken: 0, used: 0 },
       }));
       for (const p of this.players) for (const s of p.ch.skills) if (s.uses) p.uses[s.id] = keys.length === 2 && s.uses2p != null ? s.uses2p : s.uses;
-      for (const p of this.players) { p.game = this; p.lean = 0; p.fresh = this.hasSkill(p, "reset") ? T.freshStart : 0; p.newVer = false; }
+      for (const p of this.players) { p.game = this; p.lean = 0; p.turnN = 0; p.played = 0; }
       if (this.mode === "team") { const T2 = opts.teams || [0, 1, 1, 0]; for (const p of this.players) p.team = T2[p.i]; }   // 默认座位：你-敌-敌-友
       if (this.mode === "id5") {
         const roles = opts.roles || shuffle(["lord", "loyal", "rebel", "rebel", "spy"]);
@@ -113,7 +114,7 @@ window.Engine = (function () {
     others(p) { return this.players.filter((q) => q.alive && q !== p); }
     has(p, k) { return p.hand.filter((c) => c.k === k); }
     hasSkill(p, id) { return p.ch.skills.some((s) => s.id === id); }
-    limitTucao(p) { const base = 1 + (this.round >= T.rageRound ? 1 : 0) + (p.equip && p.equip.k === "xianka" ? 1 : 0) + (p.newVer ? T.freshTucao : 0); return p.dumb ? 0 : p.sale ? (T.saleExtra == null ? 99 : base + T.saleExtra) : base; }
+    limitTucao(p) { const base = 1 + (this.round >= T.rageRound ? 1 : 0) + (p.equip && p.equip.k === "xianka" ? 1 : 0) + 0; return p.dumb ? 0 : p.sale ? (T.saleExtra == null ? 99 : base + T.saleExtra) : base; }
     handLimit(p) { return Math.max(0, p.hp) + (T.hand[p.key] || 0) + (p.equip && p.equip.k === "chongdianbao" ? T.powerbank : 0); }
     // 一个人的“牌”（手牌 + 装备），白嫖 / 撤回从里面随机挑
     cardsOf(t) { return t.equip ? [...t.hand, t.equip] : t.hand.slice(); }
@@ -290,7 +291,7 @@ window.Engine = (function () {
     }
 
     async turn(p) {
-      p.tucao = 0; p.used = {}; p.hits = {}; p.dumb = false; p.sale = false; p.boost = false; p.evidence = null; p.newVer = false;
+      p.tucao = 0; p.used = {}; p.hits = {}; p.dumb = false; p.sale = false; p.boost = false; p.evidence = null; p.played = 0; p.turnN = (p.turnN || 0) + 1;
       this.ui.setTurn(p); this.ui.sync();
       this.ui.phase(`${p.name} 的回合`);
       await wait(300);
@@ -301,9 +302,8 @@ window.Engine = (function () {
         return;
       }
       // GPT：刚发布的新版本更强；过了这阵子就会降智
-      if (this.hasSkill(p, "reset")) {
-        if (p.fresh > 0) { p.fresh--; p.newVer = true; this.ui.log(p, "✨ 新版本刚发布：这回合可以多【吐槽】1 次"); }
-        else if (Math.random() < T.dumbRate) {
+      if (this.hasSkill(p, "dumb") && p.turnN >= T.dumbFrom) {        // ChatGPT 降智：发布一周就转不动了
+        if (Math.random() < T.dumbRate) {
           p.dumb = true; this.ui.skillNote(p, "降智"); this.ui.say(p, "dumb", true);
           this.ui.log(p, "发布一周了……降智了：这回合不能【吐槽】"); await wait(600);
         }
@@ -347,8 +347,12 @@ window.Engine = (function () {
       }
       if (!cut) this.ui.sys(`${p.name} 摸牌`);
       if (this.over || !p.alive) return;
-      // 出牌
-      if (p.muted) {
+      // 出牌（Claude 限额：每第几个回合额度用完，跳过出牌）
+      if (this.hasSkill(p, "limit") && p.turnN % T.limitEvery === 0 && !p.muted) {
+        this.ui.skillNote(p, SN(p.key, "limit")); this.ui.say(p, "limit", true);
+        this.ui.sys(`${p.name} 的额度用完了——这回合跳过出牌，五小时后再来`, "bad"); this.ui.sync();
+        await wait(900);
+      } else if (p.muted) {
         p.muted = false; this.ui.sync();
         this.ui.sys(`${p.name} 被禁言了，跳过出牌`, "bad"); this.ui.say(p, "hurt");
         await wait(900);
@@ -418,6 +422,7 @@ window.Engine = (function () {
       p.stats.used++;
       for (const t of targets) { p.hits[t.i] = (p.hits[t.i] || 0) + 1; this.noteHostile(p, t, 0.5); }
       if (card.k === "tucao") p.tucao++;
+      p.played = (p.played || 0) + 1;
       this.ui.sync();
       const tnames = targets.map((t) => t.name).join("、");
       if (d.target === "one") this.ui.log(p, `对 ${tnames} 使用了<b>【${d.name}】</b>`);
@@ -432,7 +437,12 @@ window.Engine = (function () {
       if (d.type !== "equip" && card.k !== "dangji") this.toDiscard(card);
       await this.resolve(p, card, targets);
       this.ui.sync();
-      this.checkOver();
+      if (this.checkOver()) return;
+      // Claude 编程：一口气干到底，每打出几张摸 1；限额：出满了就说额度到上限
+      if (p.alive && this.cur === p.i && this.hasSkill(p, "code") && p.played % T.codeEvery === 0 && p.played / T.codeEvery <= T.codeMax) {
+        this.ui.skillNote(p, SN(p.key, "code")); if (Math.random() < 0.5) this.ui.say(p, "code", true);
+        this.ui.log(p, `【${SN(p.key, "code")}】一口气打出 ${p.played} 张，再摸 1 张`); await this.draw(p, 1, true);
+      }
     }
 
     async resolve(p, card, targets) {
@@ -896,7 +906,7 @@ window.Engine = (function () {
         // 重置的是她自己：弃光手牌、重新摸，变回新版本；发布那一下像核弹炸场
         const n = p.hand.length;
         for (const c of p.hand.splice(0)) this.toDiscard(c);
-        p.dumb = false; p.newVer = true; p.fresh = Math.max(0, T.freshTurns - 1);
+        p.dumb = false;
         this.ui.skill(p, SN(p.key, "reset")); this.ui.say(p, "reset", true); Sound.sfx("fanfare_short", 0.6);
         this.ui.log(p, `【${SN(p.key, "reset")}】把自己重置了一遍（弃掉 ${n} 张），新版本发布！`); this.ui.sync();
         await wait(700);

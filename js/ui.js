@@ -149,7 +149,6 @@ window.UI = (function () {
       if (p.banned) st += '<span class="ban">🚫 封号中</span>';
       if (p.muted) st += '<span>🔇 禁言中</span>';
       if (p.dumb) st += '<span class="dumb">❓ 降智中</span>';
-      if (p.newVer) st += '<span class="boost">✨ 新版本</span>';
       if (p.offline) st += '<span>📵 断网中</span>';
       if (p.boost) st += '<span class="boost">🔥 加班中</span>';
       if (g.bomb && g.bomb.holder === p) st += '<span class="bomb">💣 宕机预警</span>';
