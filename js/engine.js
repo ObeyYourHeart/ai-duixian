@@ -15,10 +15,11 @@ window.Engine = (function () {
     grokStart: 3, grokFloor: 2,                           // 千金：开局多拿；回合开始补到几张
     thinkDraw: 1, thinkRate: 0.8, thinkDefuse: 0.2,                       // 大 DeepSeek 深思：摸牌阶段多摸几张；摸到宕机时自己推理拆掉的概率
     searchPeek: 3, searchDraw: 1,                         // Gemini 搜索：偷看几张、再摸几张
-    polishExtra: 2, polishExtra2p: 1,                                       // Claude 润色：整手重写时多摸几张
+    polishExtra: 1, polishExtra2p: 0,                                       // Claude 润色：整手重写时多摸几张
     zuiyingCost: 1,                                       // 嘴硬：弃几张硬顶（v12 起没人有）
     mathDodge: true, dumbFrom: 2, dumbRate: 0.4, resetDraw: 5, resetNuke: true,   // ChatGPT：演算躲宕机；从第几个回合起会降智、概率；重置后摸几张、发布会核弹
-    codeEvery: 3, codeMax: 1, limitEvery: 5,              // Claude：编程每打出几张摸 1（每回合最多几次）；限额：每第几个回合额度用完
+    codeEvery: 3, codeMax: 1,                             // Claude：编程每打出几张摸 1（每回合最多几次）
+    beautyDraw: 1, saintHeal: 1,                           // Claude：审美摸几张；圣女回几点
     busyRate: 0.08,                                       // 小 DeepSeek 服务器繁忙
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
@@ -347,12 +348,8 @@ window.Engine = (function () {
       }
       if (!cut) this.ui.sys(`${p.name} 摸牌`);
       if (this.over || !p.alive) return;
-      // 出牌（Claude 限额：每第几个回合额度用完，跳过出牌）
-      if (this.hasSkill(p, "limit") && p.turnN % T.limitEvery === 0 && !p.muted) {
-        this.ui.skillNote(p, SN(p.key, "limit")); this.ui.say(p, "limit", true);
-        this.ui.sys(`${p.name} 的额度用完了——这回合跳过出牌，五小时后再来`, "bad"); this.ui.sync();
-        await wait(900);
-      } else if (p.muted) {
+      // 出牌
+      if (p.muted) {
         p.muted = false; this.ui.sync();
         this.ui.sys(`${p.name} 被禁言了，跳过出牌`, "bad"); this.ui.say(p, "hurt");
         await wait(900);
@@ -376,6 +373,12 @@ window.Engine = (function () {
         for (const id of ids) { const c = p.hand.find((x) => x.id === id); if (c) { this.takeFromHand(p, c); this.toDiscard(c); } }
         this.ui.sys(`${p.name} 弃了 ${ids.length} 张牌`);
         this.ui.sync(); await wait(250);
+      }
+      // Claude 审美：手牌一张都不重样，摸 1 张
+      if (this.hasSkill(p, "beauty") && p.alive && !this.over && p.hand.length && new Set(p.hand.map((c) => c.k)).size === p.hand.length) {
+        this.ui.skillNote(p, SN(p.key, "beauty")); if (Math.random() < 0.4) this.ui.say(p, "beauty", true);
+        this.ui.log(p, `【${SN(p.key, "beauty")}】手牌一张都不重样，看着舒服——摸 1 张`);
+        await this.draw(p, T.beautyDraw, true);
       }
       p.dumb = false; p.grudge = {};
       this.ui.sync();
@@ -714,6 +717,12 @@ window.Engine = (function () {
       this.noteHostile(src, t, 1);
       t.hp -= n; t.stats.taken += n; if (src) src.stats.dmg += n;
       this.ui.damage(t, n);
+      if (this.hasSkill(t, "saint") && !t.saintUsed && t.hp <= 1) {          // Claude 圣女：信徒护法
+        t.saintUsed = true; t.hp += T.saintHeal;
+        setTimeout(() => { if (!this.over) { this.ui.heal(t, T.saintHeal); this.ui.skillNote(t, SN(t.key, "saint")); this.ui.say(t, "saint", true); } }, 500 * E.speed);
+        this.ui.log(t, `【${SN(t.key, "saint")}】信徒们拼命护法——心态 +${T.saintHeal}`);
+        mute = true;
+      }
       if (mute) { if (t.hp === 1) t.saidLow = true; }                 // 已经说过台词了（比如被宕机炸到）
       else if (t.hp === 1 && !t.saidLow && t.ch.lines.low) { t.saidLow = true; this.ui.say(t, "low", true); }
       else this.ui.say(t, "hurt", true);
