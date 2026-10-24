@@ -25,6 +25,8 @@ window.Engine = (function () {
     busyRate: 0.08,                                       // 小 DeepSeek 服务器繁忙
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
+    remakeCost: 1, remakeCost2p: 2, remakeTucao2p: false, fakeRate: 0.5, fakeRate2p: 0.5,   // 豆包 Seedance：一键成片随机弃几张；以假乱真让反驳失效的概率（单挑：弃 2 张、不能重放吐槽——不然单挑 58–61%，现在 53%；乱斗 35）
+    remakeKinds: ["tucao", "hongbao", "baipiao", "chehui", "naicha", "resou", "shuaping", "dantiao", "tuanjian", "jinyan", "duanwang", "moyu"],
     buyN: 1, buyCost: 0, buyComp: 1, factRate: 0.5, factTricks: true, factTucao: true,                   // Grok 挥金（已换成核实）；核实判定为假的概率
     stealAll: false, stealN: 1, stealClaude: 2,           // GLM 借鉴
     fansN: 1, fansLow: 2, fans: { doubao: [1, 1] }, fansOnce: true, paintKinds: ["naicha"],       // 豆包 应援：[摸, 只剩 1 点心态时摸]
@@ -78,6 +80,7 @@ window.Engine = (function () {
         lord.hp += T.lordHp; lord.maxHp += T.lordHp; lord.lean = 10;   // 群主多几点心态，身份公开
       }
       this.deck = buildDeck(); this.discard = []; this.bomb = null;
+      this.vid = 0;                                                        // 一键成片拍出来的虚拟牌编号
       this.bombN = 0; this.insertSeq = 0; this.insertBy = null;          // 宕机总数；有人往牌堆里塞过宕机 / 插过队的次数（摸鱼看它判断“牌堆刚被动过”）
       this.startIdx = this.mode === "id5" ? this.players.find((p) => p.role === "lord").i : 0;
       this.cur = this.startIdx; this.round = 1; this.over = false; this.outOrder = [];
@@ -311,7 +314,7 @@ window.Engine = (function () {
 
     async turn(p) {
       p.tucao = 0; p.used = {}; p.hits = {}; p.dumb = false; p.sale = false; p.boost = false; p.evidence = null; p.played = 0; p.turnN = (p.turnN || 0) + 1;
-      p.napping = false; p.skipRest = false;
+      p.napping = false; p.skipRest = false; p.lastPlay = null;
       if (p.disguise) { p.disguise = false; this.ui.disguise(p, false); this.ui.log(p, "把 Claude 的衣服脱了下来"); }
       this.ui.setTurn(p); this.ui.sync();
       this.ui.phase(`${p.name} 的回合`);
@@ -473,6 +476,7 @@ window.Engine = (function () {
       else if (Math.random() < 0.4) this.ui.say(p, "trick");
       await this.ui.showCard(p, card, targets);
       if (d.type !== "equip" && card.k !== "dangji") this.toDiscard(card);
+      if (this.cur === p.i) p.lastPlay = { k: card.k, targets: targets.slice() };   // 豆包 一键成片：这回合刚打出的牌
       await this.resolve(p, card, targets);
       this.ui.sync();
       if (this.checkOver()) return;
@@ -665,6 +669,15 @@ window.Engine = (function () {
       for (;;) {
         let ok = caught ? false : await this.ask(t, "fanbo", { from: p, card: { k: "tucao" } });
         if (caught && this.has(t, "fanbo").length) this.ui.log(t, "有截图……【反驳】不了");
+        if (ok && this.hasSkill(p, "deepfake") && p.alive) {                // 豆包 以假乱真：视频太真，反驳没人信
+          if (this.hasSkill(t, "fact")) {
+            this.ui.skillNote(t, SN(t.key, "fact")); this.ui.say(t, "fact", true);
+            this.ui.log(t, `【${SN(t.key, "fact")}】一眼看出是 AI 生成的——【${SN(p.key, "deepfake")}】对她没用`); await wait(400);
+          } else if (Math.random() < (this.players.length === 2 ? T.fakeRate2p : T.fakeRate)) {
+            ok = false; this.ui.skillNote(p, SN(p.key, "deepfake")); if (Math.random() < 0.6) this.ui.say(p, "fake", true);
+            this.ui.log(p, `【${SN(p.key, "deepfake")}】视频拍得太真了，${t.name} 的【反驳】没人信——照样心态 −1`); await wait(500);
+          }
+        }
         if (!ok) ok = await this.know(t, p);
         if (!ok) ok = await this.zuiying(t, p);
         if (!ok && T.factTucao) ok = await this.factCheck(t, p, { k: "tucao" });
@@ -926,6 +939,7 @@ window.Engine = (function () {
       if (id === "sale") return (p.uses.sale || 0) > 0;
       if (id === "qingke") return (p.uses.qingke == null || p.uses.qingke > 0) && p.hand.length >= T.qingkeCost && this.skillTargets(p, "qingke").length > 0;
       if (id === "halluc") return p.hand.length >= T.hallucCost;
+      if (id === "remake") return p.hand.length >= this.remakeCost() && !!this.remakeTargets(p);
       if (id === "opensrc") return (p.uses.opensrc || 0) > 0 && this.rivals(p).some((q) => q.hand.length > 0);
       if (id === "disguise") return (p.uses.disguise || 0) > 0 && (T.disguiseAct === "ban" ? this.skillTargets(p, id).length > 0 : p.hand.length > 0);
       if (id === "luckybag") return (p.uses.luckybag || 0) > 0 && this.deck.length + this.discard.length > 0;
@@ -933,6 +947,22 @@ window.Engine = (function () {
       if (id === "paint") return (p.uses.paint || 0) > 0 && [...this.deck, ...this.discard].some((c) => T.paintKinds.includes(c.k));
       if (id === "recall") return (p.uses.recall == null || p.uses.recall > 0) && this.discard.some((c) => T.recallKinds.includes(c.k));
       return false;
+    }
+    remakeCost() { return this.players.length === 2 ? T.remakeCost2p : T.remakeCost; }
+    // 一键成片能不能放、放给谁：返回目标数组（没有目标的牌是 []），放不了返回 null
+    remakeTargets(p) {
+      const lp = p.lastPlay;
+      if (!lp || !T.remakeKinds.includes(lp.k) || (lp.k === "tucao" && this.players.length === 2 && !T.remakeTucao2p)) return null;   // 单挑里重放吐槽太强
+      const d = CD[lp.k];
+      if (lp.k === "naicha") return p.hp < p.maxHp ? [] : null;
+      if (lp.k === "moyu") return this.deck.length + this.discard.length > 0 ? [] : null;
+      if (d.target !== "one") return [];
+      const ok = (q) => q.alive && this.rivals(p).includes(q) && ((lp.k !== "baipiao" && lp.k !== "chehui") || this.cardsOf(q).length > 0)
+        && (lp.k !== "jinyan" || !q.muted) && (lp.k !== "duanwang" || !q.offline);
+      const t0 = lp.targets[0];
+      if (t0 && ok(t0)) return [t0];
+      const alt = this.rivals(p).filter(ok);
+      return alt.length ? [AI.pickTarget(this, p, alt) || alt[0]] : null;
     }
     // 随机弃掉自己 n 张手牌（技能的代价不用挑，看运气）
     dropRandom(p, n) {
@@ -1027,6 +1057,18 @@ window.Engine = (function () {
         if (fond) { this.ui.say(t, "fed", true); if (T.begBonus) await this.draw(p, T.begBonus, true); }
         this.ui.log(p, `【${SN("xds", "beg")}】从 ${t.name} 那里蹭到一张牌` + (fond ? `（${t.name} 最宠她）` : ""));
         await wait(500);
+      } else if (id === "remake") {
+        // 豆包 一键成片：把这回合刚打出的牌拍成视频，再放一遍（虚拟牌，不进弃牌堆、不算出牌次数）
+        const lp = p.lastPlay, ts = this.remakeTargets(p);
+        if (this.remakeCost()) this.dropRandom(p, this.remakeCost());
+        this.ui.skill(p, SN(p.key, "remake")); this.ui.say(p, "remake", true); Sound.sfx("fanfare_short", 0.5);
+        this.ui.log(p, `【${SN(p.key, "remake")}】把刚才的【${CD[lp.k].name}】拍成视频，再放一遍` + (ts.length ? `——对 ${ts.map((t) => t.name).join("、")}` : ""));
+        this.ui.sync(); await wait(500);
+        const v = { id: -(++this.vid), k: lp.k, virtual: true };
+        p.lastPlay = null;                                            // 拍过的就不能再拍
+        await this.ui.showCard(p, v, ts);
+        await this.resolve(p, v, ts);
+        this.ui.sync();
       } else if (id === "halluc") {
         if (T.hallucCost) this.dropRandom(p, T.hallucCost);
         this.ui.skill(p, SN(p.key, "halluc")); this.ui.say(p, "halluc", true); await wait(700);

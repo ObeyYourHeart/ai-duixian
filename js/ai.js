@@ -174,6 +174,9 @@ window.AI = (function () {
     if (g.canSkill(p, "bundle") && !risky(3)) { if (Engine.T.bundleRandom) return { skill: "bundle" }; const t = giftTarget(g, p); if (t) return { skill: "bundle", target: t }; }
     if (g.canSkill(p, "halluc") && (Engine.T.hallucCost ? p.hand.length >= 2 : true) && p.hp >= 2) return { skill: "halluc" };
     if (g.canSkill(p, "recall")) return { skill: "recall" };
+    // 豆包 一键成片：刚打出的是好牌（吐槽 / 红包 / 白嫖……），手里还有牌可弃，就拍成视频再放一遍
+    if (g.canSkill(p, "remake") && p.hand.length >= 2 && p.lastPlay && ["tucao", "hongbao", "baipiao", "chehui", "resou", "shuaping", "jinyan", "duanwang", "dantiao"].includes(p.lastPlay.k)
+      && (!["resou", "shuaping"].includes(p.lastPlay.k) || enemies.length * 2 >= others.length)) return { skill: "remake" };
     // Kimi 排练：吐槽够用、或者乐队差最后一名、或者这回合已经吐槽完了，就写一首新歌；只有 1 张又能把人踢出群时先留着打
     if (g.canSkill(p, "rehearse")) {
       const nT = H("tucao").length, band = (p.band || []).length, spent = p.tucao >= g.limitTucao(p);

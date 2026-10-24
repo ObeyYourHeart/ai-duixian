@@ -279,6 +279,7 @@ window.UI = (function () {
     if (s.id === "fans" && p.used && p.used.fans) out.push("这轮刷过礼物");
     if (s.id === "disguise" && p.disguise) out.push("伪装中");
     if (s.id === "nap" && p.napping) out.push("睡着了");
+    if (s.id === "remake") out.push(p.lastPlay ? (g.remakeTargets(p) ? `能重放【${CD[p.lastPlay.k].name}】` : `【${CD[p.lastPlay.k].name}】放不了`) : "这回合还没出牌");
     if (s.id === "rehearse") out.push(`乐队 ${(p.band || []).length} / ${Engine.T.bandMax}`);
     if (s.id === "live") out.push((p.band || []).length >= Engine.T.bandMax ? "乐队到齐，能开唱" : `还差 ${Engine.T.bandMax - (p.band || []).length} 名乐手`);
     if (s.id === "math" && p.human && g.bombSpots) { const sp = g.bombSpots(); if (sp.length) out.push(`宕机在第 ${sp.join("、")} 张`); }
