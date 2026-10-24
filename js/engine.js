@@ -17,11 +17,11 @@ window.Engine = (function () {
     searchPeek: 3, searchDraw: 1,                         // Gemini 搜索：偷看几张、再摸几张
     polishExtra: 1, polishExtra2p: 0,                                       // Claude 润色：整手重写时多摸几张
     zuiyingCost: 1,                                       // 嘴硬：弃几张硬顶（v12 起没人有）
-    mathDodge: true, dumbFrom: 2, dumbRate: 0.4, resetDraw: 5, resetNuke: true,   // ChatGPT：演算躲宕机；从第几个回合起会降智、概率；重置后摸几张、发布会核弹
+    mathDodge: true, mathMove: true, searchMove: true, dumbFrom: 2, dumbRate: 0.4, resetDraw: 5, resetNuke: true,   // ChatGPT：演算躲宕机（躲的时候把宕机挪进牌堆随机位置，不再留给下家；Gemini 搜索同理——不挪时三人局坐她们下家的人每局多摸到约 50% 的宕机）；从第几个回合起会降智、概率；重置后摸几张、发布会核弹
     codeEvery: 3, codeMax: 1,                             // Claude：编程每打出几张摸 1（每回合最多几次）
     beautyDraw: 1, saintHeal: 1,                           // Claude：审美摸几张；圣女回几点
     openDrop: 1, bigEat: 2,                                // DeepSeek 开源让对手弃几张；小DeepSeek 大胃奶茶回几点
-    napHeal: 1, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 2, disguiseAct: "polish", hajimiRate: 0.25, nationFirst: {}, nationDraw: { cn: 1 }, bandMax: 3, liveDmg: 1, liveDraw: 2, rehearseDraw: 0, bandThreat: 0.8,   // Kimi（sim：乱斗 38 / 单挑 54 / 2v2 49 / 抢群主 36 / 全明星 47）：乐队几名到齐开唱（= 几首新歌）、每首没反驳扣几点、唱完摸几张；排练摸几张；对手看到乐队多想打她   // 全明星赛：中国队阵容大，第一回合每人多摸 1 张（sim：中美 51/49）                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
+    napHeal: 1, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 2, disguiseAct: "polish", hajimiRate: 0.25, nationFirst: {}, nationDraw: { cn: 1 }, bandMax: 3, liveDmg: 1, liveCap: 2, liveDraw: 3, rehearseDraw: 0, bandThreat: 0.8,   // Kimi：乐队几名到齐开唱（= 几首新歌）、每首没反驳扣几点、每人一场最多扣几点、唱完摸几张；排练摸几张；对手看到乐队多想打她（不封顶时没反驳的人连掉 3 点，每场平均踢掉半个人）   // 全明星赛：中国队阵容大，第一回合每人多摸 1 张（sim：中美 51/49）                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
     busyRate: 0.08,                                       // 小 DeepSeek 服务器繁忙
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
@@ -357,9 +357,19 @@ window.Engine = (function () {
         p.lastSeq = this.insertSeq;
         // 演算：算到这回合要摸到宕机，就改从牌堆底摸（底下也有就没办法了）
         const want = 2 + think;
-        if (!bottom && T.mathDodge && this.hasSkill(p, "math") && this.knowsBomb(p, want) >= 0 && !this.deck.slice(0, want).some((c) => c.k === "dangji")) {
-          bottom = true; this.ui.skillNote(p, SN(p.key, "math")); this.ui.say(p, "math", true);
-          this.ui.log(p, `【${SN(p.key, "math")}】算过了：牌堆顶第 ${this.knowsBomb(p, want) + 1} 张是宕机，改从牌堆底摸`); await wait(500);
+        if (!bottom && T.mathDodge && this.hasSkill(p, "math") && this.knowsBomb(p, want) >= 0 && (T.mathMove || !this.deck.slice(0, want).some((c) => c.k === "dangji"))) {
+          this.ui.skillNote(p, SN(p.key, "math")); this.ui.say(p, "math", true);
+          if (T.mathMove) {
+            // 把要摸到的宕机挪到牌堆里随机一个位置（她摸的这几张以下）：她躲开了，但不会正好留给下家
+            const top = this.deck.slice(-want).filter((c) => c.k === "dangji");
+            for (const b of top) { this.deck.splice(this.deck.indexOf(b), 1); this.insertAt(b, want + rnd(Math.max(1, this.deck.length - want + 1))); }
+            this.insertSeq++; this.insertBy = p; this.forget(p);
+            this.ui.log(p, `【${SN(p.key, "math")}】算过了：顶上有宕机——她把它挪进了牌堆里，别人都不知道挪到了哪`);
+          } else {
+            bottom = true;
+            this.ui.log(p, `【${SN(p.key, "math")}】算过了：牌堆顶第 ${this.knowsBomb(p, want) + 1} 张是宕机，改从牌堆底摸`);
+          }
+          await wait(500);
         }
         const first = this.mode === "team" && !this.nation && this.round === 1 && p.i === this.startIdx;   // 2v2 先手第一回合多摸 1 张（你-敌-敌-友 座位下两队五五开）
         const nfirst = this.nation && this.round === 1 ? (T.nationFirst[p.i] || 0) + (T.nationDraw[p.ch.nation] || 0) : 0;   // 全明星赛：第一回合补牌（按座位 / 按国家）
@@ -991,8 +1001,8 @@ window.Engine = (function () {
         const songs = p.band.splice(0), names = shuffle((p.ch.songs || []).slice());
         this.ui.skill(p, SN(p.key, "live")); this.ui.say(p, "burst", true); Sound.sfx("fanfare_short", 0.6);
         this.ui.banner("🎤 一鸣惊人！"); this.ui.band(p, 0); this.ui.sync();
-        this.ui.sys(`${p.name} 憋了三个月的新专辑发布了——${songs.length} 首新歌连着唱，每一首都要打出【反驳】，否则心态 −${T.liveDmg}`, "bad"); await wait(600);
-        let s = 0;
+        this.ui.sys(`${p.name} 憋了三个月的新专辑发布了——${songs.length} 首新歌连着唱，每一首都要打出【反驳】，否则心态 −${T.liveDmg}${T.liveCap ? `（每人这场最多 −${T.liveCap}）` : ""}`, "bad"); await wait(600);
+        let s = 0; const took = {};                                  // 这场每人已经被唱掉几点（封顶 T.liveCap）
         for (; s < songs.length && !this.over && p.alive; s++) {
           this.ui.sys(`🎵 第 ${s + 1} 首：《${names[s % Math.max(1, names.length)] || "新歌"}》`); Sound.sfx("chime", 0.5); await wait(350);
           let j = p.i;
@@ -1000,8 +1010,9 @@ window.Engine = (function () {
             j = (j + 1) % this.players.length;
             const t = this.players[j];
             if (!t.alive || t === p || !this.rivals(p).includes(t)) continue;
+            if (T.liveCap && (took[t.i] || 0) >= T.liveCap) continue;
             const ok = await this.ask(t, "fanbo", { from: p, card: { k: "shuaping" }, song: true });
-            if (!ok) await this.damage(p, t, T.liveDmg);
+            if (!ok) { took[t.i] = (took[t.i] || 0) + T.liveDmg; await this.damage(p, t, T.liveDmg); }
           }
           this.toDiscard(songs[s]);
         }
@@ -1031,8 +1042,11 @@ window.Engine = (function () {
         const top = this.topCards(T.searchPeek); this.see(p, top);
         this.ui.skillNote(p, SN("gemini", "search")); this.ui.say(p, "search", true);
         if (p.human) await this.ui.peek(top, `【${SN("gemini", "search")}】牌堆顶 ${top.length} 张（从上往下）`);
-        const bottom = !!(top[0] && top[0].k === "dangji");
-        this.ui.log(p, `【${SN("gemini", "search")}】看了看牌堆顶 ${top.length} 张` + (bottom ? "——顶上是宕机！改从牌堆底摸" : "，摸了一张"));
+        let bottom = !!(top[0] && top[0].k === "dangji");
+        if (bottom && T.searchMove) {                                 // 顶上是宕机：把它塞回牌堆里随机一个位置（第 2 张以下），再正常摸——不会正好留给下家
+          const b = this.deck.pop(); this.insertAt(b, 1 + rnd(this.deck.length)); this.insertSeq++; this.insertBy = p; this.forget(p); bottom = false;
+        }
+        this.ui.log(p, `【${SN("gemini", "search")}】看了看牌堆顶 ${top.length} 张` + (T.searchMove && top[0] && top[0].k === "dangji" ? "——顶上是宕机！把它塞回了牌堆里，再摸一张" : bottom ? "——顶上是宕机！改从牌堆底摸" : "，摸了一张"));
         await this.draw(p, T.searchDraw, true, bottom);
         await wait(300);
       } else if (id === "buy") {
