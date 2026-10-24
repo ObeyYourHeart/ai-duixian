@@ -767,7 +767,7 @@ window.Engine = (function () {
       if (mute) { if (t.hp === 1) t.saidLow = true; }                 // 已经说过台词了（比如被宕机炸到）
       else if (t.disguise && t.ch.lines.exposed) this.ui.say(t, "exposed", true);   // 变身中挨打：被认出来了
       else if (t.hp === 1 && !t.saidLow && t.ch.lines.low) { t.saidLow = true; this.ui.say(t, "low", true); }
-      else if (t.ch.lines.hajimi && (!t.saidHajimi || Math.random() < T.hajimiRate)) { t.saidHajimi = true; this.ui.say(t, "hajimi", true); }   // Gemini：我才不是哈基米！（每局第一次挨打一定说）
+      else if (t.key === "gemini" && t.ch.lines.hajimi && (!t.saidHajimi || Math.random() < T.hajimiRate)) { t.saidHajimi = true; this.ui.say(t, "hajimi", true); }   // Gemini：我才不是哈基米！（每局第一次挨打一定说；豆包的 hajimi 是开局斗嘴喊她的，不是挨打台词）
       else this.ui.say(t, "hurt", true);
       if (window.Props) Props.onHit(this, src, t);                     // 互动道具：旁人砸番茄 / 送咖啡
       // 盟友护短：出声 + 记仇（她下个回合优先打出手的人）
