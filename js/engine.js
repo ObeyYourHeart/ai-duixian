@@ -17,12 +17,12 @@ window.Engine = (function () {
     searchPeek: 3, searchDraw: 1,                         // Gemini 搜索：偷看几张、再摸几张
     polishExtra: 1, polishExtra2p: 0,                                       // Claude 润色：整手重写时多摸几张
     zuiyingCost: 1,                                       // 嘴硬：弃几张硬顶（v12 起没人有）
-    mathDodge: true, mathMove: true, searchMove: true, dumbFrom: 2, dumbRate: 0.4, resetDraw: 5, resetNuke: true,   // ChatGPT：演算躲宕机（躲的时候把宕机挪进牌堆随机位置，不再留给下家；Gemini 搜索同理——不挪时三人局坐她们下家的人每局多摸到约 50% 的宕机）；从第几个回合起会降智、概率；重置后摸几张、发布会核弹
+    mathDodge: true, mathMove: true, searchMove: true, dumbFrom: 2, dumbRate: 0.25, resetDraw: 6, resetNuke: true,   // v25 加强：降智 0.4 → 0.25、重置摸 5 → 6（乱斗 28 → 32，单挑 39 → 46）；   // ChatGPT：演算躲宕机（躲的时候把宕机挪进牌堆随机位置，不再留给下家；Gemini 搜索同理——不挪时三人局坐她们下家的人每局多摸到约 50% 的宕机）；从第几个回合起会降智、概率；重置后摸几张、发布会核弹
     codeEvery: 3, codeMax: 1,                             // Claude：编程每打出几张摸 1（每回合最多几次）
     beautyDraw: 1, saintHeal: 1,                           // Claude：审美摸几张；圣女回几点
     openDrop: 1, bigEat: 2,                                // DeepSeek 开源让对手弃几张；小DeepSeek 大胃奶茶回几点
-    napHeal: 1, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 2, disguiseAct: "polish", hajimiRate: 0.25, nationFirst: {}, nationDraw: { cn: 1 }, bandMax: 3, liveDmg: 1, liveCap: 2, liveDraw: 3, rehearseDraw: 0, bandThreat: 0.8,   // Kimi：乐队几名到齐开唱（= 几首新歌）、每首没反驳扣几点、每人一场最多扣几点、唱完摸几张；排练摸几张；对手看到乐队多想打她（不封顶时没反驳的人连掉 3 点，每场平均踢掉半个人）   // 全明星赛：中国队阵容大，第一回合每人多摸 1 张（sim：中美 51/49）                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
-    busyRate: 0.08,                                       // 小 DeepSeek 服务器繁忙
+    napHeal: 1, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 3, bagSelf2p: 2, disguiseAct: "polish", hajimiRate: 0.25, nationFirst: {}, nationDraw: { cn: 1 }, bandMax: 3, liveDmg: 1, liveCap: 2, liveDraw: 3, rehearseDraw: 0, bandThreat: 0.8,   // Kimi：乐队几名到齐开唱（= 几首新歌）、每首没反驳扣几点、每人一场最多扣几点、唱完摸几张；排练摸几张；对手看到乐队多想打她（不封顶时没反驳的人连掉 3 点，每场平均踢掉半个人）   // 全明星赛：中国队阵容大，第一回合每人多摸 1 张（sim：中美 51/49）                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
+    busyRate: 0.08, busyAt: 2, busyBounce: true,   // 小 DeepSeek 服务器繁忙：同一轮冲她来的第 busyAt 张吐槽必繁忙（v25：原来 8% 概率每局只触发 0.2 次；每轮第 1 张就挡 → 乱斗 53%，第 2 张 36%）；单挑仍按 busyRate 概率（第 2 张必挡时单挑 61%）
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
     remakeCost: 1, remakeCost2p: 2, remakeTucao2p: false, remakeMax: 0, fakeRate: 0.5, fakeRate2p: 0.5,   // 豆包 Seedance：一键成片随机弃几张；以假乱真让反驳失效的概率（单挑：弃 2 张、不能重放吐槽——不然单挑 58–61%，现在 53%；乱斗 35）
@@ -477,6 +477,7 @@ window.Engine = (function () {
       await this.ui.showCard(p, card, targets);
       if (d.type !== "equip" && card.k !== "dangji") this.toDiscard(card);
       if (this.cur === p.i) p.lastPlay = { k: card.k, targets: targets.slice() };   // 豆包 一键成片：这回合刚打出的牌
+      this.playing = card;                                              // 正在结算的这张牌（服务器繁忙要把吐槽退回去）
       await this.resolve(p, card, targets);
       this.ui.sync();
       if (this.checkOver()) return;
@@ -649,9 +650,18 @@ window.Engine = (function () {
 
     async tucao(p, t, boost = false, depth = 0) {
       // 小 DeepSeek：服务器繁忙
-      if (t.key === "xds" && Math.random() < T.busyRate) {
+      let busy = false;
+      if (this.hasSkill(t, "busy") && t.alive) {
+        if (this.players.length > 2) {                                         // 请求太多：同一轮冲她来的第 2 张吐槽，服务器一定繁忙
+          if (t.busyRound !== this.round) { t.busyRound = this.round; t.busyHits = 0; }
+          busy = ++t.busyHits === T.busyAt;
+        } else busy = Math.random() < T.busyRate;                             // 单挑：还是看运气
+      }
+      if (busy) {
         this.ui.skillNote(t, SN("xds", "busy")); this.ui.say(t, "busy", true); Sound.sfx("boing", 0.5);
-        this.ui.sys(`${t.name}：当前服务器繁忙，这次吐槽无效`); await wait(800);
+        const c = this.playing, back = T.busyBounce && this.players.length > 2 && c && c.k === "tucao" && this.discard.includes(c);
+        if (back) { this.discard.splice(this.discard.indexOf(c), 1); p.hand.push(c); this.ui.sync(); }   // 请稍后再试：这张吐槽退回她手里，下回合还能用
+        this.ui.sys(back ? `${t.name}：请求太多，服务器繁忙，请稍后再试——这张吐槽退回了 ${p.name} 手里` : `${t.name}：当前服务器繁忙，这次吐槽无效`); await wait(800);
         await this.sorry(p); return;
       }
       const caught = p.evidence === t;                           // 截图：挡不了、也甩不了
@@ -1175,7 +1185,7 @@ window.Engine = (function () {
         for (let k = 0; k < this.players.length && !this.over; k++) {
           const q = this.players[(p.i + k) % this.players.length];
           if (!q.alive) continue;
-          let n = rnd(T.bagMax + 1); if (q === p) n = Math.max(T.bagSelf, n);
+          let n = rnd(T.bagMax + 1); if (q === p) n = Math.max(this.players.length === 2 ? T.bagSelf2p : T.bagSelf, n);   // 千问自己抢 3 张（单挑 2 张；v25）
           this.ui.log(q, n ? `抢到了 ${n} 张` : "手慢了，一张没抢到");
           if (n) await this.draw(q, n, true);
           if (n > bestN) { bestN = n; best = q; }
