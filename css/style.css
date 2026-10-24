@@ -131,12 +131,15 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 .hero .stag-old { position: absolute; right: 8px; bottom: 66px; background: rgba(255, 255, 255, .92); color: var(--c); font-family: var(--title); font-size: 18px;
   padding: 2px 10px; border-radius: 10px; cursor: help; }
 .hero.turn { box-shadow: 0 0 0 5px var(--c), 0 0 34px var(--c); }
-.hero.target { cursor: pointer; animation: pulse .8s ease-in-out infinite; }
+.hero.target { cursor: pointer; box-shadow: 0 0 0 6px #ffcf3f, 0 0 26px #ffb03f; }
+/* 选目标的光圈：外圈静态，里面一层只动透明度（逐帧改阴影在平板上会占满主线程） */
+.hero.target::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 4;
+  box-shadow: inset 0 0 0 6px #ff8a3f, inset 0 0 36px rgba(255, 138, 63, .75); opacity: 0; animation: fadepulse .8s ease-in-out infinite; will-change: opacity; }
+@keyframes fadepulse { 50% { opacity: 1; } }
 .hero.drop { animation: none; transform: scale(1.05); box-shadow: 0 0 0 6px #ffcf3f, 0 0 44px rgba(255, 190, 60, .95); }
 .hero .tnum { position: absolute; right: 8px; top: 50px; width: 40px; height: 40px; border-radius: 50%; background: var(--acc); color: #fff; border: 3px solid #fff;
   font-family: var(--title); font-size: 24px; line-height: 34px; text-align: center; box-shadow: 0 3px 8px rgba(200, 100, 30, .35); z-index: 4; }
 .hero .tnum:empty { display: none; }
-@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 5px #ffcf3f, 0 0 20px #ffcf3f; } 50% { box-shadow: 0 0 0 8px #ff8a3f, 0 0 40px #ff8a3f; } }
 .hero.out { filter: grayscale(1) brightness(1.05); }
 .hero .stamp { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%) rotate(-14deg); font-family: var(--title); font-size: 44px; color: #e53340;
   border: 6px double #e53340; padding: 0 12px; border-radius: 10px; background: rgba(255, 255, 255, .7); white-space: nowrap; }
@@ -305,25 +308,30 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #actions { position: absolute; right: 22px; top: calc(606px + var(--dy)); width: 370px; height: 272px; display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
 #hint { min-height: 54px; font-size: 18px; font-weight: 700; color: #5a4aa8; background: rgba(255, 255, 255, .78); border-radius: 16px; padding: 8px 14px; line-height: 1.4; }
 #btn-end { font-size: 34px; }
-#btn-end.ready { animation: endpulse 1.2s ease-in-out infinite; }
-@keyframes endpulse { 50% { transform: scale(1.04); box-shadow: 0 6px 18px rgba(80, 100, 180, .2), 0 0 0 9px rgba(94, 200, 230, .35); } }
+#btn-end.ready { box-shadow: 0 6px 18px rgba(80, 100, 180, .2), 0 0 0 6px rgba(94, 200, 230, .3); animation: endpulse 1.2s ease-in-out infinite; will-change: transform; }
+@keyframes endpulse { 50% { transform: scale(1.04); } }   /* 只动缩放，光圈是静态的 */
 #skillbox { display: flex; flex-wrap: wrap; gap: 8px; }
 #skillbox .btn { font-size: 22px; padding: 7px 16px; }
 /* 现在能用的主动技能：渐变底 + 一呼一吸的光晕 + 扫光 + 闪星，一眼看出来 */
+#skillbox .skw { position: relative; display: inline-flex; }
+#skillbox .skw > .btn { position: relative; z-index: 1; }
+#skillbox .skglow { display: none; position: absolute; inset: 0; border-radius: 18px; pointer-events: none;
+  box-shadow: 0 0 0 3px #fff, 0 0 0 7px rgba(255, 200, 60, .95), 0 0 30px 12px rgba(255, 186, 50, .7); opacity: .25; animation: glowbreath 1.6s ease-in-out infinite; will-change: opacity; }
+#skillbox .skw.on .skglow { display: block; }
+@keyframes glowbreath { 50% { opacity: 1; } }
 #skillbox .btn.sk-ready { position: relative; overflow: hidden; color: #fff; background: var(--acc); border-color: #fff; text-shadow: 0 1px 0 rgba(20, 90, 140, .3);
-  animation: skglow 1.6s ease-in-out infinite; animation-delay: var(--ph, 0s); }
-#skillbox .btn.sk-ready::before { content: "✦"; display: inline-block; margin-right: 5px; color: #fff3a0; text-shadow: 0 0 6px #ffc83c, 0 0 2px #ffb020; animation: sktwinkle 1.6s ease-in-out infinite; animation-delay: var(--ph, 0s); }
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px rgba(255, 214, 90, .75), 0 0 14px 6px rgba(255, 196, 60, .45); }
+#skillbox .btn.sk-ready::before { content: "✦"; display: inline-block; margin-right: 5px; color: #fff3a0; text-shadow: 0 0 6px #ffc83c, 0 0 2px #ffb020; animation: sktwinkle 1.6s ease-in-out infinite; will-change: transform, opacity; }
 #skillbox .btn.sk-ready::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
   background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, .7) 50%, transparent 65%); transform: translateX(-130%);
-  animation: skshine 2.4s ease-in-out infinite; animation-delay: var(--ph, 0s); }
+  animation: skshine 2.4s ease-in-out infinite; will-change: transform; }
 #skillbox .btn.sk-ready kbd { background: rgba(255, 255, 255, .9); color: var(--acc-ink); }
-@keyframes skglow { 0%, 100% { box-shadow: 0 0 0 3px #fff, 0 0 0 6px rgba(255, 214, 90, .75), 0 0 14px 6px rgba(255, 196, 60, .45); }
-  50% { box-shadow: 0 0 0 3px #fff, 0 0 0 7px rgba(255, 200, 60, .95), 0 0 30px 12px rgba(255, 186, 50, .7); } }
 @keyframes skshine { 0%, 50% { transform: translateX(-130%); } 100% { transform: translateX(130%); } }
 @keyframes sktwinkle { 0%, 100% { transform: scale(.8) rotate(0); opacity: .75; } 50% { transform: scale(1.3) rotate(90deg); opacity: 1; } }
-.hero .stags span.sk-ready { background: var(--acc); color: #fff; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(255, 206, 70, .85), 0 0 12px rgba(255, 190, 50, .7); animation: tagglow 1.6s ease-in-out infinite; }
-@keyframes tagglow { 50% { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #ffc83c, 0 0 20px 5px rgba(255, 186, 50, .85); } }
-@media (prefers-reduced-motion: reduce) { #skillbox .btn.sk-ready, #skillbox .btn.sk-ready::before, #skillbox .btn.sk-ready::after, .hero .stags span.sk-ready { animation: none; } }
+.hero .stags span.sk-ready { position: relative; background: var(--acc); color: #fff; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(255, 206, 70, .85), 0 0 12px rgba(255, 190, 50, .7); }
+.hero .stags span.sk-ready::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #ffc83c, 0 0 20px 5px rgba(255, 186, 50, .85); opacity: 0; animation: fadepulse 1.6s ease-in-out infinite; will-change: opacity; }
+@media (prefers-reduced-motion: reduce) { #skillbox .skglow, #skillbox .btn.sk-ready::before, #skillbox .btn.sk-ready::after, .hero .stags span.sk-ready::after, .hero.target::after, #btn-end.ready { animation: none; } #skillbox .skglow { opacity: .6; } }
 #skillbox .passive { font-size: 16px; font-weight: 800; color: #6b6585; background: rgba(255, 255, 255, .78); border-radius: 14px; padding: 8px 12px; }
 
 #prompt { position: absolute; left: calc(270px + var(--dx)); top: calc(572px + var(--dy)); width: 900px; height: 74px; border-radius: 22px; background: rgba(255, 255, 255, .95); border: 3px solid #8fd3ff;
@@ -753,10 +761,9 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .hero .band i.on { background: #fff; border: 2px solid #9b7bff; box-shadow: 0 2px 6px rgba(80, 60, 160, .35); }
 .hero .band i.on img { opacity: 1; filter: none; }
 .hero .band i.new { animation: bandpop .6s cubic-bezier(.2, 1.6, .4, 1); }
-.hero .band.full i { border-color: #ffc83a; box-shadow: 0 0 0 2px #fff, 0 0 10px rgba(255, 190, 50, .85); animation: bandglow 1.4s ease-in-out infinite; }
+.hero .band.full i { border-color: #ffc83a; box-shadow: 0 0 0 2px #fff, 0 0 14px rgba(255, 190, 50, .95); }   /* 静态光圈，不逐帧改阴影 */
 @keyframes bandpop { 0% { transform: scale(.2); } 100% { transform: scale(1); } }
-@keyframes bandglow { 50% { box-shadow: 0 0 0 2px #fff, 0 0 18px rgba(255, 190, 50, 1); } }
 .hero.has-band .you { right: auto; left: 8px; top: 40px; }   /* 右边一列让给乐队 */
 .hero.has-band .tnum { z-index: 3; }
 .float.band { color: #7b5cff; font-size: 34px; white-space: nowrap; }
-@media (prefers-reduced-motion: reduce) { .hero .band i.new, .hero .band.full i { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .hero .band i.new { animation: none; } }

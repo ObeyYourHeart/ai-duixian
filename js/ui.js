@@ -90,7 +90,7 @@ window.UI = (function () {
   function attach(game) {
     g = game; heroes = [];
     const seats = $("#seats"); seats.innerHTML = "";
-    $("#pile").innerHTML = ""; $("#chat-list").innerHTML = ""; $("#fx").innerHTML = "";
+    $("#pile").innerHTML = ""; $("#chat-list").innerHTML = ""; $("#fx").innerHTML = ""; skillSig = "";
     $("#chat-n").textContent = g.players.length;
     $("#chat-name").textContent = g.nation ? "AI 全明星赛" : "AI娘 相亲相爱一家人";
     for (const p of g.players) {
@@ -422,33 +422,36 @@ window.UI = (function () {
     if (g && mode === "play" && d.one && !busy) hint(`选中【${CD[d.c.k].name}】<br>👉 拖到一位对手身上，或点她`);
     if (g) sync();
   }
+  // 技能栏：内容没变就不重建（每次重建都会让发光动画重启、整块重算样式，平板上很卡）
+  let skillSig = "";
   function renderSkills() {
     const box = $("#skillbox"); if (!box || !g) return;
     const me = g.human;
-    box.innerHTML = "";
-    const readyIds = [];
-    let ki = 0;
-    for (const s of g.activeSkills(me)) {
-      const left = s.left != null ? `（${s.left}）` : "";
-      const ready = mode === "play" && !busy && s.can;
-      const b = el("button", "btn small" + (skillMode === s.id ? " primary" : ready ? " sk-ready" : ""), `${s.name}${left}` + (SET().keys && ki < 3 ? `<kbd>${"QWE"[ki]}</kbd>` : ""));
-      ki++;
-      b.title = `【${s.name}】${s.short || ""}——${s.desc}` + (ready ? "（现在能用）" : "");
-      b.disabled = !ready;
-      b.style.setProperty("--ph", -(performance.now() % 2400) + "ms");   // 每次重画按钮，发光动画接着上一帧，不会一跳一跳
-      readyIds.push(ready ? s.id : null);
-      b.onclick = (ev) => { ev.stopPropagation(); onSkillBtn(s); };
-      box.appendChild(b);
-    }
-    for (const s of me.ch.skills.filter((x) => x.type !== "active")) {
-      const ss = skillState(me, s);
-      const ch = el("span", "pchip" + ((s.id === "saint" && me.saintUsed) || (s.id === "dumb" && me.dumb) ? " off" : ""), `${s.name}${ss.length ? `<small>${ss[0]}</small>` : ""}`);
-      ch.title = `【${s.name}】${s.short || s.desc}（被动，自动生效）`;
-      ch.onclick = (ev) => { ev.stopPropagation(); showHeroInfo(me, s.id); };
-      box.appendChild(ch);
+    const acts = g.activeSkills(me).map((s) => ({ s, left: s.left != null ? `（${s.left}）` : "", ready: mode === "play" && !busy && s.can }));
+    const pas = me.ch.skills.filter((x) => x.type !== "active").map((s) => ({ s, ss: skillState(me, s), off: (s.id === "saint" && me.saintUsed) || (s.id === "dumb" && me.dumb) }));
+    const readyIds = acts.map((a) => (a.ready ? a.s.id : null));
+    const sig = JSON.stringify([SET().keys, skillMode, acts.map((a) => [a.s.id, a.left, a.ready]), pas.map((x) => [x.s.id, x.ss[0] || "", x.off])]);
+    if (sig !== skillSig || !box.firstChild) {
+      skillSig = sig;
+      box.innerHTML = "";
+      acts.forEach(({ s, left, ready }, ki) => {
+        const b = el("button", "btn small" + (skillMode === s.id ? " primary" : ready ? " sk-ready" : ""), `${s.name}${left}` + (SET().keys && ki < 3 ? `<kbd>${"QWE"[ki]}</kbd>` : ""));
+        b.title = `【${s.name}】${s.short || ""}——${s.desc}` + (ready ? "（现在能用）" : "");
+        b.disabled = !ready;
+        b.onclick = (ev) => { ev.stopPropagation(); onSkillBtn(s); };
+        // 能用的技能：按钮后面垫一层金色光晕，只让它的透明度一呼一吸（显卡做，不占主线程）
+        const w = el("span", "skw" + (ready && skillMode !== s.id ? " on" : ""), '<i class="skglow"></i>');
+        w.appendChild(b); box.appendChild(w);
+      });
+      for (const { s, ss, off } of pas) {
+        const ch = el("span", "pchip" + (off ? " off" : ""), `${s.name}${ss.length ? `<small>${ss[0]}</small>` : ""}`);
+        ch.title = `【${s.name}】${s.short || s.desc}（被动，自动生效）`;
+        ch.onclick = (ev) => { ev.stopPropagation(); showHeroInfo(me, s.id); };
+        box.appendChild(ch);
+      }
     }
     const tags = heroes[me.i] && heroes[me.i].querySelectorAll(".stags span");
-    if (tags) me.ch.skills.forEach((s, k) => tags[k] && tags[k].classList.toggle("sk-ready", readyIds.includes(s.id)));
+    if (tags) me.ch.skills.forEach((s, k) => { const on = readyIds.includes(s.id); if (tags[k] && tags[k].classList.contains("sk-ready") !== on) tags[k].classList.toggle("sk-ready", on); });
   }
 
   // ---------------------------------------------------------------- 文字提示
