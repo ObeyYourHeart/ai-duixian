@@ -105,7 +105,8 @@ window.AI = (function () {
     for (let guard = 0; out.length < n && guard < 24; guard++) {
       i = g.nextAlive(i); const q = g.players[i];
       let d = q.offline || q.banned ? 0 : 2 + (g.hasSkill(q, "think") ? Engine.T.thinkDraw : 0);
-      if (q.key === "grok" && q.hand.length < Engine.T.grokFloor) d += Engine.T.grokFloor - q.hand.length;
+      const gf = g.mode === "team" || g.mode === "id5" ? Engine.T.grokFloorTeam : Engine.T.grokFloor;
+      if (q.key === "grok" && q.hand.length < gf) d += gf - q.hand.length;
       for (let k = 0; k < d && out.length < n; k++) out.push(q);
       if (i === p.i && !d) break;
     }

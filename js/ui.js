@@ -935,7 +935,7 @@ window.UI = (function () {
       const rand = () => Math.floor(Math.random() * (n + 1));
       const opts = [["最上面", 0], ["第 2 张", 1], ["第 3 张", 2], ["随机", -1], ["最底下", n]].filter(([, v], i, a) => v <= n && a.findIndex(([, w]) => w === v) === i);
       const pick = (v) => done(v < 0 ? rand() : v);
-      showPrompt("宕机塞回哪？只有你知道", opts.map(([l, v], k) => [l, () => pick(v), k === 0]),
+      showPrompt("宕机塞回哪？只有你知道（这回合你自己不会再摸到它）", opts.map(([l, v], k) => [l, () => pick(v), k === 0]),
         timerMs() ? Math.max(8000, timerMs()) : 0, () => pick(-1), "pick");
     });
   }

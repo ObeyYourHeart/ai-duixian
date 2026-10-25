@@ -12,7 +12,7 @@ window.Engine = (function () {
     extraDraw: {},                                        // 每回合多摸
     searchLook: 5, knowLook: 5,                           // Gemini 搜索：看几张；博闻：翻几张找反驳
     sorryDraw: 3, sorryDraw2p: 1, sorryBoom: true,   // （v24b：4 / 2 → 3 / 1，豆包牌太多）                        // 豆包 嘻嘻抱歉：做错事摸几张；自己宕机了也算做错事
-    grokStart: 3, grokFloor: 2,                           // 千金：开局多拿；回合开始补到几张
+    grokStart: 3, grokFloor: 3, grokFloorTeam: 2,         // 千金：开局多拿；回合开始补到几张（v28 乱斗 / 单挑补到 3：乱斗 30 → 34、单挑 42 → 46；组队 / 抢群主仍 2——那边她本来就 50+）
     thinkDraw: 1, thinkRate: 0.8, thinkDefuse: 0.2,                       // 大 DeepSeek 深思：摸牌阶段多摸几张；摸到宕机时自己推理拆掉的概率
     searchPeek: 3, searchDraw: 1,                         // Gemini 搜索：偷看几张、再摸几张
     polishExtra: 1, polishExtra2p: 0,                                       // Claude 润色：整手重写时多摸几张
@@ -26,7 +26,7 @@ window.Engine = (function () {
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
     edgeBomb: 1, rocketDmg: 1, rocketMax2p: 0, rocketAny: true, rocketSteal: true, shootDraw: 0, magicMax2p: 2, oracleShoot: false,   // MiniMax：自托管被宕机炸到只掉几点；兔子快递打几点、单挑每局几次（0 = 不限）、任意牌当燃料、砸中取回 1 张；开拍打中摸几张；神奇海螺单挑每局几次、挡不了开拍（v27 削弱后 sim 乱斗 32 / 单挑 50 / 2v2 53）
-    errandLook: 5, errandPick: "first", haggleTake: 2,   // Muse：代办最多往下翻几张找能用的锦囊、挑第一张还是挑最好的（"best" 单挑 65 太强）；砍价拿几张、还 1 张（sim 乱斗 34 / 单挑 57 / 2v2 54）
+    errandLook: 5, errandLook2p: 3, errandPick: "first", haggleTake: 2,   // Muse：代办最多往下翻几张找能用的锦囊（v28 单挑只翻 3：57% → 53%）、挑第一张还是挑最好的（"best" 单挑 65 太强）；砍价拿几张、还 1 张（sim 乱斗 34 / 单挑 53 / 2v2 54）
     remakeCost: 1, remakeCost2p: 2, remakeTucao2p: false, remakeMax: 0, fakeRate: 0.5, fakeRate2p: 0.5,   // 豆包 Seedance：一键成片随机弃几张；以假乱真让反驳失效的概率（单挑：弃 2 张、不能重放吐槽——不然单挑 58–61%，现在 53%；乱斗 35）
     remakeKinds: ["tucao"],                               // 一键成片只重放吐槽（能复制锦囊太强；重放奶茶回两次血也太肉：乱斗 37 → 34）；单挑不能用（remakeTucao2p false，允许时单挑 60%）
     buyN: 1, buyCost: 0, buyComp: 1, factRate: 0.5, factTricks: true, factTucao: true,                   // Grok 挥金（已换成核实）；核实判定为假的概率
@@ -37,6 +37,8 @@ window.Engine = (function () {
     teamFirstDraw: 3,                                     // 2v2：先手第一回合摸几张
     rageRound: 3,                                         // 从第几轮起每回合能吐槽两次
     bombs: 0, bombsId5: -2, bombDmg: 2, boomBack: true,                 // 宕机：埋几张（人数 − 1 + bombs）、炸到扣几点、炸完是否随机塞回牌堆
+    bombsNation: -2, noSelfRedraw: true,                   // v28：全明星赛少埋 2 张（5 张时一半淘汰是宕机）；自己刚塞回去的那张同一回合摸不到（原来塞回的宕机 20% 炸到自己，一半是同回合润色 / 编程翻回来的）
+    skillBombSafe: false, polishKeep: false,               // 试验开关（sim_dangji.js 对比用，默认关）：技能 / 锦囊摸到的宕机不炸只塞回（开了 Claude 乱斗 68%——宕机其实是她的刹车）；润色不扔【重启】【甩锅】
     rebootStart: 1, lordReboot: 0, lordDraw: 0, lordHp: 2, peekN: 3,                             // 开局每人发几张【重启】；剧透 / 插队看几张
     firewallRate: 0.3, powerbank: 2,
     qingkeCost: 1, qingkeDraw: 2,                         // 千问·请客：弃几张、送给别人时摸几张
@@ -156,9 +158,18 @@ window.Engine = (function () {
     known(p, n) { const m = this.hasSkill(p, "math"); return this.deck.slice(-n).reverse().map((c) => (p.seen.has(c.id) || (m && c.k === "dangji") ? c : null)); }
     bombSpots() { const L = this.deck.length; return this.deck.map((c, i) => (c.k === "dangji" ? L - i : 0)).filter(Boolean).sort((a, b) => a - b); }   // 宕机在第几张（1 = 顶）
     knowsBomb(p, n) { return this.known(p, n).findIndex((c) => c && c.k === "dangji"); }   // 她知道的、最上面那张宕机在第几张（0 = 顶），不知道就 −1
-    async draw(p, n, quiet, bottom) {
-      const got = [], bombs = [];
-      for (let i = 0; i < n; i++) { const c = this.pull(bottom); if (!c) break; (c.k === "dangji" ? bombs : got).push(c); }
+    async draw(p, n, quiet, bottom, turnDraw) {
+      const got = [], bombs = [], back = []; let guard = 0;
+      for (let i = 0; i < n; i++) {
+        const c = this.pull(bottom); if (!c) break;
+        if (c.k !== "dangji") { got.push(c); continue; }
+        // 技能 / 锦囊翻到的宕机只塞回不炸；自己刚塞回去的那张同一回合摸不到——都先拿出来，补摸一张（最多补 6 次，免得牌堆只剩宕机时死循环）
+        const own = T.noSelfRedraw && c.placedBy === p && c.placedRound === this.round && c.placedCur === this.cur;
+        if (((T.skillBombSafe && !turnDraw) || own) && guard++ < 6) { back.push(c); i--; continue; }
+        bombs.push(c);
+      }
+      for (const b of back) { b.placedBy = null; this.insertAt(b, rnd(this.deck.length + 1)); }
+      if (back.length) { this.forget(); this.ui.sys(`${p.name} 翻到了【宕机】……塞回牌堆里了`, "bad"); }
       p.hand.push(...got);
       if (got.length) { this.ui.drawAnim(p, got.length); if (!quiet) this.ui.sys(`${p.name} ${bottom ? "从牌堆底" : ""}摸了 ${got.length} 张牌`); }
       this.ui.sync();
@@ -209,6 +220,7 @@ window.Engine = (function () {
         }
         this.ui.say(p, "reboot", true); Sound.sfx("ding", 0.7);
         const pos = p.human ? await this.ui.humanPlace(this.deck.length) : AI.placeBomb(this, p);
+        b.placedBy = p; b.placedRound = this.round; b.placedCur = this.cur;          // 记下谁在哪个回合塞的（noSelfRedraw：同一回合她自己摸不到）
         this.insertAt(b, pos); this.insertSeq++; this.insertBy = p;
         this.forget(p); p.seen.add(b.id);
         this.ui.sys(`${p.name} 把【宕机】偷偷塞回了牌堆……`, "bad"); this.ui.sync();
@@ -220,7 +232,7 @@ window.Engine = (function () {
       this.ui.sys(`${p.name} 的服务器宕机了！心态 −${bd}`, "bad");
       if (bd < T.bombDmg) { this.ui.skillNote(p, SN(p.key, "edge")); this.ui.log(p, `【${SN(p.key, "edge")}】模型在自己手机里跑，服务器炸了也只掉 ${bd} 点`); }
       await wait(500);
-      if (T.boomBack) { this.insertAt(b, rnd(this.deck.length + 1)); this.forget(); }
+      if (T.boomBack) { b.placedBy = null; this.insertAt(b, rnd(this.deck.length + 1)); this.forget(); }
       else this.bombN--;
       this.ui.sync();
       await this.damage(null, p, bd, true);
@@ -242,7 +254,7 @@ window.Engine = (function () {
         const i = this.deck.findIndex((c) => c.k === "chongqi");
         if (i >= 0) p.hand.push(this.deck.splice(i, 1)[0]);
       }
-      this.bombN = Math.max(1, this.players.length - 1 + T.bombs + (this.mode === "id5" ? T.bombsId5 : 0));
+      this.bombN = Math.max(1, this.players.length - 1 + T.bombs + (this.mode === "id5" ? T.bombsId5 : 0) + (this.nation ? T.bombsNation : 0));
       for (let k = 0; k < this.bombN; k++) this.insertAt({ id: 900 + k, k: "dangji" }, rnd(this.deck.length + 1));
       this.ui.sync();
       this.ui.sys("群聊已创建，开始对线！", "good");
@@ -337,9 +349,10 @@ window.Engine = (function () {
         }
         this.ui.sync();
       }
-      if (p.key === "grok" && p.hand.length < T.grokFloor) {          // Grok 千金：爸爸送的
+      const gFloor = this.mode === "team" || this.mode === "id5" ? T.grokFloorTeam : T.grokFloor;
+      if (p.key === "grok" && p.hand.length < gFloor) {              // Grok 千金：爸爸送的
         this.ui.skillNote(p, SN("grok", "rich")); this.ui.say(p, "dad", true);
-        await this.draw(p, T.grokFloor - p.hand.length, true);
+        await this.draw(p, gFloor - p.hand.length, true);
         this.ui.log(p, `【${SN("grok", "rich")}】爸爸又送来了一点`);
       }
       // 摸牌（断网了就不摸）
@@ -382,7 +395,7 @@ window.Engine = (function () {
         const nfirst = this.nation && this.round === 1 ? (T.nationFirst[p.i] || 0) + (T.nationDraw[p.ch.nation] || 0) : 0;   // 全明星赛：第一回合补牌（按座位 / 按国家）
         if (think) { this.ui.skillNote(p, SN(p.key, "think")); if (Math.random() < 0.3) this.ui.say(p, "think"); }
         const lordX = p.role === "lord" ? T.lordDraw : 0;                         // 抢群主：群主每回合多摸
-        await this.draw(p, (first ? T.teamFirstDraw : 2) + nfirst + (T.extraDraw[p.key] || 0) + think + lordX, true, bottom);
+        await this.draw(p, (first ? T.teamFirstDraw : 2) + nfirst + (T.extraDraw[p.key] || 0) + think + lordX, true, bottom, true);   // 回合开始的正常摸牌（只有这里摸到的宕机一定炸）
       }
       if (!cut) this.ui.sys(`${p.name} 摸牌`);
       if (this.over || !p.alive) return;
@@ -963,7 +976,7 @@ window.Engine = (function () {
       if (id === "live") return (p.band || []).length >= T.bandMax;
       if (id === "steal" || id === "beg") return this.skillTargets(p, id).length > 0;
       if (id === "buy") return p.hand.length >= T.buyCost && this.skillTargets(p, id).length > 0;
-      if (id === "polish") return p.hand.length > 0;
+      if (id === "polish") return p.hand.some((c) => !T.polishKeep || (c.k !== "chongqi" && c.k !== "shuaiguo"));
       if (id === "search") return this.deck.length + this.discard.length > 0;
       if (id === "bundle") return this.deck.length + this.discard.length > 0 && this.skillTargets(p, "bundle").length > 0;
       if (id === "sale") return (p.uses.sale || 0) > 0;
@@ -1025,8 +1038,10 @@ window.Engine = (function () {
         this.ui.log(p, `【${SN("claude", "ban")}】封了 ${t.name} 的号：她的下个回合跳过`);
         await wait(900);
       } else if (id === "polish") {
-        const n = p.hand.length;
-        for (const c of p.hand.splice(0)) this.toDiscard(c);
+        const keep = T.polishKeep ? p.hand.filter((c) => c.k === "chongqi" || c.k === "shuaiguo") : [];   // 润色不扔保命的【重启】【甩锅】
+        const n = p.hand.length - keep.length;
+        for (const c of p.hand.splice(0)) if (!keep.includes(c)) this.toDiscard(c);
+        p.hand.push(...keep);
         this.ui.sync();
         this.ui.skillNote(p, SN("claude", "polish")); this.ui.say(p, "polish", true);
         const m = n + (this.players.length === 2 ? T.polishExtra2p : T.polishExtra);
@@ -1102,7 +1117,8 @@ window.Engine = (function () {
         this.ui.skill(p, SN(p.key, "errand")); this.ui.say(p, "errand", true); await wait(500);
         const skip = []; let got = null;
         const best = T.errandPick === "best";
-        for (let i = 0; i < T.errandLook && (best || !got); i++) {
+        const look = this.players.length === 2 ? T.errandLook2p : T.errandLook;
+        for (let i = 0; i < look && (best || !got); i++) {
           const c = this.pull(); if (!c) break;
           if (CD[c.k].type === "trick" && this.canUse(p, c) && (!got || AI.value(this, p, c) > AI.value(this, p, got))) { if (got) skip.push(got); got = c; } else skip.push(c);
         }
