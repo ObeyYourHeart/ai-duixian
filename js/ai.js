@@ -174,6 +174,8 @@ window.AI = (function () {
     if (g.canSkill(p, "bundle") && !risky(3)) { if (Engine.T.bundleRandom) return { skill: "bundle" }; const t = giftTarget(g, p); if (t) return { skill: "bundle", target: t }; }
     if (g.canSkill(p, "halluc") && (Engine.T.hallucCost ? p.hand.length >= 2 : true) && p.hp >= 2) return { skill: "halluc" };
     if (g.canSkill(p, "recall")) return { skill: "recall" };
+    // MiniMax 神奇海螺：手里有能打人的（吐槽、能当燃料的锦囊）就先问海螺，点到的人这回合什么都挡不了
+    if (g.canSkill(p, "magic") && (H("tucao").length || g.canSkill(p, "rocket"))) return { skill: "magic" };
     // 豆包 一键成片：刚打出的是好牌（吐槽 / 红包 / 白嫖……），手里还有牌可弃，就拍成视频再放一遍
     if (g.canSkill(p, "remake") && p.hand.length >= 2 && p.lastPlay && p.lastPlay.k === "tucao") return { skill: "remake" };
     // Kimi 排练：吐槽够用、或者乐队差最后一名、或者这回合已经吐槽完了，就写一首新歌；只有 1 张又能把人踢出群时先留着打
@@ -229,6 +231,8 @@ window.AI = (function () {
     const aoeOk = enemies.length * 2 >= others.length;
     if (aoeOk && H("resou").length) return use(H("resou")[0]);
     if (aoeOk && H("shuaping").length) return use(H("shuaping")[0]);
+    // MiniMax 海螺开拍：吐槽拍成刷屏——对手不止一个，或者吐槽多到这回合用不完
+    if (aoeOk && g.canSkill(p, "shoot") && (enemies.length >= 2 || H("tucao").length >= 2 || p.tucao >= g.limitTucao(p))) return { skill: "shoot" };
     // 6. 单挑：自己吐槽多 或 对方手牌少
     if (H("dantiao").length) {
       const t = enemies.slice().sort((x, y) => (x.hand.length + (p.hits[x.i] || 0) * 2) - (y.hand.length + (p.hits[y.i] || 0) * 2))[0];
@@ -247,7 +251,13 @@ window.AI = (function () {
     // 7. 吐槽
     if (H("tucao").length && p.tucao < g.limitTucao(p)) {
       const ev = p.evidence && p.evidence.alive && g.rivals(p).includes(p.evidence) ? p.evidence : null;   // 截过图的那个先打
-      const t = ev || pickTarget(g, p, others); if (t) return use(H("tucao")[0], [t]);
+      const orc = p.oracle && p.oracle.alive && g.rivals(p).includes(p.oracle) ? p.oracle : null;   // 神奇海螺点的人挡不了，先打她
+      const t = ev || orc || pickTarget(g, p, others); if (t) return use(H("tucao")[0], [t]);
+    }
+    // MiniMax 兔子快递：能出的牌都出完了，把剩下用不上的锦囊当燃料发射火箭
+    if (g.canSkill(p, "rocket")) {
+      const ts = g.skillTargets(p, "rocket"), t = p.oracle && ts.includes(p.oracle) ? p.oracle : pickTarget(g, p, ts);   // 海螺点的人挡不了，砸她
+      if (t) return { skill: "rocket", target: t };
     }
     if (g.canSkill(p, "reset") && g.round >= 4 && p.hand.length <= 2) return { skill: "reset" };
     // GLM 补觉：能出的都出完了、心态不满，就睡一觉（这回合不再出牌）

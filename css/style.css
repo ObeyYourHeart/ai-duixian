@@ -66,14 +66,14 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 .mode { font-family: var(--title); font-size: 24px; border: 0; padding: 8px 20px; border-radius: 14px; background: transparent; color: var(--acc-ink); cursor: pointer; }
 .mode.on { background: var(--acc); color: #fff; }
 .sel-body { position: absolute; left: 40px; right: 40px; top: calc(130px + var(--dy) / 4); bottom: calc(30px + var(--dy) / 4); display: flex; gap: 26px; }
-#sel-grid { flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; align-content: center; }
+#sel-grid { flex: 1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; align-content: center; }   /* 11 人：每行 6 张，两行放下 */
 .pick { position: relative; height: 342px; border-radius: 18px; overflow: hidden; cursor: pointer; border: 4px solid #fff;
   background: linear-gradient(160deg, var(--l), #fff 70%); box-shadow: 0 6px 16px rgba(70, 50, 140, .16); transition: transform .15s; }
 .pick:hover { transform: translateY(-4px); }
 .pick.on { border-color: var(--c); box-shadow: 0 0 0 4px var(--c), 0 10px 22px rgba(70, 50, 140, .25); }
 .pick img { position: absolute; left: 50%; top: 4px; width: 214px; transform: translateX(-50%); }
-.pick .pn { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 4px; background: var(--c); color: #fff; font-family: var(--title); font-size: 28px; text-align: center; white-space: nowrap; }
-.pick .pn.long { font-size: 22px; padding: 11px 2px; }
+.pick .pn { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 4px; background: var(--c); color: #fff; font-family: var(--title); font-size: 25px; text-align: center; white-space: nowrap; }
+.pick .pn.long { font-size: 19px; padding: 11px 2px; }
 #sel-detail { width: 600px; border-radius: 26px; background: rgba(255, 255, 255, .86); border: 4px solid #fff; position: relative; overflow: hidden;
   box-shadow: 0 10px 30px rgba(70, 50, 140, .2); }
 
@@ -419,8 +419,8 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #stage.portrait #sel-grid { flex: none; gap: 10px; }
 #stage.portrait .pick { height: calc(220px + var(--dy) / 5); }
 #stage.portrait .pick img { width: calc(190px + var(--dy) / 6); }
-#stage.portrait .pick .pn { font-size: 20px; padding: 6px 2px; }
-#stage.portrait .pick .pn.long { font-size: 15px; padding: 8px 1px; }
+#stage.portrait .pick .pn { font-size: 18px; padding: 6px 2px; }
+#stage.portrait .pick .pn.long { font-size: 13px; padding: 8px 1px; }
 #stage.portrait #sel-detail { width: auto; flex: 1; }
 
 

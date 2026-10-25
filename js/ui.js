@@ -163,6 +163,7 @@ window.UI = (function () {
       if (p.boost) st += '<span class="boost">🔥 加班中</span>';
       if (p.napping) st += '<span>😴 补觉中</span>';
       if (p.disguise) st += '<span class="boost">🎭 冒充 Claude</span>';
+      if (g.players[g.cur] && g.players[g.cur].oracle === p) st += '<span class="bomb">🐚 被海螺点名</span>';
       if (g.bomb && g.bomb.holder === p) st += '<span class="bomb">💣 宕机预警</span>';
       if (p.equip) st += `<span class="eq">${EQ_ICON[p.equip.k] || "🧰"} ${CD[p.equip.k].name}</span>`;
       h.querySelector(".status").innerHTML = st;
@@ -279,6 +280,8 @@ window.UI = (function () {
     if (s.id === "fans" && p.used && p.used.fans) out.push("这轮刷过礼物");
     if (s.id === "disguise" && p.disguise) out.push("伪装中");
     if (s.id === "nap" && p.napping) out.push("睡着了");
+    if (s.id === "magic" && p.oracle && g.cur === p.i) out.push(`海螺点了 ${p.oracle.name}`);
+    if (s.id === "clone") out.push(p.cloneRound === g.round && p.cloneN >= Engine.T.cloneMax ? "这轮学过了" : "别人用技能就摸 1 张");
     if (s.id === "busy" && g.players.length > 2) out.push(p.busyRound === g.round && p.busyHits >= Engine.T.busyAt ? "这轮已经繁忙过了" : p.busyRound === g.round && p.busyHits === Engine.T.busyAt - 1 ? "下一张吐槽必挡" : "这轮还没人吐槽她");
     if (s.id === "remake") out.push(p.lastPlay ? (g.remakeTargets(p) ? `能重放【${CD[p.lastPlay.k].name}】` : `【${CD[p.lastPlay.k].name}】放不了`) : "这回合还没出牌");
     if (s.id === "rehearse") out.push(`乐队 ${(p.band || []).length} / ${Engine.T.bandMax}`);
@@ -663,7 +666,7 @@ window.UI = (function () {
     const c = el("div", "cutin");
     c.style.setProperty("--c", p.ch.color); c.style.setProperty("--l", p.ch.light);
     const sk = p.ch.skills.find((x) => x.name === name);
-    c.innerHTML = `<img src="${p.disguise ? portrait("xds_cl", sk && sk.id === "disguise" ? "change" : "smug") : portrait(p.key, sk && sk.id === "live" ? "live" : "smug")}" alt=""><div class="ct2">${p.name} 发动技能</div><div class="ct1">${name}</div>${sk && sk.short ? `<div class="ct3">${sk.short}</div>` : ""}`;
+    c.innerHTML = `<img src="${p.disguise ? portrait("xds_cl", sk && sk.id === "disguise" ? "change" : "smug") : portrait(p.key, sk && sk.art ? sk.art : sk && sk.id === "live" ? "live" : "smug")}" alt=""><div class="ct2">${p.name} 发动技能</div><div class="ct1">${name}</div>${sk && sk.short ? `<div class="ct3">${sk.short}</div>` : ""}`;
     $("#fx").appendChild(c); setTimeout(() => c.remove(), 1300 * Engine.speed + 100);
   }
   // 变身：换伪装立绘、名牌改成“Claude？”

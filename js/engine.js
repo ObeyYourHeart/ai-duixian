@@ -25,6 +25,7 @@ window.Engine = (function () {
     busyRate: 0.08, busyAt: 2, busyBounce: true,   // 小 DeepSeek 服务器繁忙：同一轮冲她来的第 busyAt 张吐槽必繁忙（v25：原来 8% 概率每局只触发 0.2 次；每轮第 1 张就挡 → 乱斗 53%，第 2 张 36%）；单挑仍按 busyRate 概率（第 2 张必挡时单挑 61%）
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
+    edgeBomb: 1, rocketDmg: 1, rocketMax2p: 0, cloneDraw: 1, cloneMax: 2, magicMax2p: 2,   // MiniMax：自托管被宕机炸到只掉几点；兔子快递打几点、单挑每局几次（0 = 不限）；声音克隆摸几张、每轮几次；神奇海螺单挑每局几次（sim 乱斗 36 / 单挑 55 / 2v2 56 / 抢群主 32）
     remakeCost: 1, remakeCost2p: 2, remakeTucao2p: false, remakeMax: 0, fakeRate: 0.5, fakeRate2p: 0.5,   // 豆包 Seedance：一键成片随机弃几张；以假乱真让反驳失效的概率（单挑：弃 2 张、不能重放吐槽——不然单挑 58–61%，现在 53%；乱斗 35）
     remakeKinds: ["tucao"],                               // 一键成片只重放吐槽（能复制锦囊太强；重放奶茶回两次血也太肉：乱斗 37 → 34）；单挑不能用（remakeTucao2p false，允许时单挑 60%）
     buyN: 1, buyCost: 0, buyComp: 1, factRate: 0.5, factTricks: true, factTucao: true,                   // Grok 挥金（已换成核实）；核实判定为假的概率
@@ -214,12 +215,14 @@ window.Engine = (function () {
         return;
       }
       Sound.sfx("bomb", 0.85); this.ui.say(p, "boom", true);
-      this.ui.sys(`${p.name} 的服务器宕机了！心态 −${T.bombDmg}`, "bad");
+      const bd = this.hasSkill(p, "edge") ? T.edgeBomb : T.bombDmg;          // MiniMax 自托管：开源模型在自己手机里跑，服务器炸了也只掉 1
+      this.ui.sys(`${p.name} 的服务器宕机了！心态 −${bd}`, "bad");
+      if (bd < T.bombDmg) { this.ui.skillNote(p, SN(p.key, "edge")); this.ui.log(p, `【${SN(p.key, "edge")}】模型在自己手机里跑，服务器炸了也只掉 ${bd} 点`); }
       await wait(500);
       if (T.boomBack) { this.insertAt(b, rnd(this.deck.length + 1)); this.forget(); }
       else this.bombN--;
       this.ui.sync();
-      await this.damage(null, p, T.bombDmg, true);
+      await this.damage(null, p, bd, true);
       if (T.sorryBoom) await this.sorry(p);
     }
     takeFromHand(p, card) {
@@ -313,7 +316,7 @@ window.Engine = (function () {
     }
 
     async turn(p) {
-      p.tucao = 0; p.used = {}; p.hits = {}; p.dumb = false; p.sale = false; p.boost = false; p.evidence = null; p.played = 0; p.turnN = (p.turnN || 0) + 1;
+      p.tucao = 0; p.used = {}; p.oracle = null; p.hits = {}; p.dumb = false; p.sale = false; p.boost = false; p.evidence = null; p.played = 0; p.turnN = (p.turnN || 0) + 1;
       p.napping = false; p.skipRest = false; p.lastPlay = null;
       if (p.disguise) { p.disguise = false; this.ui.disguise(p, false); this.ui.log(p, "把 Claude 的衣服脱了下来"); }
       this.ui.setTurn(p); this.ui.sync();
@@ -574,6 +577,7 @@ window.Engine = (function () {
         case "duanwang": {
           const t = targets[0]; if (!t || !t.alive) break;
           if (await this.protect(t, p, card)) break;
+          if (this.hasSkill(t, "edge")) { this.ui.skillNote(t, SN(t.key, "edge")); this.ui.say(t, "edge", true); this.ui.log(t, `【${SN(t.key, "edge")}】模型下载到本地跑，断网也照样用——【断网】对她无效`); await wait(450); break; }
           t.offline = true; Sound.sfx("glitch_vhs", 0.6); this.ui.sys(`${t.name} 断网了（跳过下个摸牌阶段）`, "bad"); this.ui.sync(); await wait(450); break;
         }
         case "jutou": {                                            // 剧透：偷看牌堆顶
@@ -752,6 +756,11 @@ window.Engine = (function () {
     // 询问响应：kind = fanbo / tucao / yidu。返回是否打出
     async ask(p, kind, ctx) {
       if (!p.alive) return false;
+      const f = ctx && ctx.from;                                     // MiniMax 神奇海螺点的人：这回合她出什么都挡不了——海螺说的就得听
+      if (kind === "fanbo" && f && f.oracle === p && this.cur === f.i) {
+        if (this.has(p, "fanbo").length) { this.ui.log(p, "神奇海螺说了算……【反驳】不了"); await wait(300); }
+        return false;
+      }
       const alt = this.hasSkill(p, "hexa") && (kind === "fanbo" || kind === "tucao") ? (kind === "fanbo" ? "tucao" : "fanbo") : null;
       const cards = alt ? [...this.has(p, kind), ...this.has(p, alt)] : this.has(p, kind);
       if (!cards.length) {
@@ -922,7 +931,7 @@ window.Engine = (function () {
       return p.ch.skills.filter((s) => s.type === "active").map((s) => ({ ...s, can: this.canSkill(p, s.id), left: p.uses[s.id], target: this.skillTarget(s.id, p) }));
     }
     skillTarget(id, p) {
-      if (id === "ban" || id === "buy" || id === "beg" || id === "maint" || (id === "steal" && !T.stealAll) || (id === "disguise" && T.disguiseAct === "ban")) return "opp";
+      if (id === "ban" || id === "buy" || id === "beg" || id === "maint" || id === "rocket" || (id === "steal" && !T.stealAll) || (id === "disguise" && T.disguiseAct === "ban")) return "opp";
       if (id === "qingke") return "self";                        // 千问请客：可以选自己
       if (id === "bundle") return T.bundleRandom ? null : "any";   // 千问送牌：队友、对手都能选（随机送时不用选）
       return null;
@@ -930,6 +939,7 @@ window.Engine = (function () {
     skillTargets(p, id) {
       if (id === "ban" || id === "disguise") return this.rivals(p).filter((q) => !q.banned);
       if (id === "maint") return this.rivals(p).filter((q) => !q.muted);
+      if (id === "rocket") return this.rivals(p);
       if (id === "steal" || id === "buy" || id === "beg") return this.rivals(p).filter((q) => q.hand.length > 0);
       if (id === "bundle") return T.bundleRival ? this.rivals(p) : this.others(p);
       if (id === "qingke") return this.alive().filter((q) => q.hp < q.maxHp);
@@ -949,6 +959,9 @@ window.Engine = (function () {
       if (id === "sale") return (p.uses.sale || 0) > 0;
       if (id === "qingke") return (p.uses.qingke == null || p.uses.qingke > 0) && p.hand.length >= T.qingkeCost && this.skillTargets(p, "qingke").length > 0;
       if (id === "halluc") return p.hand.length >= T.hallucCost;
+      if (id === "magic") return this.rivals(p).length > 0 && !(this.players.length === 2 && T.magicMax2p && (p.magicN || 0) >= T.magicMax2p);
+      if (id === "shoot") return p.hand.some((c) => c.k === "tucao");
+      if (id === "rocket") return !!this.rocketFuel(p) && this.skillTargets(p, id).length > 0 && !(this.players.length === 2 && T.rocketMax2p && (p.rocketN || 0) >= T.rocketMax2p);
       if (id === "remake") return p.hand.length >= this.remakeCost() && (!T.remakeMax || (p.remakeN || 0) < T.remakeMax) && !!this.remakeTargets(p);
       if (id === "opensrc") return (p.uses.opensrc || 0) > 0 && this.rivals(p).some((q) => q.hand.length > 0);
       if (id === "disguise") return (p.uses.disguise || 0) > 0 && (T.disguiseAct === "ban" ? this.skillTargets(p, id).length > 0 : p.hand.length > 0);
@@ -957,6 +970,22 @@ window.Engine = (function () {
       if (id === "paint") return (p.uses.paint || 0) > 0 && [...this.deck, ...this.discard].some((c) => T.paintKinds.includes(c.k));
       if (id === "recall") return (p.uses.recall == null || p.uses.recall > 0) && this.discard.some((c) => T.recallKinds.includes(c.k));
       return false;
+    }
+    // MiniMax 声音克隆：有人发动主动技能，她学会对方的声音，摸 1 张（每轮 1 次）
+    async voiceClone(p) {
+      for (const q of this.players) {
+        if (q === p || !q.alive || !this.hasSkill(q, "clone")) continue;
+        if (q.cloneRound !== this.round) { q.cloneRound = this.round; q.cloneN = 0; }
+        if (q.cloneN >= T.cloneMax) continue;
+        q.cloneN++; this.ui.skillNote(q, SN(q.key, "clone")); if (Math.random() < 0.35) this.ui.say(q, "clone", true);
+        this.ui.log(q, `【${SN(q.key, "clone")}】学会了 ${p.name} 的声音，摸 ${T.cloneDraw} 张`);
+        await this.draw(q, T.cloneDraw, true);
+      }
+    }
+    // MiniMax 兔子快递拿哪张锦囊当燃料：先挑这回合打不出去的，不拿【重启】
+    rocketFuel(p) {
+      const ok = p.hand.filter((c) => CD[c.k].type === "trick" && c.k !== "chongqi"), idle = ok.filter((c) => !this.canUse(p, c));
+      const L = idle.length ? idle : ok; return L.length ? L[rnd(L.length)] : null;
     }
     remakeCost() { return this.players.length === 2 ? T.remakeCost2p : T.remakeCost; }
     // 一键成片能不能放、放给谁：返回目标数组（没有目标的牌是 []），放不了返回 null
@@ -980,7 +1009,13 @@ window.Engine = (function () {
       for (const c of out) { this.takeFromHand(p, c); this.toDiscard(c); }
       return out;
     }
+    // 发动主动技能：结算完再看 MiniMax 声音克隆（先摸牌的话，摸到宕机会把正在结算的技能搅乱）
     async doSkill(p, id, act = {}) {
+      const fresh = !p.used[id];
+      await this.runSkill(p, id, act);
+      if (fresh && p.used[id] && !this.over) await this.voiceClone(p);
+    }
+    async runSkill(p, id, act) {
       if (!this.canSkill(p, id)) return;
       let t = act.target;
       if (t && !this.skillTargets(p, id).includes(t)) t = null;
@@ -1067,6 +1102,28 @@ window.Engine = (function () {
         if (fond) { this.ui.say(t, "fed", true); if (T.begBonus) await this.draw(p, T.begBonus, true); }
         this.ui.log(p, `【${SN("xds", "beg")}】从 ${t.name} 那里蹭到一张牌` + (fond ? `（${t.name} 最宠她）` : ""));
         await wait(500);
+      } else if (id === "magic") {
+        // MiniMax 神奇海螺：问海螺今天怼谁，海螺随机点一名对手——这回合你的吐槽、刷屏、火箭，她都不能反驳
+        const ts = this.rivals(p), t = ts[rnd(ts.length)]; p.oracle = t; p.magicN = (p.magicN || 0) + 1;
+        this.ui.skill(p, SN(p.key, "magic")); this.ui.say(p, "magic", true); Sound.sfx("glimmer", 0.6);
+        this.ui.log(p, `【${SN(p.key, "magic")}】神奇海螺，今天怼谁？——海螺说：${t.name}。这回合 ${p.name} 出什么，她都不能【反驳】`); this.ui.sync(); await wait(600);
+      } else if (id === "rocket") {
+        // MiniMax 兔子快递：弃 1 张锦囊当燃料，太空兔子骑胡萝卜火箭砸向一名对手——要打出【反驳】，否则心态 −1
+        const c = this.rocketFuel(p); this.takeFromHand(p, c); this.toDiscard(c); p.rocketN = (p.rocketN || 0) + 1;
+        this.ui.skill(p, SN(p.key, "rocket")); this.ui.say(p, "sig", true);
+        this.ui.log(p, `【${SN(p.key, "rocket")}】拿【${CD[c.k].name}】当燃料，太空兔子骑着胡萝卜火箭，把快递砸向 ${t.name}`); this.ui.sync();
+        if (this.ui.throwProp) this.ui.throwProp(p, t, "carrot"); await wait(700);
+        const ok = await this.ask(t, "fanbo", { from: p, card: { k: "shuaping" } });
+        if (!ok) await this.damage(p, t, T.rocketDmg);
+      } else if (id === "shoot") {
+        // MiniMax 海螺开拍：海螺一开，文字变视频——1 张吐槽拍成视频，当【刷屏】打出去（虚拟牌，不占吐槽次数）
+        const c = p.hand.find((x) => x.k === "tucao"); this.takeFromHand(p, c); this.toDiscard(c);
+        this.ui.skill(p, SN(p.key, "shoot")); this.ui.say(p, "attack", true); Sound.sfx("fanfare_short", 0.5);
+        this.ui.log(p, `【${SN(p.key, "shoot")}】把一句【吐槽】拍成视频，当【刷屏】发到群里`); this.ui.sync(); await wait(500);
+        const v = { id: -(++this.vid), k: "shuaping", virtual: true }, ts = this.others(p);
+        await this.ui.showCard(p, v, ts);
+        await this.resolve(p, v, ts);
+        this.ui.sync();
       } else if (id === "remake") {
         // 豆包 一键成片：把这回合刚打出的牌拍成视频，再放一遍（虚拟牌，不进弃牌堆、不算出牌次数）
         const lp = p.lastPlay, ts = this.remakeTargets(p); p.remakeN = (p.remakeN || 0) + 1;
