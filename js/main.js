@@ -198,10 +198,10 @@ window.Main = (function () {
         <li>顶栏的 💣 是牌堆里还剩几张宕机，后面是<b>下一张摸到宕机的概率</b>。牌越摸越少，概率越高。</li>
         <li>你看过的牌堆顶会一直显示在牌桌提示条上，直到有人动了牌堆。</li>
       </ul>
-      <h3>相关的牌</h3><div class="ru-cards">${["dangji", "chongqi", "jutou", "chadui", "chongsheng", "moyu", "shuaiguo"].filter((k) => CD[k]).map(cardTile).join("")}</div>`],
+      <h3>相关的牌</h3><div class="ru-cards">${["dangji", "chongqi", "jutou", "chadui", "chongsheng", "moyu", "shuaiguo", "yunbeifen"].filter((k) => CD[k] && (CD[k].n > 0 || k === "dangji")).map(cardTile).join("")}</div>`],
     ["cards", "卡牌图鉴", () => {
       const total = Object.values(CD).reduce((s, d) => s + d.n, 0);
-      const grp = (t) => Object.keys(CD).filter((k) => CD[k].type === t);
+      const grp = (t) => Object.keys(CD).filter((k) => CD[k].type === t && (CD[k].n > 0 || t === "bomb"));   // 张数 0 的（删掉的旧牌）不列
       return `<h2>卡牌图鉴 <small>共 ${total} 张，外加按人数埋进去的【宕机】</small></h2>` +
         ["basic", "trick", "equip", "bomb"].map((t) => grp(t).length ? `<h3>${TYPE[t]}</h3><div class="ru-cards">${grp(t).map(cardTile).join("")}</div>` : "").join("");
     }],

@@ -29,6 +29,14 @@ window.AI = (function () {
       case "jietu": return g.has(p, "tucao").length ? 5 : 3.5;
       case "xianka": case "fanghuoqiang": return p.equip ? 4 : 6.5;
       case "chongdianbao": return p.equip ? 3.5 : 5.5;
+      // v29 试验的新卡
+      case "yueyu": return p.dumb ? 8 : 5.5;                      // 越狱：留着防风控 / 维护日
+      case "tiaocao": return 5;
+      case "zhengliu": return 5.5;
+      case "paofen": return 5;
+      case "diaoyu": return 5.6;                                  // 钓鱼：留在手里当诱饵，别当垃圾先扔
+      case "yunbeifen": return p.equip ? 3.5 : (g.bombsLeft && g.bombsLeft() ? 6 : 4);
+      case "jiami": return p.equip ? 3.5 : 6;
     }
     return 5;
   }
@@ -90,6 +98,9 @@ window.AI = (function () {
     if (c.k === "xianka") return 2 + g.has(p, "tucao").length * 0.6;
     if (c.k === "fanghuoqiang") return 2.6 + (p.hp <= 2 ? 1 : 0);
     if (c.k === "chongdianbao") return 1.6 + (p.hand.length > p.hp ? 1 : 0);
+    // v29 试验：云备份看牌堆里还有没有宕机（自托管的人不需要）；加密看对手里有没有爱拿牌的
+    if (c.k === "yunbeifen") return g.hasSkill(p, "edge") || !(g.bombsLeft && g.bombsLeft()) ? 0.5 : 2.4 + (p.hp <= 2 ? 0.8 : 0);
+    if (c.k === "jiami") return 1.2 + (g.rivals(p).some((q) => ["steal", "buy", "haggle", "beg"].some((s) => g.hasSkill(q, s))) ? 1.8 : 0) + (p.hand.length >= 4 ? 0.5 : 0);
     return 0;
   }
   function treatTarget(g, p) {
@@ -174,7 +185,8 @@ window.AI = (function () {
       const t = fond.length ? richest(fond, p) : richest(ts, p);
       if (t) return { skill: "beg", target: t };
     }
-    if (g.canSkill(p, "live")) return { skill: "live" };                   // Kimi：乐队到齐，先开演唱会
+    // Kimi：乐队到齐，先开演唱会；分档时（liveMin < bandMax）2 名就能唱，但没到齐只在局势催的时候唱（第 4 轮起、有人快出局、或者没牌再排练）
+    if (g.canSkill(p, "live") && ((p.band || []).length >= Engine.T.bandMax || g.round >= 4 || foes(g, p, g.others(p)).some((q) => q.hp <= 1) || !g.canSkill(p, "rehearse"))) return { skill: "live" };
     if (g.canSkill(p, "polish") && !risky(p.hand.length + 1) && polishGain(g, p) > 0) return { skill: "polish" };
     // 小DeepSeek 变身：冒充 Claude，顺手学她润色——手里的牌不好就变
     if (g.canSkill(p, "disguise") && g.round >= 2 && !risky(p.hand.length + 1) && polishGain(g, p) > 0) return { skill: "disguise" };
@@ -209,6 +221,9 @@ window.AI = (function () {
     if (g.canSkill(p, "reset") && !risky(Engine.T.resetDraw) && (p.dumb || p.hand.length <= 1 || (p.hp <= 1 && p.hand.length <= 2))) return { skill: "reset" };
     // 1. 摸牌
     if (H("hongbao").length && !risky(2)) return use(H("hongbao")[0]);
+    // v29 试验：越狱主动打出只为解降智（防封号 / 维护日是被动用的，留着）；蒸馏在手牌少时把弃牌堆里的锦囊捞回来
+    if (H("yueyu").length && p.dumb && !risky(1)) return use(H("yueyu")[0]);
+    if (H("zhengliu").length && g.canUse(p, H("zhengliu")[0]) && p.hand.length <= 5) return use(H("zhengliu")[0]);
     // 1b. 装备：没装备就穿上，有更好的就换
     const eqs = p.hand.filter((c) => Engine.CD[c.k].type === "equip").sort((a, b) => equipScore(g, p, b) - equipScore(g, p, a));
     if (eqs.length && equipScore(g, p, eqs[0]) > equipScore(g, p, p.equip) + 0.3) return use(eqs[0]);
@@ -260,6 +275,16 @@ window.AI = (function () {
     if (H("pindan").length && p.hand.length <= 4) return use(H("pindan")[0]);
     // 6b. 千问·狂欢：手里吐槽够多才开（第 3 轮起本来就能吐槽两次，要 3 张）
     if (g.canSkill(p, "sale") && !p.sale && H("tucao").length >= (g.round >= Engine.T.rageRound ? 3 : 2) && p.tucao === 0) return { skill: "sale" };
+    // v29 试验：跳槽——对手手牌比自己多 2 张以上就换；跑分——榜一全是对手才质疑；钓鱼——对面没人会拿牌时才兑掉摸 1
+    if (H("tiaocao").length) {
+      const t = richest(enemies.filter((q) => q.hand.length > 0), p);
+      if (t && t.hand.length >= 3 && t.hand.length >= p.hand.length + 1 && !g.encrypted(t)) return use(H("tiaocao")[0], [t]);   // 对方至少 3 张、比自己多就换（+2 时一局只用 0.07 次）
+    }
+    if (H("paofen").length && g.canUse(p, H("paofen")[0])) {
+      const top = Math.max(...g.alive().map((q) => q.hand.length)), kings = g.alive().filter((q) => q.hand.length === top && q !== p);
+      if (kings.length && kings.every((q) => enemies.includes(q))) return use(H("paofen")[0]);
+    }
+    if (H("diaoyu").length && p.hand.length >= 4 && !enemies.some((q) => ["steal", "buy", "haggle", "beg"].some((s) => g.hasSkill(q, s)))) return use(H("diaoyu")[0]);
     // 7. 吐槽
     if (H("tucao").length && p.tucao < g.limitTucao(p)) {
       const ev = p.evidence && p.evidence.alive && g.rivals(p).includes(p.evidence) ? p.evidence : null;   // 截过图的那个先打
@@ -298,9 +323,10 @@ window.AI = (function () {
   function discard(g, p, n) { return cheapest(g, p, n); }
   // Claude 润色（整手重写）值不值：手里的平均价值低于一张新牌才写
   function polishGain(g, p) {
-    if (!p.hand.length) return 0;
-    const avg = p.hand.reduce((s, c) => s + value(g, p, c), 0) / p.hand.length;
-    return (p.hand.length + (g.players.length === 2 ? Engine.T.polishExtra2p : Engine.T.polishExtra)) * 5.6 - p.hand.length * avg - 0.5;
+    const cards = Engine.T.polishKeep ? p.hand.filter((c) => c.k !== "chongqi" && c.k !== "shuaiguo") : p.hand;   // polishKeep：重启 / 甩锅不会被扔，不算进去
+    if (!cards.length) return 0;
+    const avg = cards.reduce((s, c) => s + value(g, p, c), 0) / cards.length;
+    return (cards.length + (g.players.length === 2 ? Engine.T.polishExtra2p : Engine.T.polishExtra)) * 5.6 - cards.length * avg - 0.5;
   }
   // 从一组牌里挑最有价值的（搜索 / 挥金 / 过目都用它）
   function pick(g, p, cards, n) { return cards.slice().sort((a, b) => value(g, p, b) - value(g, p, a)).slice(0, n); }
