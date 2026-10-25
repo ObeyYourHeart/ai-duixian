@@ -1,4 +1,5 @@
 // 声音：配乐（循环、说话时压低）、音效池、配音（每个角色一条声道）
+// 音频对象全部复用、不再每次 new：iPad 的 Safari 每个 Audio 背后挂一个播放器、回收很慢，以前每局新建约 65 个，玩几局就越来越卡
 window.Sound = (function () {
   const DEF = { musicVol: 0.32, sfxVol: 0.7, voiceVol: 1.0 };
   const S = Object.assign({ music: true, sfx: true }, DEF);
@@ -6,6 +7,7 @@ window.Sound = (function () {
   const save = () => { try { localStorage.setItem("duixian_sound", JSON.stringify(S)); } catch (e) {} };
   const src = (p) => (window.ASSET && window.ASSET[p]) || p;
   let bgm = null, duck = 0, duckTimer = null, kind = null;
+  const decks = [new Audio(), new Audio()];                      // 配乐两台来回切：淡出一台、淡入另一台
   const pools = {};
   const voices = {};
   // 配乐：按场景换曲，切换时淡入淡出；对局曲每局随机一首
@@ -14,8 +16,9 @@ window.Sound = (function () {
   };
   const level = () => S.musicVol * (duck ? 0.45 : 1);
   function fade(a, to, ms, done) {
-    const from = a.volume, t0 = performance.now();
+    const from = a.volume, t0 = performance.now(), id = a._fade = (a._fade || 0) + 1;   // 同一台又开始新的渐变：旧的这条自己停下
     const step = () => {
+      if (a._fade !== id) return;
       const k = Math.min(1, (performance.now() - t0) / ms);
       a.volume = Math.max(0, Math.min(1, from + (to - from) * k));
       if (k < 1) requestAnimationFrame(step); else if (done) done();
@@ -27,10 +30,10 @@ window.Sound = (function () {
     if (next === kind && bgm) { if (S.music && bgm.paused) bgm.play().catch(() => {}); return; }
     kind = next;
     const list = TRACKS[next] || TRACKS.battle;
-    const a = new Audio(src(`assets/music/${list[Math.floor(Math.random() * list.length)]}.mp3`));
-    a.loop = true; a.volume = 0;
-    const old = bgm; bgm = a;
-    if (old) fade(old, 0, 700, () => old.pause());
+    const old = bgm, a = old === decks[0] ? decks[1] : decks[0];
+    a.pause(); a.src = src(`assets/music/${list[Math.floor(Math.random() * list.length)]}.mp3`);
+    a.loop = true; a.volume = 0; bgm = a;
+    if (old) fade(old, 0, 700, () => { if (old !== bgm) old.pause(); });
     if (S.music) { a.play().catch(() => {}); fade(a, level(), 900); }
   }
   function music(on) {
@@ -48,7 +51,8 @@ window.Sound = (function () {
     if (!S.sfx) return;
     const p = pools[name] || (pools[name] = []);
     let a = p.find((x) => x.paused || x.ended);
-    if (!a) { a = new Audio(src(`assets/sfx/${name}.mp3`)); if (p.length < 4) p.push(a); }
+    if (!a && p.length < 4) { a = new Audio(src(`assets/sfx/${name}.mp3`)); p.push(a); }
+    if (!a) { a = p.shift(); p.push(a); }                          // 4 个都在响：重用最早那个，不再新建
     a.volume = Math.min(1, S.sfxVol * vol);
     try { a.currentTime = 0; } catch (e) {}
     a.play().catch(() => {});
@@ -58,11 +62,9 @@ window.Sound = (function () {
     if (!S.sfx || !S.voiceVol) return 0;
     const name = `${charKey}_${lineKey}${idx}`;
     if (!((window.VOICES || {})[name])) return 0;   // 还没配音的台词不发请求（VOICES：台词名 → 时长毫秒）
-    const old = voices[charKey];
-    if (old) { old.pause(); }
-    const a = new Audio(src(`assets/voice/${name}.mp3`));
+    const a = voices[charKey] || (voices[charKey] = new Audio());   // 每个角色一台，换句话只换音源
+    a.pause(); a.src = src(`assets/voice/${name}.mp3`);
     a.volume = S.voiceVol;
-    voices[charKey] = a;
     a.play().catch(() => {});
     setDuck(2200);
     return a;

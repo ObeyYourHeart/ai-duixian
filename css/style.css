@@ -713,6 +713,9 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .tm-pick { position: relative; width: 104px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px 5px; border-radius: 16px; cursor: pointer;
   border: 3px solid #fff; background: rgba(255, 255, 255, .9); font-family: var(--title); font-size: 15px; color: var(--c); transition: transform .12s; }
 .tm-pick img { width: 72px; height: 72px; border-radius: 50%; border: 3px solid var(--c); background: var(--l); }
+#stage:not(.portrait) .tm-roster { flex-wrap: nowrap; }   /* 横屏：中国队 7 人排一行（换行会被底下的按钮挡住），头像跟着收窄 */
+#stage:not(.portrait) .tm-pick { flex: 1 1 0; min-width: 0; width: auto; max-width: 104px; }
+#stage:not(.portrait) .tm-pick img { width: 100%; max-width: 72px; height: auto; aspect-ratio: 1; }
 .tm-pick:hover { transform: translateY(-3px); }
 .tm-pick.on { border-color: var(--n); background: var(--l); box-shadow: 0 0 0 2px var(--n); }
 .tm-pick.you { cursor: default; opacity: .75; }

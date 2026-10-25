@@ -281,7 +281,7 @@ window.UI = (function () {
     if (s.id === "disguise" && p.disguise) out.push("伪装中");
     if (s.id === "nap" && p.napping) out.push("睡着了");
     if (s.id === "magic" && p.oracle && g.cur === p.i) out.push(`海螺点了 ${p.oracle.name}`);
-    if (s.id === "clone") out.push(p.cloneRound === g.round && p.cloneN >= Engine.T.cloneMax ? "这轮学过了" : "别人用技能就摸 1 张");
+    if (s.id === "confirm") out.push(p.confirmRound === g.round ? "这轮的确认卡用过了" : "下一张单体锦囊会被拒绝");
     if (s.id === "busy" && g.players.length > 2) out.push(p.busyRound === g.round && p.busyHits >= Engine.T.busyAt ? "这轮已经繁忙过了" : p.busyRound === g.round && p.busyHits === Engine.T.busyAt - 1 ? "下一张吐槽必挡" : "这轮还没人吐槽她");
     if (s.id === "remake") out.push(p.lastPlay ? (g.remakeTargets(p) ? `能重放【${CD[p.lastPlay.k].name}】` : `【${CD[p.lastPlay.k].name}】放不了`) : "这回合还没出牌");
     if (s.id === "rehearse") out.push(`乐队 ${(p.band || []).length} / ${Engine.T.bandMax}`);
@@ -588,7 +588,7 @@ window.UI = (function () {
   }
   // ---------------------------------------------------------------- 互动道具：抛物线飞过去，砸中后按种类出效果（盖章、弹窗、糊脸、落地、带电、火箭、烟花）
   const PROP_SFX = { dislike: ["stamp", 0.5], error: ["glitch_vhs", 0.35], gpu: ["spell2", 0.4], like: ["ding", 0.45], ban: ["stamp_thick", 0.7], nuke: ["bomb", 0.3],
-    rice: ["plop", 0.5], fish: ["pop_small", 0.5], banana: ["slap2", 0.5], rocket: ["whoosh_cartoon", 0.5], pillow: ["boing", 0.45], carnival: ["yay", 0.35], scroll: ["paper", 0.6], takeout: ["notify", 0.45] };
+    rice: ["plop", 0.5], fish: ["pop_small", 0.5], banana: ["slap2", 0.5], rocket: ["whoosh_cartoon", 0.5], croc: ["boing", 0.45], pillow: ["boing", 0.45], carnival: ["yay", 0.35], scroll: ["paper", 0.6], takeout: ["notify", 0.45] };
   const ERRORS = ["服务器繁忙，请稍后再试", "网络开小差了，请重试", "请求太频繁，请稍后", "内容生成失败，请重新生成", "Error 500：内部错误"];
   function throwProp(from, to, kind) {
     if (!g || !heroes[to.i]) return;

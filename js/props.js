@@ -20,6 +20,7 @@ window.Props = (function () {
     scroll: { name: "长卷轴", owner: "kimi", bad: true, icon: "📜", fx: "splat", cap: "两百万字，请查收", verb: (a, b) => `${a} 甩给 ${b} 一份两百万字的长文` },
     takeout: { name: "外卖", owner: "qwen", bad: false, icon: "🧋", fx: "land", cap: "您的外卖到了", verb: (a, b) => `${a} 给 ${b} 点了一份外卖` },
     carrot: { name: "胡萝卜火箭", owner: "minimax", bad: true, icon: "🥕", fx: "rocket", cap: "胡萝卜火箭，送你上天！", verb: (a, b) => `${a} 冲 ${b} 发射了一枚胡萝卜火箭` },
+    croc: { name: "洞洞鞋", owner: "muse", bad: true, icon: "👟", fx: "stamp", cap: "接住我的洞洞鞋！", verb: (a, b) => `${a} 冲 ${b} 扔了一只洞洞鞋` },
   };
   const COMMON = ["dislike", "error", "gpu", "like"];
   const SIG = {};

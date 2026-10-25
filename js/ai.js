@@ -35,6 +35,14 @@ window.AI = (function () {
   function cheapest(g, p, n, exclude = []) {
     return p.hand.filter((c) => !exclude.includes(c.id)).sort((a, b) => value(g, p, a) - value(g, p, b)).slice(0, n).map((c) => c.id);
   }
+  // Muse 代办：替人打出一张锦囊时自己挑目标（不问玩家）
+  function autoTargets(g, p, c) {
+    if (Engine.CD[c.k].target !== "one") return [];
+    const ts = g.targetsFor(p, c); if (!ts.length) return [];
+    if (c.k === "baipiao" || c.k === "chehui" || c.k === "jinyan" || c.k === "duanwang") return [richest(ts, p) || ts[0]];
+    if (c.k === "dantiao") return [foes(g, p, ts).slice().sort((x, y) => x.hand.length - y.hand.length)[0] || ts[0]];
+    return [pickTarget(g, p, ts) || ts[0]];
+  }
   // 只留对手（乱斗 / 单挑里人人都是对手）
   function foes(g, p, list) { return g && g.foesOf ? g.foesOf(p, list) : list; }
   const hostile = (g, p, q) => (g && g.hostility ? Math.max(0, g.hostility(p, q)) : 0);
@@ -174,8 +182,11 @@ window.AI = (function () {
     if (g.canSkill(p, "bundle") && !risky(3)) { if (Engine.T.bundleRandom) return { skill: "bundle" }; const t = giftTarget(g, p); if (t) return { skill: "bundle", target: t }; }
     if (g.canSkill(p, "halluc") && (Engine.T.hallucCost ? p.hand.length >= 2 : true) && p.hp >= 2) return { skill: "halluc" };
     if (g.canSkill(p, "recall")) return { skill: "recall" };
-    // MiniMax 神奇海螺：手里有能打人的（吐槽、能当燃料的锦囊）就先问海螺，点到的人这回合什么都挡不了
-    if (g.canSkill(p, "magic") && (H("tucao").length || g.canSkill(p, "rocket"))) return { skill: "magic" };
+    // Muse 砍价：拿手牌多的人谈；代办：每回合交代一件事
+    if (g.canSkill(p, "haggle")) { const t = richest(g.skillTargets(p, "haggle").filter((q) => q.hand.length >= 2), p); if (t) return { skill: "haggle", target: t }; }
+    if (g.canSkill(p, "errand")) return { skill: "errand" };
+    // MiniMax 神奇海螺：手里有吐槽就先问海螺，点到的人这回合挡不了吐槽
+    if (g.canSkill(p, "magic") && H("tucao").length && p.tucao < g.limitTucao(p)) return { skill: "magic" };
     // 豆包 一键成片：刚打出的是好牌（吐槽 / 红包 / 白嫖……），手里还有牌可弃，就拍成视频再放一遍
     if (g.canSkill(p, "remake") && p.hand.length >= 2 && p.lastPlay && p.lastPlay.k === "tucao") return { skill: "remake" };
     // Kimi 排练：吐槽够用、或者乐队差最后一名、或者这回合已经吐槽完了，就写一首新歌；只有 1 张又能把人踢出群时先留着打
@@ -251,12 +262,12 @@ window.AI = (function () {
     // 7. 吐槽
     if (H("tucao").length && p.tucao < g.limitTucao(p)) {
       const ev = p.evidence && p.evidence.alive && g.rivals(p).includes(p.evidence) ? p.evidence : null;   // 截过图的那个先打
-      const orc = p.oracle && p.oracle.alive && g.rivals(p).includes(p.oracle) ? p.oracle : null;   // 神奇海螺点的人挡不了，先打她
+      const orc = p.oracle && p.oracle.alive && g.rivals(p).includes(p.oracle) ? p.oracle : null;   // 神奇海螺点的人挡不了吐槽，先打她
       const t = ev || orc || pickTarget(g, p, others); if (t) return use(H("tucao")[0], [t]);
     }
     // MiniMax 兔子快递：能出的牌都出完了，把剩下用不上的锦囊当燃料发射火箭
-    if (g.canSkill(p, "rocket")) {
-      const ts = g.skillTargets(p, "rocket"), t = p.oracle && ts.includes(p.oracle) ? p.oracle : pickTarget(g, p, ts);   // 海螺点的人挡不了，砸她
+    if (g.canSkill(p, "rocket") && value(g, p, g.rocketFuel(p)) < 7) {   // 只剩反驳这类保命牌时不烧
+      const ts = g.skillTargets(p, "rocket"), t = pickTarget(g, p, ts);
       if (t) return { skill: "rocket", target: t };
     }
     if (g.canSkill(p, "reset") && g.round >= 4 && p.hand.length <= 2) return { skill: "reset" };
@@ -296,6 +307,6 @@ window.AI = (function () {
   // 豆包：吐槽被挡后要不要弃牌接着说；GPT：没反驳时要不要弃一张硬顶
   function wantLong(g, p, t) { return p.hand.length >= 2 || t.hp <= 1; }
   function wantZuiying(g, t, p) { return t.hp <= 2 || t.hand.length >= 4; }
-  return { choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard, treatTarget,
+  return { choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard, treatTarget, autoTargets,
     drawOrder, placeBomb, bombChoice, wantMoyu, arrange };
 })();
