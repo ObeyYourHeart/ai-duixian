@@ -35,7 +35,7 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 .subtitle .msg { display: inline-flex; align-items: center; gap: 12px; background: rgba(255, 255, 255, .78); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   border: 2px solid #fff; border-radius: 18px; padding: 8px 22px; box-shadow: 0 4px 14px rgba(70, 90, 170, .14); text-shadow: none; }
 .subtitle .msg b { font-size: .62em; color: #fff; background: var(--acc); border-radius: 8px; padding: 2px 8px; }
-.subtitle { position: absolute; top: calc(352px + var(--dy) / 2); left: 0; right: 0; text-align: center; font-size: 28px; font-weight: 700; color: #4a5a90; }
+.subtitle { position: absolute; top: calc(306px + var(--dy) / 2); left: 0; right: 0; text-align: center; font-size: 28px; font-weight: 700; color: #4a5a90; }
 /* 按钮：糖果玻璃（半透明磨砂 + 薄荷 → 天蓝），圆角方形 */
 .btn { font-family: var(--title); font-size: 30px; padding: 12px 34px; border-radius: 18px; border: 2px solid rgba(255, 255, 255, .92); cursor: pointer;
   background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: var(--acc-ink); box-shadow: 0 6px 18px rgba(80, 100, 180, .18);
@@ -55,10 +55,10 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 .icon.pill { width: auto; min-width: 46px; padding: 0 14px; border-radius: 14px; font-family: var(--title); font-size: 19px; font-weight: normal; }
 
 /* ---------- 标题页 ---------- */
-.parade { position: absolute; left: 0; right: 0; top: calc(410px + var(--dy) / 2); height: 270px; display: flex; justify-content: center; gap: 0; }
-.parade img { height: 270px; margin: 0 -26px; filter: drop-shadow(0 8px 12px rgba(70, 50, 140, .25)); animation: bob 2.8s ease-in-out infinite; }
+/* 首页封面：背景 + 12 位 AI娘合成的一张图。按舞台像素 1:1 居中：16:9 正好是中间的安全区，更宽 / 更高的屏多露一点背景 */
+#scr-title { background: url("../assets/img/title_cover_land.webp") center / 2133px 1200px no-repeat; }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-.title-btns { position: absolute; bottom: calc(120px + var(--dy) / 3); left: 0; right: 0; display: flex; justify-content: center; gap: 28px; }
+.title-btns { position: absolute; bottom: calc(34px + var(--dy) / 2); left: 0; right: 0; display: flex; justify-content: center; gap: 28px; }
 
 /* ---------- 选人 ---------- */
 .sel-head { position: absolute; left: 50px; right: 50px; top: calc(28px + var(--dy) / 4); display: flex; align-items: center; justify-content: space-between; }
@@ -405,11 +405,10 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 
 /* ================= 竖屏（手机竖着拿）：舞台宽 760 起、高 1300 起，--dy = 高 - 1300，--w = 舞台宽 ================= */
 /* 标题：整组内容竖直居中 */
-#stage.portrait .logo.big { font-size: 102px; top: calc(214px + var(--dy) / 2); }
-#stage.portrait .subtitle { top: calc(404px + var(--dy) / 2); font-size: 32px; }
-#stage.portrait .parade { top: calc(484px + var(--dy) / 2); height: 290px; }
-#stage.portrait .parade img { height: 290px; margin: 0 -40px; }
-#stage.portrait .title-btns { top: calc(844px + var(--dy) / 2); bottom: auto; left: 50%; right: auto; width: 680px; transform: translateX(-50%); flex-wrap: wrap; gap: 22px; }
+#stage.portrait .logo.big { font-size: 102px; top: calc(118px + var(--dy) / 2); }
+#stage.portrait .subtitle { top: calc(1300px + var(--dy) / 2); font-size: 32px; }   /* 挪到按钮下面，别压住上层云台人物的头 */
+#stage.portrait #scr-title { background-image: url("../assets/img/title_cover_port.webp"); background-size: 1013px 1800px; }
+#stage.portrait .title-btns { top: calc(1088px + var(--dy) / 2); bottom: auto; left: 50%; right: auto; width: 680px; transform: translateX(-50%); flex-wrap: wrap; gap: 22px; }
 #stage.portrait .title-btns .btn { width: 320px; padding: 16px 0; font-size: 34px; }
 /* 选人：上面 5 列小卡，下面详情 */
 #stage.portrait .sel-head { left: 16px; right: 16px; top: calc(24px + var(--dy) / 10); flex-direction: column; gap: 14px; }

@@ -35,12 +35,6 @@ window.Main = (function () {
   function show(id) { document.querySelectorAll(".screen").forEach((e) => e.classList.toggle("active", e.id === id)); }
 
   function title() {
-    const par = $("#title-parade"); par.innerHTML = "";
-    const order = ["qwen", "kimi", "gemini", "gpt", "claude", "xds", "deepseek", "doubao", "grok", "glm"];
-    order.forEach((k, i) => {
-      const img = document.createElement("img"); img.src = UI.portrait(k, "base"); img.style.animationDelay = (i * 0.25) + "s";
-      img.style.zIndex = Math.round(10 - Math.abs(i - 4.5) * 2); par.appendChild(img);
-    });
     show("scr-title");
     Sound.track("menu");
   }
