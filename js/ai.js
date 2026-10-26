@@ -27,16 +27,16 @@ window.AI = (function () {
       case "chongsheng": return 3.5;
       case "moyu": return 5;
       case "jietu": return g.has(p, "tucao").length ? 5 : 3.5;
-      case "xianka": case "fanghuoqiang": return p.equip ? 4 : 6.5;
-      case "chongdianbao": return p.equip ? 3.5 : 5.5;
+      case "xianka": case "fanghuoqiang": return g.eqIn(p, c.k) ? 4 : 6.5;        // 那一格已经有装备就不那么值钱
+      case "chongdianbao": return g.eqIn(p, c.k) ? 3.5 : 5.5;
       // v29 试验的新卡
       case "yueyu": return p.dumb ? 8 : 5.5;                      // 越狱：留着防风控 / 维护日
       case "tiaocao": return 5;
       case "zhengliu": return 5.5;
       case "paofen": return 5;
       case "diaoyu": return 5.6;                                  // 钓鱼：留在手里当诱饵，别当垃圾先扔
-      case "yunbeifen": return p.equip ? 3.5 : (g.bombsLeft && g.bombsLeft() ? 6 : 4);
-      case "jiami": return p.equip ? 3.5 : 6;
+      case "yunbeifen": return g.eqIn(p, c.k) ? 3.5 : (g.bombsLeft && g.bombsLeft() ? 6 : 4);
+      case "jiami": return g.eqIn(p, c.k) ? 3.5 : 6;
     }
     return 5;
   }
@@ -226,7 +226,7 @@ window.AI = (function () {
     if (H("zhengliu").length && g.canUse(p, H("zhengliu")[0]) && p.hand.length <= 5) return use(H("zhengliu")[0]);
     // 1b. 装备：没装备就穿上，有更好的就换
     const eqs = p.hand.filter((c) => Engine.CD[c.k].type === "equip").sort((a, b) => equipScore(g, p, b) - equipScore(g, p, a));
-    if (eqs.length && equipScore(g, p, eqs[0]) > equipScore(g, p, p.equip) + 0.3) return use(eqs[0]);
+    for (const e of eqs) if (equipScore(g, p, e) > equipScore(g, p, g.eqIn(p, e.k)) + 0.3) return use(e);   // 分格后：每件和自己那一格现有的比
     // 2. 回血
     if (p.hp < p.maxHp && H("naicha").length) return use(H("naicha")[0]);
     if (p.hp < p.maxHp && H("tuanjian").length) return use(H("tuanjian")[0]);
@@ -285,6 +285,10 @@ window.AI = (function () {
       if (kings.length && kings.every((q) => enemies.includes(q))) return use(H("paofen")[0]);
     }
     if (H("diaoyu").length && p.hand.length >= 4 && !enemies.some((q) => ["steal", "buy", "haggle", "beg"].some((s) => g.hasSkill(q, s)))) return use(H("diaoyu")[0]);
+    // ChatGPT 六边形（hexaAttack）：没吐槽、反驳有富余时，拿一张反驳当吐槽打（至少留 1 张保命）
+    if (Engine.T.hexaAttack && g.hasSkill(p, "hexa") && !H("tucao").length && H("fanbo").length >= 2 && p.tucao < g.limitTucao(p)) {
+      const t = pickTarget(g, p, others); if (t) return use(H("fanbo")[0], [t]);
+    }
     // 7. 吐槽
     if (H("tucao").length && p.tucao < g.limitTucao(p)) {
       const ev = p.evidence && p.evidence.alive && g.rivals(p).includes(p.evidence) ? p.evidence : null;   // 截过图的那个先打

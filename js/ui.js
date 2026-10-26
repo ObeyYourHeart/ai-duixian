@@ -14,7 +14,7 @@ window.UI = (function () {
     5: [{ x: 36, y: 568 }, { x: 940, y: 80 }, { x: 720, y: 80 }, { x: 500, y: 80 }, { x: 280, y: 80 }],
     6: [{ x: 36, y: 568 }, { x: 1002, y: 80 }, { x: 814, y: 80 }, { x: 626, y: 80 }, { x: 438, y: 80 }, { x: 250, y: 80 }] };   // 6 人：对手卡缩到 0.84 排一行
   let PILE = { x: 710, y: 480 }, DECK = { x: 420, y: 480 };
-  const EQ_ICON = { xianka: "🎮", fanghuoqiang: "🛡", chongdianbao: "🔋" };
+  const EQ_ICON = { xianka: "🎮", fanghuoqiang: "🛡", chongdianbao: "🔋", yunbeifen: "☁️", jiami: "🔐" };
   const HEART = '<svg class="heart%c" viewBox="0 0 24 22"><path d="M12 20.5C5 15 1.5 11.6 1.5 7.2 1.5 4 4 1.5 7.1 1.5c2 0 3.8 1 4.9 2.6C13.1 2.5 14.9 1.5 16.9 1.5 20 1.5 22.5 4 22.5 7.2c0 4.4-3.5 7.8-10.5 13.3z"/></svg>';
 
   let g = null, heroes = [], exprTimers = {}, lastSay = {};
@@ -118,7 +118,7 @@ window.UI = (function () {
     hi.className = "hidden"; infoP = null;
     relayout();
     const me = g.human;
-    const GOAL = { lord: "守住群：把黑粉和潜水党都踢出群", loyal: "暗中帮群主，踢掉黑粉和潜水党", rebel: "把群主踢出群", spy: "先潜水，最后单挑踢掉群主，自己当新群主" };
+    const GOAL = { lord: "守住群：把黑粉和潜水党都踢出群", loyal: "暗中帮群主，踢掉黑粉和潜水党", rebel: "把群主踢出群", spy: "先装成管理员帮群主踢黑粉，黑粉清完就反水踢管理员，最后单挑群主，自己当新群主" };
     const NA = window.GAME_DATA.nations || {}, mates = g.players.filter((q) => q !== me && q.team === me.team).map((q) => q.name).join("、");
     const goal = g.mode === "team" && g.nation ? `全明星赛：你在 <b>${(NA[me.ch.nation] || {}).name}</b>，队友 <b>${mates}</b>。`
       : g.mode === "team" ? `你和 <b>${mates}</b> 一队。`
@@ -165,7 +165,7 @@ window.UI = (function () {
       if (p.disguise) st += '<span class="boost">🎭 冒充 Claude</span>';
       if (g.players[g.cur] && g.players[g.cur].oracle === p) st += '<span class="bomb">🐚 被海螺点名</span>';
       if (g.bomb && g.bomb.holder === p) st += '<span class="bomb">💣 宕机预警</span>';
-      if (p.equip) st += `<span class="eq">${EQ_ICON[p.equip.k] || "🧰"} ${CD[p.equip.k].name}</span>`;
+      for (const eq of g.equips(p)) st += `<span class="eq">${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`;   // 分格后可能不止一件
       h.querySelector(".status").innerHTML = st;
       const bd = h.querySelector(".band");
       if (bd) {                                                    // Kimi 的乐队：到了几名乐手，空位是虚线
@@ -307,7 +307,7 @@ window.UI = (function () {
     const st = heroStatus(p);
     box.style.setProperty("--c", p.ch.color); box.style.setProperty("--l", p.ch.light);
     box.innerHTML = `<div class="hi-head"><img src="${portrait(p.key, "avatar")}" alt=""><div class="hi-nm"><b>${p.name}</b><small>${p.ch.title}</small></div><button class="hi-x" title="关闭">✕</button></div>
-      <div class="hi-stat"><span>❤ 心态 ${Math.max(0, p.hp)} / ${p.maxHp}</span><span>🂠 手牌 ${p.hand.length}（上限 ${g.handLimit(p)}）</span>${p.equip ? `<span>🧰 ${CD[p.equip.k].name}</span>` : ""}${side ? `<span>${side}</span>` : ""}${p.alive ? "" : "<span>已退群</span>"}</div>
+      <div class="hi-stat"><span>❤ 心态 ${Math.max(0, p.hp)} / ${p.maxHp}</span><span>🂠 手牌 ${p.hand.length}（上限 ${g.handLimit(p)}）</span>${g.equips(p).map((eq) => `<span>${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`).join("")}${side ? `<span>${side}</span>` : ""}${p.alive ? "" : "<span>已退群</span>"}</div>
       ${st.length ? `<div class="hi-st">${st.join(" · ")}</div>` : ""}
       ${rel ? `<div class="hi-rel ${rel}"><b>${REL_NAME[rel]}</b>${relRow}</div>` : ""}
       ${p !== me && window.Props ? `<div class="hi-props"><div class="hp-row">${Props.kindsFor(me).map((k) => `<button class="hp-b${Props.KINDS[k].owner ? " sig" : ""}" data-k="${k}" title="${Props.KINDS[k].name}${Props.KINDS[k].owner ? "（你的专属）" : ""}"><img src="${A(`assets/img/prop_${k}.webp`)}" alt=""><span>${Props.KINDS[k].name}</span></button>`).join("")}</div>
@@ -481,6 +481,7 @@ window.UI = (function () {
   function expr(p, e, ms) {
     const img = heroes[p.i] && heroes[p.i].querySelector(".por img");
     if (!img) return;
+    if (p.disguise && e === "win") e = "cheer";                                   // 变身中的小DeepSeek 没有 win 图，用得意忘形那张
     if (p.disguise && e === "smug") e = ["smug", "tea", "cheer"][Math.floor(Math.random() * 3)];
     img.src = portrait(pkey(p), e);
     heroes[p.i].querySelector(".por").animate([{ transform: "translateX(-50%) scale(1.06)" }, { transform: "translateX(-50%) scale(1)" }], { duration: 220, easing: "ease-out" });
@@ -511,7 +512,7 @@ window.UI = (function () {
     $("#fx").appendChild(wrap);
     if (key === "exposed") expr(p, "exposed", 1800);
     else if (HURT_KEYS.includes(key)) expr(p, "hurt", key === "out" ? 0 : 1600);
-    else if (SMUG_KEYS.includes(key)) expr(p, "smug", 1400);
+    else if (SMUG_KEYS.includes(key)) expr(p, key === "win" ? "win" : "smug", 1400);   // 赢的时候用胜利立绘（v30）
     setTimeout(() => wrap.remove(), Math.max(1800, text.length * 170));
     return (window.VOICES || {})[`${p.key}_${key}${idx}`] || 0;   // 配音时长（毫秒），没有配音返回 0
   }
@@ -1061,7 +1062,7 @@ window.UI = (function () {
       title = won ? "你成了群主！" : `${w.name} 成了群主`;
       sub = won ? "全群都被你怼服了。" : me.alive ? "" : "你破防退群了……下次再来！";
     }
-    $("#modal-body").innerHTML = `<div class="result"><img src="${w.disguise ? portrait("xds_cl", "cheer") : portrait(w.key, "smug")}" alt="">
+    $("#modal-body").innerHTML = `<div class="result"><img src="${w.disguise ? portrait("xds_cl", "cheer") : portrait(w.key, "win")}" alt="">
       <div class="rr"><div class="rt">${title}</div>
       <p>${sub}</p>
       <div class="rank">${rank}</div>
