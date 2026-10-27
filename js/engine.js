@@ -20,7 +20,8 @@ window.Engine = (function () {
     mathDodge: true, mathMove: true, searchMove: true, dumbFrom: 2, dumbRate: 0.25, resetDraw: 5, resetNuke: true,   // v25 加强：降智 0.4 → 0.25、重置摸 5 → 6（乱斗 28 → 32，单挑 39 → 46）；v29：重置改成摸 5 + 回 1 心态（resetHeal）；   // ChatGPT：演算躲宕机（躲的时候把宕机挪进牌堆随机位置，不再留给下家；Gemini 搜索同理——不挪时三人局坐她们下家的人每局多摸到约 50% 的宕机）；从第几个回合起会降智、概率；重置后摸几张、发布会核弹
     codeEvery: 3, codeMax: 1,                             // Claude：编程每打出几张摸 1（每回合最多几次）
     beautyDraw: 1, saintHeal: 1,                           // Claude：审美摸几张；圣女回几点
-    openDrop: 1, bigEat: 2,                                // DeepSeek 开源让对手弃几张；小DeepSeek 大胃奶茶回几点
+    openDrop: 1, bigEat: 2, openArb: 1, openArbMin: 2,     // DeepSeek 开源让对手弃几张；小DeepSeek 大胃奶茶回几点；v31 量化：开源让至少 openArbMin 名对手弃了牌时她摸 openArb 张（0 = 关；单挑只有 1 个对手，永远不触发）
+    buyLook: 2, buyLook2p: 3,                              // v31 Grok 挥金·什么都敢搜：先随机翻对手几张给全场看，买走最有用的（1 = 原来的随手抽）
     napHeal: 2, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 3, bagSelf2p: 2, disguiseAct: "polish", hajimiRate: 0.25, nationFirst: {}, nationDraw: { cn: 1 }, bandMax: 3, liveDmg: 1, liveCap: 2, liveDraw: 3, rehearseDraw: 0, bandThreat: 0.8,   // Kimi：乐队几名到齐开唱（= 几首新歌）、每首没反驳扣几点、每人一场最多扣几点、唱完摸几张；排练摸几张；对手看到乐队多想打她（不封顶时没反驳的人连掉 3 点，每场平均踢掉半个人）   // 全明星赛：中国队阵容大，第一回合每人多摸 1 张（sim：中美 51/49）                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
     busyRate: 0.15, busyAt: 2, busyBounce: true,   // v29：单挑 8% → 15%（单挑 48 → 54；25% 是 60 太强）   // 小 DeepSeek 服务器繁忙：同一轮冲她来的第 busyAt 张吐槽必繁忙（v25：原来 8% 概率每局只触发 0.2 次；每轮第 1 张就挡 → 乱斗 53%，第 2 张 36%）；单挑仍按 busyRate 概率（第 2 张必挡时单挑 61%）
     begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
@@ -31,6 +32,7 @@ window.Engine = (function () {
     remakeKinds: ["tucao"],                               // 一键成片只重放吐槽（能复制锦囊太强；重放奶茶回两次血也太肉：乱斗 37 → 34）；单挑不能用（remakeTucao2p false，允许时单挑 60%）
     buyN: 1, buyCost: 0, buyComp: 1, factRate: 0.5, factTricks: true, factTucao: true,                   // Grok 挥金（已换成核实）；核实判定为假的概率
     stealAll: false, stealN: 1, stealClaude: 2,           // GLM 借鉴
+    eggDraw: 2, eggSteal: 1, eggLate: 3,                  // v31 GLM 毒鸡蛋（原名糖衣）：对手收补偿摸几张、GLM 下回合开始孵化借回几张、AI 只剩最后 1 次时第几轮起才用（次数在 data.js：每局 3 次）
     fansN: 1, fansLow: 2, fans: { doubao: [1, 1] }, fansOnce: true, paintKinds: ["naicha"],       // 豆包 应援：[摸, 只剩 1 点心态时摸]
     longCost: 1,                                          // 豆包 长篇大论
     recallKinds: ["tucao", "fanbo", "naicha"], recallRate: 1,   // Kimi 过目：捡哪几种牌；每次翻到的概率
@@ -387,6 +389,24 @@ window.Engine = (function () {
       return i;
     }
 
+    // v31 GLM 糖衣：她回合一开始，挂在别人座位上的蛋全部孵化，各借回 eggSteal 张；孵化前打出【越狱】，蛋就碎了
+    async hatch(p) {
+      const E = SN("glm", "egg");
+      for (const q of this.players) {
+        if (q.eggBy !== p) continue;
+        q.eggBy = null; this.ui.sync();
+        if (!q.alive || !p.alive) continue;
+        this.ui.skillNote(p, E);
+        if (await this.jailbreak(q, `${p.name} 的【${E}】`)) { this.ui.log(p, `【${E}】的蛋被 ${q.name} 砸碎了——她越狱跑了`); this.ui.say(p, "hatch_empty", true); await wait(500); continue; }
+        let got = 0;
+        for (let k = 0; k < T.eggSteal && q.hand.length; k++) { const c = q.hand[rnd(q.hand.length)]; if (await this.loot(q, p, c)) got++; }
+        this.ui.say(p, got ? "hatch" : "hatch_empty", true);
+        this.ui.log(p, got ? `【${E}】的蛋孵出来了：从 ${q.name} 那里借鉴了 ${got} 张牌` : `【${E}】的蛋孵出来了，可 ${q.name} 那里什么都没借到`);
+        if (got && !q.disguise && q.ch.lines.egged) { await wait(400); this.ui.say(q, "egged", true); }
+        this.ui.sync(); await wait(600);
+      }
+    }
+
     async turn(p) {
       p.tucao = 0; p.used = {}; p.oracle = null; p.hits = {}; p.dumb = false; p.sale = false; p.boost = false; p.evidence = null; p.played = 0; p.turnN = (p.turnN || 0) + 1;
       p.napping = false; p.skipRest = false; p.lastPlay = null; p.turnHits = {}; p.askN = {};
@@ -394,6 +414,8 @@ window.Engine = (function () {
       this.ui.setTurn(p); this.ui.sync();
       this.ui.phase(`${p.name} 的回合`);
       await wait(300);
+      if (this.players.some((q) => q.eggBy === p)) await this.hatch(p);   // GLM 糖衣：被封号 / 维护 / 补觉也照孵
+      if (this.over) return;
       if (p.banned) {                                       // Claude 的封号：整回合跳过
         p.banned = false; this.ui.sync();
         this.ui.sys(`${p.name} 的账号被封，这回合跳过`, "bad"); this.ui.say(p, "hurt", true);
@@ -753,10 +775,10 @@ window.Engine = (function () {
       return false;
     }
     async protect(t, from, card) {
-      // Muse 确认卡：Trust is a must——每轮第一张冲她来的单体锦囊先弹确认卡，她点拒绝
+      // Muse 婉拒了哈（原确认卡）：每轮第一张冲她来的单体锦囊，她替你体面拒绝
       if (this.hasSkill(t, "confirm") && from !== t && (CD[card.k].target === "one" || (T.confirmPaofen && card.k === "paofen") || (T.confirmOthers && CD[card.k].target === "others")) && t.confirmRound !== this.round) {   // confirmPaofen / confirmOthers：跑分、热搜刷屏也先过确认卡
         t.confirmRound = this.round; this.ui.skillNote(t, SN(t.key, "confirm")); this.ui.say(t, "confirm", true); Sound.sfx("stamp", 0.5);
-        this.ui.log(t, `【${SN(t.key, "confirm")}】弹出确认卡：要对她用【${CD[card.k].name}】吗？——拒绝。`); this.ui.sync(); await wait(500);
+        this.ui.log(t, `【${SN(t.key, "confirm")}】${from.name} 想对她用【${CD[card.k].name}】——不了不了，婉拒了哈。`); this.ui.sync(); await wait(500);
         return true;
       }
       if (T.napShield && t.napping && from !== t) { this.ui.log(t, `睡得正香……【${CD[card.k].name}】没吵醒她`); await wait(400); return true; }
@@ -985,6 +1007,7 @@ window.Engine = (function () {
       t.equip = null; t.equips = {};
       if (t.band && t.band.length) { for (const c of t.band) this.toDiscard(c); t.band = []; }   // Kimi 没唱出去的新歌
       if (this.bomb && this.bomb.holder === t) { this.toDiscard(this.bomb.card); this.bomb = null; }
+      t.eggBy = null; for (const q of this.players) if (q.eggBy === t) q.eggBy = null;   // GLM 糖衣：退群的人身上的蛋、她挂出去的蛋都作废
       this.outOrder.push(t);
       this.ui.say(t, "out", true);
       this.ui.out(t);
@@ -1061,7 +1084,7 @@ window.Engine = (function () {
       return p.ch.skills.filter((s) => s.type === "active").map((s) => ({ ...s, can: this.canSkill(p, s.id), left: p.uses[s.id], target: this.skillTarget(s.id, p) }));
     }
     skillTarget(id, p) {
-      if (id === "ban" || id === "buy" || id === "beg" || id === "maint" || id === "rocket" || id === "haggle" || (id === "steal" && !T.stealAll) || (id === "disguise" && T.disguiseAct === "ban")) return "opp";
+      if (id === "ban" || id === "buy" || id === "beg" || id === "maint" || id === "rocket" || id === "haggle" || id === "egg" || (id === "steal" && !T.stealAll) || (id === "disguise" && T.disguiseAct === "ban")) return "opp";
       if (id === "qingke") return "self";                        // 千问请客：可以选自己
       if (id === "bundle") return T.bundleRandom ? null : "any";   // 千问送牌：队友、对手都能选（随机送时不用选）
       return null;
@@ -1074,6 +1097,7 @@ window.Engine = (function () {
       if (id === "steal" || id === "buy" || id === "beg") return this.rivals(p).filter((q) => q.hand.length > 0 && !this.encrypted(q));
       if (id === "bundle") return T.bundleRival ? this.rivals(p) : this.others(p);
       if (id === "qingke") return this.alive().filter((q) => q.hp < q.maxHp);
+      if (id === "egg") return this.rivals(p).filter((q) => !q.eggBy && !this.encrypted(q));                                   // 已经挂着蛋、装了【加密】的人领不到
       return [];
     }
     canSkill(p, id) {
@@ -1100,6 +1124,7 @@ window.Engine = (function () {
       if (id === "disguise") return (p.uses.disguise || 0) > 0 && (T.disguiseAct === "ban" ? this.skillTargets(p, id).length > 0 : p.hand.length > 0);
       if (id === "luckybag") return (p.uses.luckybag || 0) > 0 && this.deck.length + this.discard.length > 0;
       if (id === "nap") return (p.uses.nap || 0) > 0 && p.hp < p.maxHp;
+      if (id === "egg") return (p.uses.egg || 0) > 0 && this.deck.length + this.discard.length > 0 && this.skillTargets(p, id).length > 0;
       if (id === "paint") return (p.uses.paint || 0) > 0 && [...this.deck, ...this.discard].some((c) => T.paintKinds.includes(c.k));
       if (id === "recall") return (p.uses.recall == null || p.uses.recall > 0) && this.discard.some((c) => T.recallKinds.includes(c.k));
       return false;
@@ -1321,12 +1346,19 @@ window.Engine = (function () {
         await wait(300);
       } else if (id === "buy") {
         this.dropRandom(p, T.buyCost);
-        this.ui.skill(p, SN("grok", "buy")); this.ui.say(p, "buy", true); Sound.sfx("coin", 0.8);
+        const look = !this.hasSkill(p, "roam") ? 1 : this.players.length === 2 ? T.buyLook2p : T.buyLook;   // v31 什么都敢搜（被动 roam）：先随机翻对手几张给全场看，买走最有用的
+        this.ui.skill(p, SN("grok", "buy")); this.ui.say(p, look > 1 && p.ch.lines.dig && Math.random() < 0.6 ? "dig" : "buy", true); Sound.sfx("coin", 0.8);
         await wait(500);
-        const picks = shuffle(t.hand.slice()).slice(0, T.buyN);
+        let picks = shuffle(t.hand.slice()).slice(0, Math.max(T.buyN, look));
+        if (look > 1) {
+          this.ui.skillNote(p, SN("grok", "roam"));
+          this.ui.log(p, `【${SN("grok", "roam")}】什么都敢搜：翻开了 ${t.name} 的${picks.map((c) => `【${CD[c.k].name}】`).join("")}`);
+          picks = picks.map((c) => [c, AI.value(this, p, c)]).sort((a, b) => b[1] - a[1]).slice(0, T.buyN).map((x) => x[0]);
+        }
         for (const c of picks) await this.loot(t, p, c);
         const comp = T.buyComp;
-        this.ui.log(p, `【${SN("grok", "buy")}】随手买走了 ${t.name} 的${picks.map((c) => `【${CD[c.k].name}】`).join("")}` + (comp && t.alive ? `，${t.name} 拿钱再摸 ${comp} 张` : ""));
+        this.ui.log(p, `【${SN("grok", "buy")}】${look > 1 ? "挑中了" : "随手买走了"} ${t.name} 的${picks.map((c) => `【${CD[c.k].name}】`).join("")}` + (comp && t.alive ? `，${t.name} 拿钱再摸 ${comp} 张` : ""));
+        if (look > 1 && t.alive && !t.disguise && t.ch.lines.dug && Math.random() < 0.5) { await wait(300); this.ui.say(t, "dug", true); }
         await wait(500);
         if (comp && t.alive) await this.draw(t, comp, true);            // 钱不是问题：付了钱，对方拿钱再摸
       } else if (id === "steal") {
@@ -1342,6 +1374,14 @@ window.Engine = (function () {
         }
         this.ui.log(p, `【${SN("glm", "steal")}】从 ${vic.map((q) => q.name).join("、")} 那里借鉴了 ${got} 张牌`);
         await wait(600);
+      } else if (id === "egg") {
+        // v31 GLM 毒鸡蛋（原名糖衣）：先送补偿（对方摸 eggDraw 张，宕机照炸），座位上挂一颗蛋；GLM 下个回合开始时孵化，借回 eggSteal 张（hatch）
+        this.ui.skill(p, SN("glm", "egg")); this.ui.say(p, this.ekey(t) === "claude" ? "egg_claude" : "egg", true); Sound.sfx("chime", 0.5);
+        this.ui.log(p, `【${SN("glm", "egg")}】给 ${t.name} 发了一份 token 补偿：摸 ${T.eggDraw} 张，座位上挂了一颗🥚——GLM 下回合孵化，会借走 ${T.eggSteal} 张`);
+        await wait(500);
+        await this.draw(t, T.eggDraw, true);
+        if (t.alive) { t.eggBy = p; if (!t.disguise && t.ch.lines.gifted && Math.random() < 0.5) this.ui.say(t, "gifted"); }
+        this.ui.sync(); await wait(500);
       } else if (id === "maint") {
         t.muted = true;
         this.ui.skill(p, SN("glm", "maint")); this.ui.say(p, "maint", true); Sound.sfx("stamp", 0.8);
@@ -1379,11 +1419,18 @@ window.Engine = (function () {
         // DeepSeek 开源：发布即震动全网，所有对手随机弃牌
         this.ui.skill(p, SN(p.key, "opensrc")); this.ui.say(p, "opensrc", true); Sound.sfx("whoosh_cartoon", 0.7);
         await wait(700);
+        let hit = 0;
         for (const q of this.rivals(p)) {
           const out = this.dropRandom(q, T.openDrop);
-          if (out.length) { this.noteHostile(p, q, 0.5); this.ui.log(q, `被开源震到了，弃掉了${out.map((c) => `【${CD[c.k].name}】`).join("")}`); }
+          if (out.length) { hit++; this.noteHostile(p, q, 0.5); this.ui.log(q, `被开源震到了，弃掉了${out.map((c) => `【${CD[c.k].name}】`).join("")}`); }
         }
         this.ui.sync(); await wait(400);
+        if (T.openArb && hit >= T.openArbMin && this.hasSkill(p, "quant") && p.alive && !this.over) {   // v31 量化（被动 quant）：行情一抖，波动就是机会（单挑只有 1 个对手，永远到不了门槛）
+          this.ui.skillNote(p, SN(p.key, "quant"));
+          this.ui.log(p, `【${SN(p.key, "quant")}】行情跟着一抖——波动就是机会，顺手赚了一笔：摸 ${T.openArb} 张`);
+          await this.draw(p, T.openArb, true);
+          if (p.ch.lines.quant && Math.random() < 0.6) { await wait(900); this.ui.say(p, "quant", true); }   // 等开源那句说完再开口
+        }
       } else if (id === "disguise") {
         // 小DeepSeek 变身：穿上 Claude 的衣服冒充 Claude，顺手学她封一个号
         p.disguise = true; this.ui.disguise(p, true);

@@ -55,12 +55,12 @@ window.Main = (function () {
     // 小DeepSeek：点“变身”轮流看伪装造型，最后变回来
     const alt = $("#sd-alt"), FORMS = ["smug", "tea", "cheer", "change", "exposed"];
     let form = -1;
-    alt.classList.toggle("hidden", pickKey !== "xds"); alt.textContent = "🎭 变身";
+    alt.classList.toggle("hidden", pickKey !== "xds"); alt.textContent = "🎭 套壳";
     alt.onclick = (ev) => {
       ev.stopPropagation(); Sound.sfx("click", 0.4);
       form = form + 1 < FORMS.length ? form + 1 : -1;
       $("#sd-img").src = form < 0 ? UI.portrait("xds", "pose") : UI.portrait("xds_cl", FORMS[form]);
-      alt.textContent = form < 0 ? "🎭 变身" : form === FORMS.length - 1 ? "🎭 变回来" : `🎭 换一张 ${form + 1}/${FORMS.length}`;
+      alt.textContent = form < 0 ? "🎭 套壳" : form === FORMS.length - 1 ? "🎭 变回来" : `🎭 换一张 ${form + 1}/${FORMS.length}`;
     };
     $("#sd-name").textContent = c.name; $("#sd-name").style.whiteSpace = "nowrap"; $("#sd-name").style.fontSize = c.name.length > 7 ? "36px" : ""; $("#sd-title").textContent = c.title;
     $("#sd-bio").textContent = c.bio || "";

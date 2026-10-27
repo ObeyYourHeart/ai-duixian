@@ -163,6 +163,7 @@ window.UI = (function () {
       if (p.boost) st += '<span class="boost">🔥 加班中</span>';
       if (p.napping) st += '<span>😴 补觉中</span>';
       if (p.disguise) st += '<span class="boost">🎭 冒充 Claude</span>';
+      if (p.eggBy) st += '<span class="bomb">🥚 领了鸡蛋</span>';
       if (g.players[g.cur] && g.players[g.cur].oracle === p) st += '<span class="bomb">🐚 被海螺点名</span>';
       if (g.bomb && g.bomb.holder === p) st += '<span class="bomb">💣 宕机预警</span>';
       for (const eq of g.equips(p)) st += `<span class="eq">${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`;   // 分格后可能不止一件
@@ -280,8 +281,9 @@ window.UI = (function () {
     if (s.id === "fans" && p.used && p.used.fans) out.push("这轮刷过礼物");
     if (s.id === "disguise" && p.disguise) out.push("伪装中");
     if (s.id === "nap" && p.napping) out.push("睡着了");
+    if (s.id === "egg") { const on = g.players.filter((q) => q.eggBy === p).map((q) => q.name); out.push(on.length ? `蛋挂在 ${on.join("、")} 身上，下回合孵化` : "还没挂蛋"); }
     if (s.id === "magic" && p.oracle && g.cur === p.i) out.push(`海螺点了 ${p.oracle.name}`);
-    if (s.id === "confirm") out.push(p.confirmRound === g.round ? "这轮的确认卡用过了" : "下一张单体锦囊会被拒绝");
+    if (s.id === "confirm") out.push(p.confirmRound === g.round ? "这轮已经婉拒过了" : "下一张冲她的单体锦囊会被婉拒");
     if (s.id === "busy" && g.players.length > 2) out.push(p.busyRound === g.round && p.busyHits >= Engine.T.busyAt ? "这轮已经繁忙过了" : p.busyRound === g.round && p.busyHits === Engine.T.busyAt - 1 ? "下一张吐槽必挡" : "这轮还没人吐槽她");
     if (s.id === "remake") out.push(p.lastPlay ? (g.remakeTargets(p) ? `能重放【${CD[p.lastPlay.k].name}】` : `【${CD[p.lastPlay.k].name}】放不了`) : "这回合还没出牌");
     if (s.id === "rehearse") out.push(`乐队 ${(p.band || []).length} / ${Engine.T.bandMax}`);
@@ -293,6 +295,7 @@ window.UI = (function () {
     const st = [];
     if (p.banned) st.push("🚫 封号中"); if (p.muted) st.push("🔇 禁言中"); if (p.dumb) st.push("❓ 降智中");
     if (p.napping) st.push("😴 补觉中"); if (p.disguise) st.push("🎭 正在冒充 Claude");
+    if (p.eggBy) st.push(`🥚 领了 ${p.eggBy.name} 的鸡蛋：她下回合开始会借走 ${Engine.T.eggSteal} 张（手里有【越狱】能砸碎）`);
     if (p.band && p.band.length) st.push(`🎸 乐队 ${p.band.length} / ${Engine.T.bandMax}${p.band.length >= Engine.T.bandMax ? "，随时开唱" : ""}`);
     if (p.offline) st.push("📵 断网中"); if (p.boost) st.push("🔥 加班中");
     return st;
@@ -488,9 +491,9 @@ window.UI = (function () {
     clearTimeout(exprTimers[p.i]);
     if (ms && p.alive) exprTimers[p.i] = setTimeout(() => { if (p.alive && g) img.src = portrait(pkey(p), "base"); }, ms);
   }
-  const HURT_KEYS = ["hurt", "hajimi", "out", "stolen", "fury", "halluc", "low", "mourn"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
+  const HURT_KEYS = ["hurt", "hajimi", "out", "stolen", "fury", "halluc", "low", "mourn", "egged"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
     "polish", "zuiying", "beg", "beg_gpt", "beg_claude", "claw", "dad", "maint", "long", "busy", "fed", "think", "sis", "search", "know", "sorry", "bundle", "sale",
-    "ko", "def", "qingke", "qingke_self", "pact_end"];
+    "ko", "def", "qingke", "qingke_self", "pact_end", "egg", "egg_claude", "hatch"];
   function say(p, key, important) {
     if (!g) return;
     const arr = p.ch.lines[key];

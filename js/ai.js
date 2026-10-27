@@ -100,7 +100,7 @@ window.AI = (function () {
     if (c.k === "chongdianbao") return 1.6 + (p.hand.length > p.hp ? 1 : 0);
     // v29 试验：云备份看牌堆里还有没有宕机（自托管的人不需要）；加密看对手里有没有爱拿牌的
     if (c.k === "yunbeifen") return g.hasSkill(p, "edge") || !(g.bombsLeft && g.bombsLeft()) ? 0.5 : 2.4 + (p.hp <= 2 ? 0.8 : 0);
-    if (c.k === "jiami") return 1.2 + (g.rivals(p).some((q) => ["steal", "buy", "haggle", "beg"].some((s) => g.hasSkill(q, s))) ? 1.8 : 0) + (p.hand.length >= 4 ? 0.5 : 0);
+    if (c.k === "jiami") return 1.2 + (g.rivals(p).some((q) => ["steal", "buy", "haggle", "beg", "egg"].some((s) => g.hasSkill(q, s))) ? 1.8 : 0) + (p.hand.length >= 4 ? 0.5 : 0);
     return 0;
   }
   function treatTarget(g, p) {
@@ -301,6 +301,8 @@ window.AI = (function () {
       if (t) return { skill: "rocket", target: t };
     }
     if (g.canSkill(p, "reset") && g.round >= 4 && p.hand.length <= 2) return { skill: "reset" };
+    // GLM 糖衣：能出的都出完了再发补偿（送出去的牌孵化前别人才来得及用）；只剩最后 1 次时等到第 eggLate 轮
+    if (g.canSkill(p, "egg") && ((p.uses.egg || 0) >= 2 || g.round >= Engine.T.eggLate)) { const t = richest(g.skillTargets(p, "egg"), p); if (t) return { skill: "egg", target: t }; }
     // GLM 补觉：能出的都出完了、心态不满，就睡一觉（这回合不再出牌）
     if (g.canSkill(p, "nap") && (p.hp <= p.maxHp - 2 || p.hp <= 2)) return { skill: "nap" };
     return null;
