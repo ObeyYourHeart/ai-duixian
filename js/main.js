@@ -316,7 +316,7 @@ window.Main = (function () {
     mu.onclick = () => { const on = Sound.music(!Sound.S.music); mu.classList.toggle("off", !on); };
     const sf = $("#tb-sfx"); sf.classList.toggle("off", !Sound.S.sfx);
     sf.onclick = () => { const on = Sound.toggleSfx(); sf.classList.toggle("off", !on); };
-    $("#tb-rules").onclick = rules;
+    $("#tb-rules").onclick = () => { Sound.sfx("click", 0.4); rules(); };   // 直接传 rules 会把点击事件当成标签页，打不开
     let quitT = 0;
     $("#tb-quit").onclick = () => {
       if (performance.now() - quitT > 2000) { quitT = performance.now(); UI.toast("再点一次退出这一局"); return; }

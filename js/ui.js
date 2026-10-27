@@ -18,7 +18,7 @@ window.UI = (function () {
   const HEART = '<svg class="heart%c" viewBox="0 0 24 22"><path d="M12 20.5C5 15 1.5 11.6 1.5 7.2 1.5 4 4 1.5 7.1 1.5c2 0 3.8 1 4.9 2.6C13.1 2.5 14.9 1.5 16.9 1.5 20 1.5 22.5 4 22.5 7.2c0 4.4-3.5 7.8-10.5 13.3z"/></svg>';
 
   let g = null, heroes = [], exprTimers = {}, lastSay = {};
-  let mode = null, selected = null, skillMode = null, busy = false;
+  let mode = null, selected = null, skillMode = null, busy = false, actTok = 0;   // actTok：每次出牌 / 用技能一个编号，退出后旧局迟到的收尾不再改动新局
   let playResolve = null, respondResolve = null, discardResolve = null, discardPick = [], promptTimer = null, respondCards = [];
   let hoverId = null, hoverT = null, drag = null, suppressClick = 0, dropPt = null, dropId = null, autoT = null, targetList = [], promptKind = null;
   const SET = () => window.Settings ? Settings.S : { timer: 6, click: 2, autoEnd: true, respond: "ask", keys: true };
@@ -31,6 +31,7 @@ window.UI = (function () {
     return p.i === 0 ? ME_S : OPP_S;
   }
   function pos(p) {
+    if (!g) return { x: 0, y: 0 };                          // 退出后还在播的动画：不再读已经卸下的对局
     if (!PORTRAIT) { const b = POS[g.players.length][p.i]; return { x: b.x + DX, y: b.y + (p.i === 0 ? DY : 0) }; }   // 0 号座位（自己）贴底
     if (p.i === 0) return { x: 16, y: ME_Y };
     const n = g.players.length - 1, w = HERO_W * seatScale(p), gap = seatScale(p) < 1 ? 12 : 14;
@@ -539,6 +540,7 @@ window.UI = (function () {
     Sound.sfx(card.k === "tucao" ? "swipe" : "slap", 0.8);
     const jitter = { x: PILE.x + (Math.random() - 0.5) * 120, y: PILE.y + (Math.random() - 0.5) * 30 };
     await flyEl(e, src, jitter, 330, 0.55, 1);
+    if (!g) { e.remove(); return; }
     for (const t of targets) arrow(center(p), center(t));
     if (targets.length) Sound.sfx("whoosh_little", 0.6);
     const pile = $("#pile");
@@ -740,9 +742,11 @@ window.UI = (function () {
   }
 
   async function act(fn) {
+    const tok = ++actTok;
     busy = true; clearTargets(); hint("结算中……"); sync();
     clearTimeout(nudgeT);
-    try { await fn(); } finally { busy = false; }
+    try { await fn(); } finally { if (tok === actTok) busy = false; }
+    if (tok !== actTok) return;                               // 结算途中退出了这一局
     if (playResolve) armNudge();
     selected = null; skillMode = null;
     if (!g || g.over || !g.human.alive || g.human.skipRest) { endPlay(); return; }
@@ -1131,7 +1135,8 @@ window.UI = (function () {
   }
   function detach() {
     if (drag) { if (drag.ghost) drag.ghost.remove(); stopDrag(); }
-    clearTimeout(autoT); g = null; mode = null; playResolve = null; respondResolve = null; discardResolve = null; hoverId = null; hidePrompt();
+    clearTimeout(autoT); clearTimeout(nudgeT); g = null; mode = null; playResolve = null; respondResolve = null; discardResolve = null; hoverId = null; hidePrompt();
+    busy = false; actTok++; selected = null; skillMode = null;   // 出牌结算到一半退出：旧局的 act 永远等不到结束，不重置的话之后每一局都出不了牌
     const tip = $("#ctip"); if (tip) tip.className = "hidden";
   }
 
