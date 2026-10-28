@@ -579,6 +579,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
   background: linear-gradient(#ffb36b, #f08a3c); border: 2px solid #fff; border-radius: 10px; padding: 2px 9px; box-shadow: 0 3px 10px rgba(200, 110, 40, .35); }
 .sd-alt:hover { filter: brightness(1.06); }
 .sd-alt.hidden { display: none; }
+.sd-skin { top: auto; bottom: 6px; }   /* 换装按钮放左下，不和小DeepSeek 的套壳按钮挤 */
 #stage.portrait .sd-alt { font-size: 18px; }
 .msg .mw small { font-weight: 700; opacity: .7; }
 .sd-portrait img { width: 100%; height: auto; display: block; transform: scale(1.25); transform-origin: 50% 8%; }

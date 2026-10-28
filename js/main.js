@@ -62,6 +62,16 @@ window.Main = (function () {
       $("#sd-img").src = form < 0 ? UI.portrait("xds", "pose") : UI.portrait("xds_cl", FORMS[form]);
       alt.textContent = form < 0 ? "🎭 套壳" : form === FORMS.length - 1 ? "🎭 变回来" : `🎭 换一张 ${form + 1}/${FORMS.length}`;
     };
+    // 皮肤：默认 → 专属 → 冬日限定 → 默认……选了就记住，对局里也穿这套
+    const sb = $("#sd-skin"), skins = Settings.skinsOf(pickKey);
+    const skinName = () => { const id = Settings.skinOf(pickKey); return id ? skins.find((s) => s.id === id).name : "默认"; };
+    sb.classList.toggle("hidden", !skins.length); sb.textContent = `👗 ${skinName()}`;
+    sb.onclick = (ev) => {
+      ev.stopPropagation(); Sound.sfx("click", 0.4);
+      const ids = ["", ...skins.map((s) => s.id)], i = ids.indexOf(Settings.skinOf(pickKey));
+      Settings.setSkin(pickKey, ids[(i + 1) % ids.length]);
+      select();
+    };
     $("#sd-name").textContent = c.name; $("#sd-name").style.whiteSpace = "nowrap"; $("#sd-name").style.fontSize = c.name.length > 7 ? "36px" : ""; $("#sd-title").textContent = c.title;
     $("#sd-bio").textContent = c.bio || "";
     $("#sd-hp").innerHTML = `心态 <span>${"❤".repeat(c.hp)}</span>`;

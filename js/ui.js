@@ -74,7 +74,11 @@ window.UI = (function () {
     renderHand();
   }
   function center(p) { const q = pos(p), s = seatScale(p); return { x: q.x + HERO_W * s / 2, y: q.y + (HERO_H / 2 - 20) * s }; }
-  function portrait(key, e) { return A(`assets/img/${key}_${e}.webp`); }
+  const SKIN_E = new Set(["base", "smug", "hurt", "win", "pose"]);   // 皮肤只换这几张；头像、技能切入图用原版
+  function portrait(key, e) {
+    const sk = SKIN_E.has(e) && window.Settings ? Settings.skinOf(key) : "";
+    return A(sk ? `assets/img/${key}_${sk}_${e}.webp` : `assets/img/${key}_${e}.webp`);
+  }
   const pkey = (p) => (p.disguise ? "xds_cl" : p.key);              // 变身的小DeepSeek 换伪装立绘
 
   // ---------------------------------------------------------------- 牌面

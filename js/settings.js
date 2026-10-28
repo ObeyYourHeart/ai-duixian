@@ -1,6 +1,6 @@
 // 设置：速度、思考时间、出牌方式、自动结束回合、快捷键（音量存在 Sound.S 里）。存 localStorage，读不到就用默认值
 window.Settings = (function () {
-  const DEF = { speed: 2, timer: 6, click: 2, autoEnd: true, respond: "ask", keys: true, props: "on" };
+  const DEF = { speed: 2, timer: 6, click: 2, autoEnd: true, respond: "ask", keys: true, props: "on", skins: {} };   // skins：每个角色穿哪套皮肤（空 = 默认）
   const SPEEDS = [{ name: "慢", v: 1.3 }, { name: "正常", v: 1 }, { name: "快", v: 0.6 }, { name: "极快", v: 0.35 }];
   const S = Object.assign({}, DEF);
   try {
@@ -16,6 +16,10 @@ window.Settings = (function () {
     subs.forEach((f) => f());
   }
   const speed = () => (SPEEDS[S.speed] || SPEEDS[2]).v;
+  // 皮肤：只认这个角色真有的那几套
+  const skinsOf = (key) => ((window.GAME_DATA.chars[key] || {}).skins || []);
+  const skinOf = (key) => { const id = (S.skins || {})[key]; return id && skinsOf(key).some((s) => s.id === id) ? id : ""; };
+  function setSkin(key, id) { S.skins = Object.assign({}, S.skins, { [key]: id || "" }); save(); subs.forEach((f) => f("skins", S.skins)); }
 
   // ---------------------------------------------------------------- 全屏
   const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
@@ -97,5 +101,5 @@ window.Settings = (function () {
     $("#modal").classList.remove("hidden");
   }
 
-  return { S, DEF, SPEEDS, set, reset, speed, open, on: (f) => subs.push(f), fsOn, canFull, standalone, toggleFull };
+  return { S, DEF, SPEEDS, set, reset, speed, skinsOf, skinOf, setSkin, open, on: (f) => subs.push(f), fsOn, canFull, standalone, toggleFull };
 })();
