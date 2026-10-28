@@ -67,11 +67,11 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 .mode.on { background: var(--acc); color: #fff; }
 .sel-body { position: absolute; left: 40px; right: 40px; top: calc(130px + var(--dy) / 4); bottom: calc(30px + var(--dy) / 4); display: flex; gap: 26px; }
 #sel-grid { flex: 1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; align-content: center; }   /* 11 人：每行 6 张，两行放下 */
-.pick { position: relative; height: 342px; border-radius: 18px; overflow: hidden; cursor: pointer; border: 4px solid #fff;
+.pick { position: relative; aspect-ratio: 1 / 1.78; border-radius: 18px; overflow: hidden; cursor: pointer; border: 4px solid #fff;
   background: linear-gradient(160deg, var(--l), #fff 70%); box-shadow: 0 6px 16px rgba(70, 50, 140, .16); transition: transform .15s; }
 .pick:hover { transform: translateY(-4px); }
 .pick.on { border-color: var(--c); box-shadow: 0 0 0 4px var(--c), 0 10px 22px rgba(70, 50, 140, .25); }
-.pick img { position: absolute; left: 50%; top: 4px; width: 214px; transform: translateX(-50%); }
+.pick img { position: absolute; left: 0; top: 0; width: 100%; }   /* 立绘按卡片宽度完整显示（原来宽 214 裁掉两边） */
 .pick .pn { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 4px; background: var(--c); color: #fff; font-family: var(--title); font-size: 25px; text-align: center; white-space: nowrap; }
 .pick .pn.long { font-size: 19px; padding: 11px 2px; }
 #sel-detail { width: 600px; border-radius: 26px; background: rgba(255, 255, 255, .86); border: 4px solid #fff; position: relative; overflow: hidden;
@@ -417,8 +417,8 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #stage.portrait .mode { font-size: 22px; padding: 8px 18px; }
 #stage.portrait .sel-body { left: 16px; right: 16px; top: calc(236px + var(--dy) / 10); bottom: calc(20px + var(--dy) / 10); flex-direction: column; gap: 16px; }
 #stage.portrait #sel-grid { flex: none; gap: 10px; }
-#stage.portrait .pick { height: calc(220px + var(--dy) / 5); }
-#stage.portrait .pick img { width: calc(190px + var(--dy) / 6); }
+#stage.portrait .pick { height: auto; aspect-ratio: 1 / 1.95; }   /* 卡片高度跟着立绘比例走，下面不留白 */
+#stage.portrait .pick img { top: 26px; }   /* 窄卡片按宽度完整缩放，不再只露一张脸 */
 #stage.portrait .pick .pn { font-size: 18px; padding: 6px 2px; }
 #stage.portrait .pick .pn.long { font-size: 13px; padding: 8px 1px; }
 #stage.portrait #sel-detail { width: auto; flex: 1; }
@@ -572,9 +572,10 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #stage.tiny #skillbox .pchip { font-size: 24px; }
 
 /* v16b 选人界面：上面头像 + 基本信息，下面整宽技能列表，按钮在底 */
-#sel-detail { display: flex; flex-direction: column; padding: 16px 18px 14px; gap: 8px; }
-.sd-top { display: flex; gap: 14px; flex: none; }
-.sd-portrait { flex: none; position: relative; width: 190px; height: 250px; border-radius: 20px; overflow: hidden; background: var(--l); border: 3px solid #fff; box-shadow: 0 4px 14px rgba(70, 50, 140, .15); }
+/* v32 选人详情：左边一整列放完整立绘（不放大裁切），右边名字 / 简介 / 技能，按钮横在最下面 */
+#sel-detail { display: grid; grid-template-columns: 222px minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; column-gap: 16px; align-items: start; row-gap: 8px; padding: 16px 18px 14px; }
+.sd-top { display: contents; }
+.sd-portrait { grid-column: 1; grid-row: 1; position: relative; width: 222px; aspect-ratio: 2 / 3; border-radius: 20px; overflow: hidden; background: var(--l); border: 3px solid #fff; box-shadow: 0 4px 14px rgba(70, 50, 140, .15); }
 .sd-alt { position: absolute; right: 6px; top: 6px; white-space: nowrap; font-family: var(--title); font-size: 15px; color: #fff; cursor: pointer;
   background: linear-gradient(#ffb36b, #f08a3c); border: 2px solid #fff; border-radius: 10px; padding: 2px 9px; box-shadow: 0 3px 10px rgba(200, 110, 40, .35); }
 .sd-alt:hover { filter: brightness(1.06); }
@@ -582,8 +583,8 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .sd-skin { top: auto; bottom: 6px; }   /* 换装按钮放左下，不和小DeepSeek 的套壳按钮挤 */
 #stage.portrait .sd-alt { font-size: 18px; }
 .msg .mw small { font-weight: 700; opacity: .7; }
-.sd-portrait img { width: 100%; height: auto; display: block; transform: scale(1.25); transform-origin: 50% 8%; }
-.sd-head { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.sd-portrait img { width: 100%; height: 100%; display: block; object-fit: contain; object-position: 50% 0; }
+.sd-head { grid-column: 2; grid-row: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .sd-name { line-height: 1.05; }
 .sd-hp span { letter-spacing: 1px; }
 .sd-rels { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -591,21 +592,23 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .sd-rels b { color: #fff; border-radius: 8px; padding: 0 6px; margin-right: 4px; font-size: 13px; }
 .sd-rels .ally b { background: var(--good); } .sd-rels .friend b { background: #6c9cf0; } .sd-rels .rival b { background: var(--bad); } .sd-rels .mentor b { background: #9b7bff; }
 .sd-bio { -webkit-line-clamp: 3 !important; }
-.sd-sk-head { flex: none; font-family: var(--title); font-size: 22px; color: var(--c); margin-top: 2px; }
+.sd-sk-head { grid-column: 1 / 3; grid-row: 2; font-family: var(--title); font-size: 22px; color: var(--c); margin-top: 2px; }
 .sd-sk-head small { font-family: inherit; font-size: 14px; color: #9a93bf; margin-left: 6px; }
-#sel-detail #sd-skills { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; gap: 6px; }
+#sel-detail #sd-skills { grid-column: 1 / 3; grid-row: 3; align-self: stretch; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; gap: 6px; }
 .sd-skill { padding: 7px 12px; }
 .sd-skill b { font-size: 21px; }
-.sd-btns { flex: none; display: flex; gap: 10px; }
+.sd-btns { grid-column: 1 / 3; grid-row: 4; display: flex; gap: 10px; }
 .sd-btns #btn-back { flex: 1; } .sd-btns #btn-go { flex: 2.2; }
 /* 角色格：角上标心态、技能数 */
 .pick .pbadge { position: absolute; left: 6px; top: 6px; right: 6px; display: flex; justify-content: space-between; pointer-events: none; }
-.pick .pbadge span { font-size: 14px; font-weight: 800; color: var(--c); background: rgba(255, 255, 255, .9); border-radius: 9px; padding: 1px 7px; }
+.pick .pbadge span { white-space: nowrap; font-size: 14px; font-weight: 800; color: var(--c); background: rgba(255, 255, 255, .9); border-radius: 9px; padding: 1px 7px; }
 .pick .pnat { display: none; position: absolute; left: 50%; bottom: 52px; transform: translateX(-50%); font-family: var(--title); font-size: 16px; color: #fff; border: 2px solid #fff; border-radius: 10px; padding: 0 10px; white-space: nowrap; pointer-events: none; }
 .pick .pnat.cn { background: #ff5a5a; } .pick .pnat.us { background: #4a7dff; } #scr-select.nation-on .pick .pnat { display: block; }
 #stage.portrait .pick .pnat { font-size: 18px; bottom: 58px; }
+#stage.portrait .pick .pbadge span { font-size: 12px; padding: 0 5px; }
 .mode-desc { position: absolute; right: 4px; top: 76px; font-size: 16px; font-weight: 800; color: #6b5fb0; background: rgba(255, 255, 255, .72); border-radius: 12px; padding: 3px 12px; white-space: nowrap; }
-#stage.portrait .sd-portrait { width: 200px; height: 270px; }
+#stage.portrait .sd-portrait { width: 264px; }
+#stage.portrait #sel-detail { grid-template-columns: 264px minmax(0, 1fr); }
 #stage.portrait .sd-rels span { font-size: 18px; } #stage.portrait .sd-rels b { font-size: 16px; }
 #stage.portrait .sd-sk-head { font-size: 28px; } #stage.portrait .sd-sk-head small { font-size: 18px; }
 #stage.portrait .pick .pbadge span { font-size: 15px; }
