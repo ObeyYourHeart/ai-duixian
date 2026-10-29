@@ -6,13 +6,14 @@ window.Sound = (function () {
   try { Object.assign(S, JSON.parse(localStorage.getItem("duixian_sound") || "{}")); } catch (e) {}
   const save = () => { try { localStorage.setItem("duixian_sound", JSON.stringify(S)); } catch (e) {} };
   const src = (p) => (window.ASSET && window.ASSET[p]) || p;
-  let bgm = null, duck = 0, duckTimer = null, kind = null;
+  let bgm = null, duck = 0, duckTimer = null, kind = null, lastPick = "";
   const decks = [new Audio(), new Audio()];                      // 配乐两台来回切：淡出一台、淡入另一台
   const pools = {};
   const voices = {};
   // 配乐：按场景换曲，切换时淡入淡出；对局曲每局随机一首
   const TRACKS = {
-    menu: ["menu"], battle: ["bgm", "battle2", "battle3", "battle4"], rage: ["rage"], win: ["win"], lose: ["lose"],
+    menu: ["menu", "menu2", "menu3"],
+    battle: ["bgm", "battle2", "battle3", "battle4", "battle5", "battle6", "battle7", "battle8", "battle9"], rage: ["rage"], win: ["win"], lose: ["lose"],
   };
   const level = () => S.musicVol * (duck ? 0.45 : 1);
   function fade(a, to, ms, done) {
@@ -31,7 +32,9 @@ window.Sound = (function () {
     kind = next;
     const list = TRACKS[next] || TRACKS.battle;
     const old = bgm, a = old === decks[0] ? decks[1] : decks[0];
-    a.pause(); a.src = src(`assets/music/${list[Math.floor(Math.random() * list.length)]}.mp3`);
+    const pool = list.length > 1 ? list.filter((n) => n !== lastPick) : list;   // 曲库多了：不连着放同一首
+    lastPick = pool[Math.floor(Math.random() * pool.length)];
+    a.pause(); a.src = src(`assets/music/${lastPick}.mp3`);
     a.loop = true; a.volume = 0; bgm = a;
     if (old) fade(old, 0, 700, () => { if (old !== bgm) old.pause(); });
     if (S.music) { a.play().catch(() => {}); fade(a, level(), 900); }

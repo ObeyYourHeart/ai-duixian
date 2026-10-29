@@ -44,16 +44,30 @@ window.Main = (function () {
     if (img.getAttribute("src") === src) return;
     if (!img.getAttribute("src")) { img.src = src; return; }
     const pre = new Image(); img._want = src;
-    pre.onload = pre.onerror = () => { if (img._want === src) img.src = src; };
+    pre.onload = pre.onerror = () => { if (img._want === src) { img.src = src; if (img.id === "sd-img") { img.classList.remove("slidein"); void img.offsetWidth; img.classList.add("slidein"); } } };
     pre.src = src;
   }
+  // 背景：进选人页、每开一局都随机换一张（不连着重复），下载好再换，没下完前保持旧图
+  const BGS = ["bg", "bg_sakura", "bg_beach", "bg_snow", "bg_cyber", "bg_sunset", "bg_city", "bg_school", "bg_candy"];
+  let lastBg = "bg";
+  function newBg() {
+    const pool = BGS.length > 1 ? BGS.filter((n) => n !== lastBg) : BGS;
+    const name = pool[Math.floor(Math.random() * pool.length)], rel = `assets/img/${name}.webp`;
+    const url = (window.ASSET && window.ASSET[rel]) || rel, el = document.getElementById("bg");
+    lastBg = name;
+    const pre = new Image();
+    pre.onload = () => { if (lastBg === name) el.style.backgroundImage = `url("${url}")`; };
+    pre.src = url;
+  }
+  // 名单卡片：横屏细高卡放全身立绘；竖屏卡片太小，全身缩得看不清，用半身
+  const TILE = () => "base";
   function select() {
     const grid = $("#sel-grid"); grid.innerHTML = "";
     for (const k of keys) {
       const c = CH[k];
       const d = document.createElement("div"); d.className = "pick" + (k === pickKey ? " on" : "");
       d.style.setProperty("--c", c.color); d.style.setProperty("--l", c.light);
-      d.innerHTML = `<img src="${UI.portrait(k, "base")}" alt=""><div class="pbadge"><span>❤${c.hp}</span><span>技能 ${c.skills.length}</span></div><div class="pn${c.name.length > 7 ? " long" : ""}">${c.name}</div>${c.nation ? `<div class="pnat ${c.nation}">${(D.nations || {})[c.nation].name}</div>` : ""}`;
+      d.innerHTML = `<img src="${UI.portrait(k, TILE())}" alt=""><div class="pbadge"><span>❤${c.hp}</span><span>技能 ${c.skills.length}</span></div><div class="pn${c.name.length > 7 ? " long" : ""}">${c.name}</div>${c.nation ? `<div class="pnat ${c.nation}">${(D.nations || {})[c.nation].name}</div>` : ""}`;
       d.onclick = () => { pickKey = k; Sound.sfx("click", 0.5); select(); Sound.voice(k, "greet", 0); };
       grid.appendChild(d);
     }
@@ -61,7 +75,7 @@ window.Main = (function () {
     const det = $("#sel-detail"); det.style.setProperty("--c", c.color); det.style.setProperty("--l", c.light);
     swapImg($("#sd-img"), UI.portrait(pickKey, "pose"));
     // 选中一个角色就把她所有皮肤的立绘先下好，之后点 👗 切换是瞬间的
-    for (const s of Settings.skinsOf(pickKey)) for (const e of ["pose", "base"]) { const im = new Image(); im.src = IMG(`assets/img/${pickKey}_${s.id}_${e}.webp`); }
+    for (const s of Settings.skinsOf(pickKey)) for (const e of ["pose", TILE()]) { const im = new Image(); im.src = IMG(`assets/img/${pickKey}_${s.id}_${e}.webp`); }
     // 小DeepSeek：点“变身”轮流看伪装造型，最后变回来
     const alt = $("#sd-alt"), FORMS = ["smug", "tea", "cheer", "change", "exposed"];
     let form = -1;
@@ -82,7 +96,7 @@ window.Main = (function () {
       Settings.setSkin(pickKey, ids[(i + 1) % ids.length]);
       // 只换这两张图，先在后台下载好再替换（原来整页重画，新图没下完前是空白）
       swapImg($("#sd-img"), UI.portrait(pickKey, "pose"));
-      const tile = $("#sel-grid .pick.on img"); if (tile) swapImg(tile, UI.portrait(pickKey, "base"));
+      const tile = $("#sel-grid .pick.on img"); if (tile) swapImg(tile, UI.portrait(pickKey, TILE()));
       sb.textContent = `👗 ${skinName()}`;
     };
     $("#sd-name").textContent = c.name; $("#sd-name").style.whiteSpace = "nowrap"; $("#sd-name").style.fontSize = c.name.length > 7 ? "36px" : ""; $("#sd-title").textContent = c.title;
@@ -125,6 +139,7 @@ window.Main = (function () {
     lastOpp = opp;
     show("scr-game");
     Sound.track("battle");
+    newBg();
     UI.detach();
     applySpeed();                                       // 上一局观战加速过，这里恢复
     const mode = { 2: "duel", 3: "ffa", 4: "team", 5: "id5", 6: "team" }[players];
@@ -287,7 +302,7 @@ window.Main = (function () {
   function boot() {
     fit(); window.addEventListener("resize", fit);
     UI.bindButtons();
-    $("#btn-start").onclick = () => { Sound.track("menu"); Sound.music(Sound.S.music); Sound.sfx("click"); select(); };
+    $("#btn-start").onclick = () => { newBg(); Sound.track("menu"); Sound.music(Sound.S.music); Sound.sfx("click"); select(); };
     $("#btn-rules").onclick = () => { Sound.sfx("click"); rules("quick"); };
     $("#ru-close").onclick = () => { Sound.sfx("click", 0.4); closeRules(); };
     document.addEventListener("keydown", (e) => {
