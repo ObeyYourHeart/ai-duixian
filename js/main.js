@@ -39,6 +39,14 @@ window.Main = (function () {
     Sound.track("menu");
   }
 
+  // 换图不闪白：新图下载好再替换，没下完前继续显示旧图
+  function swapImg(img, src) {
+    if (img.getAttribute("src") === src) return;
+    if (!img.getAttribute("src")) { img.src = src; return; }
+    const pre = new Image(); img._want = src;
+    pre.onload = pre.onerror = () => { if (img._want === src) img.src = src; };
+    pre.src = src;
+  }
   function select() {
     const grid = $("#sel-grid"); grid.innerHTML = "";
     for (const k of keys) {
@@ -51,7 +59,9 @@ window.Main = (function () {
     }
     const c = CH[pickKey];
     const det = $("#sel-detail"); det.style.setProperty("--c", c.color); det.style.setProperty("--l", c.light);
-    $("#sd-img").src = UI.portrait(pickKey, "pose");
+    swapImg($("#sd-img"), UI.portrait(pickKey, "pose"));
+    // 选中一个角色就把她所有皮肤的立绘先下好，之后点 👗 切换是瞬间的
+    for (const s of Settings.skinsOf(pickKey)) for (const e of ["pose", "base"]) { const im = new Image(); im.src = IMG(`assets/img/${pickKey}_${s.id}_${e}.webp`); }
     // 小DeepSeek：点“变身”轮流看伪装造型，最后变回来
     const alt = $("#sd-alt"), FORMS = ["smug", "tea", "cheer", "change", "exposed"];
     let form = -1;
@@ -70,7 +80,10 @@ window.Main = (function () {
       ev.stopPropagation(); Sound.sfx("click", 0.4);
       const ids = ["", ...skins.map((s) => s.id)], i = ids.indexOf(Settings.skinOf(pickKey));
       Settings.setSkin(pickKey, ids[(i + 1) % ids.length]);
-      select();
+      // 只换这两张图，先在后台下载好再替换（原来整页重画，新图没下完前是空白）
+      swapImg($("#sd-img"), UI.portrait(pickKey, "pose"));
+      const tile = $("#sel-grid .pick.on img"); if (tile) swapImg(tile, UI.portrait(pickKey, "base"));
+      sb.textContent = `👗 ${skinName()}`;
     };
     $("#sd-name").textContent = c.name; $("#sd-name").style.whiteSpace = "nowrap"; $("#sd-name").style.fontSize = c.name.length > 7 ? "36px" : ""; $("#sd-title").textContent = c.title;
     $("#sd-bio").textContent = c.bio || "";
