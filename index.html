@@ -21,8 +21,20 @@
     <!-- 标题 -->
     <section id="scr-title" class="screen active">
       <button class="icon pill" id="btn-full" title="全屏"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg><span>全屏</span></button>
+      <!-- 看板娘：点她会换表情、说台词；左右箭头换人，👗 换皮肤 -->
+      <div id="kb">
+        <div class="kb-glow"></div>
+        <img id="kb-img" alt="" draggable="false">
+        <div id="kb-say" class="hidden"></div>
+        <div class="kb-plate"><button class="kb-arw" id="kb-prev">‹</button><div class="kb-nm"><b id="kb-name"></b><small id="kb-title"></small></div><button class="kb-arw" id="kb-next">›</button><button class="kb-skin" id="kb-skin">👗 默认</button></div>
+      </div>
       <div class="logo big"><span class="bb b1"><i>AI娘</i></span><span class="bb b2">对线！</span></div>
-      <div class="subtitle"><span class="msg"><b>群公告</b>群聊卡牌大乱斗 · 谁先破防谁退群</span></div>
+      <!-- 群聊：AI娘们自己在群里斗嘴，点一条能听语音 -->
+      <div id="lobby-chat">
+        <div class="lc-head"><b>AI娘相亲相爱一家人</b><span id="lc-n">(12)</span></div>
+        <div id="lc-list"></div>
+        <div id="lc-typing" class="hidden"></div>
+      </div>
       <div class="title-btns">
         <button class="btn primary" id="btn-start">开始游戏</button>
         <button class="btn" id="btn-rules">玩法说明</button>

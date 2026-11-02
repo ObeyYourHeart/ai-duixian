@@ -37,7 +37,122 @@ window.Main = (function () {
   function title() {
     show("scr-title");
     Sound.track("menu");
+    newBg(); Lobby.start();
   }
+
+  // ---------------------------------------------------------------- 首页大厅
+  // 看板娘：点一下换表情说一句（有配音就放），连戳会生气；‹ › 换人（记住），👗 换皮肤。
+  // 群聊：AI娘们在群里互相 @ 斗嘴（用各自对别人的台词，对方回嘴），夹着拍一拍、撤回、突发消息；点一条放语音，点头像换她当看板娘。
+  const Lobby = (function () {
+    const LS = "duixian_kb", rnd = (a) => a[Math.floor(Math.random() * a.length)];
+    const has = (k, l, i) => !!(window.VOICES || {})[`${k}_${l}${i}`];
+    let kb = null, tapN = 0, tapT = 0, sayT = 0, run = 0;
+    try { kb = localStorage.getItem(LS); } catch (e) {}
+    if (!CH[kb]) kb = rnd(keys);
+    // 某人某类台词随机一句：[类, 第几句, 文字]
+    const line = (k, ls) => {
+      const L = CH[k].lines || {}, ok = ls.filter((l) => L[l] && L[l].length);
+      if (!ok.length) return null;
+      const l = rnd(ok), i = Math.floor(Math.random() * L[l].length);
+      return [l, i, L[l][i]];
+    };
+    function paint(slide) {
+      const c = CH[kb], st = $("#scr-title"), img = $("#kb-img");
+      st.style.setProperty("--c", c.color); st.style.setProperty("--l", c.light);
+      $("#kb-name").textContent = c.name; $("#kb-title").textContent = c.title;
+      const sk = Settings.skinsOf(kb), id = Settings.skinOf(kb), b = $("#kb-skin");
+      b.classList.toggle("hidden", !sk.length); b.textContent = `👗 ${id ? sk.find((x) => x.id === id).name : "默认"}`;
+      swapImg(img, UI.portrait(kb, "base"));
+      for (const e of ["smug", "hurt", "win"]) { const im = new Image(); im.src = UI.portrait(kb, e); }
+      if (slide) { img.classList.remove("in", "poke"); void img.offsetWidth; img.classList.add("in"); }
+      $("#kb-say").classList.add("hidden");
+    }
+    function say(text, ms) {
+      const b = $("#kb-say"); b.textContent = text; b.classList.remove("hidden");
+      b.style.animation = "none"; void b.offsetWidth; b.style.animation = "";
+      clearTimeout(sayT); sayT = setTimeout(() => { b.classList.add("hidden"); swapImg($("#kb-img"), UI.portrait(kb, "base")); }, ms);
+    }
+    function poke() {
+      const now = performance.now(); tapN = now - tapT < 1800 ? tapN + 1 : 0; tapT = now;
+      const angry = tapN >= 3, ln = angry ? line(kb, ["hurt", "low", "pelted"]) : line(kb, ["greet", "trick", "attack", "win", "heal", "dodge", "code", "beauty", "math", "dumb", "search", "sig"]);
+      if (angry) tapN = 0;
+      if (!ln) return;
+      const img = $("#kb-img");
+      swapImg(img, UI.portrait(kb, angry ? "hurt" : ln[0] === "win" ? "win" : ln[0] === "greet" || ln[0] === "heal" ? "base" : "smug"));
+      img.classList.remove("in", "poke"); void img.offsetWidth; img.classList.add("poke");
+      Sound.music(Sound.S.music);                         // 手机上第一下点击才允许出声：顺手把首页音乐也带起来
+      if (has(kb, ln[0], ln[1])) Sound.voice(kb, ln[0], ln[1]); else Sound.sfx("click", 0.4);
+      say(ln[2], (window.VOICES || {})[`${kb}_${ln[0]}${ln[1]}`] + 600 || 1800 + ln[2].length * 110);
+    }
+    function step(d) {
+      kb = keys[(keys.indexOf(kb) + d + keys.length) % keys.length];
+      try { localStorage.setItem(LS, kb); } catch (e) {}
+      Sound.sfx("click", 0.4); paint(true);
+    }
+    function skin() {
+      const ids = ["", ...Settings.skinsOf(kb).map((x) => x.id)], i = ids.indexOf(Settings.skinOf(kb));
+      Settings.setSkin(kb, ids[(i + 1) % ids.length]); Sound.sfx("click", 0.4); paint(true);
+    }
+    // ---- 群聊
+    const list = () => $("#lc-list");
+    function push(node) {
+      const L = list(); L.appendChild(node);
+      const top = L.getBoundingClientRect().top;              // 从底往上堆，顶上露不全的那条删掉（超出部分不算进 scrollHeight，只能比位置）
+      while (L.children.length > 1 && L.firstElementChild.getBoundingClientRect().top < top) L.firstElementChild.remove();
+    }
+    function msg(k, ln, at) {
+      const c = CH[k], d = document.createElement("div"), v = has(k, ln[0], ln[1]);
+      d.className = "lc-msg" + (v ? " voice" : "");
+      d.style.cssText = `--c:${c.color};--l:${c.light}` + (at ? `;--at:${CH[at].color}` : "");
+      d.innerHTML = `<img src="${UI.portrait(k, "avatar")}" alt=""><div><b>${c.name}</b><p>${at ? `<em>@${CH[at].name}</em> ` : ""}${ln[2]}</p></div>`;
+      if (v) d.onclick = () => { Sound.music(Sound.S.music); Sound.voice(k, ln[0], ln[1]); };
+      d.querySelector("img").onclick = (e) => { e.stopPropagation(); if (k !== kb) step(keys.indexOf(k) - keys.indexOf(kb)); };   // 点头像：让她来当看板娘
+      push(d);
+    }
+    function sys(text, news) { const d = document.createElement("div"); d.className = "lc-sys" + (news ? " news" : ""); d.textContent = text; push(d); }
+    const NEWS = ["📢 突发：某大厂又发了新模型，群里炸锅了", "📢 突发：算力涨价，全员限流一小时", "📢 突发：开源周来了，免费模型满天飞", "📢 突发：某 AI 一句话上了热搜", "📢 突发：融资到账，今晚有人请客"];
+    const wait = (ms, my) => new Promise((r) => setTimeout(() => r(my === run && $("#scr-title").classList.contains("active")), ms));
+    async function typing(k, ms, my) {
+      const t = $("#lc-typing"); t.textContent = `${CH[k].name} 正在输入…`; t.classList.remove("hidden");
+      const ok = await wait(ms, my); t.classList.add("hidden"); return ok;
+    }
+    async function loop(my) {
+      while (await wait(2600 + Math.random() * 1800, my)) {
+        const r = Math.random(), a = rnd(keys);
+        const targets = keys.filter((b) => b !== a && ((CH[a].lines || {})[b] || []).length);
+        if (r < 0.55 && targets.length) {                    // 互相 @：a 冲 b 说一句，b 回嘴
+          const b = rnd(targets), L = CH[a].lines[b], i = Math.floor(Math.random() * L.length);
+          if (!(await typing(a, 900, my))) break;
+          msg(a, [b, i, L[i]], b);
+          const back = line(b, (CH[b].lines || {})[a] ? [a] : ["dodge", "hurt", "def"]);
+          if (back && (await wait(1200, my)) && (await typing(b, 900, my))) msg(b, back, a);
+        } else if (r < 0.8) {
+          const ln = line(a, ["greet", "trick", "low", "code", "dumb", "beauty", "out", "boom"]);
+          if (ln && (await typing(a, 800, my))) msg(a, ln);
+        } else if (r < 0.92) {
+          const b = rnd(keys.filter((x) => x !== a));
+          sys(rnd([`${CH[a].name} 拍了拍 ${CH[b].name}`, `${CH[a].name} 撤回了一条消息`, `${CH[a].name} 领取了 ${CH[b].name} 的红包`, `${CH[a].name} 把群名改成了“${CH[a].name}粉丝群”`]));
+        } else sys(rnd(NEWS), true);
+        if (Math.random() < 0.22 && $("#kb-say").classList.contains("hidden")) {   // 看板娘闲着也会冒一句（只出气泡不出声，免得吵）
+          const ln = line(kb, ["greet", "trick", "code", "beauty", "dumb", "low"]);
+          if (ln) { swapImg($("#kb-img"), UI.portrait(kb, ln[0] === "low" ? "hurt" : "smug")); say(ln[2], 1800 + ln[2].length * 110); }
+        }
+      }
+    }
+    function start() {
+      paint(true);
+      if (!list().children.length) {                      // 一进来群里就有几条，不是空的
+        sys("欢迎来到 AI娘相亲相爱一家人");
+        for (const k of [...keys.filter((x) => x !== kb).sort(() => Math.random() - 0.5).slice(0, 2), kb]) { const g = line(k, ["greet"]); if (g) msg(k, g); }
+      }
+      $("#lc-n").textContent = `(${keys.length})`;
+      loop(++run);
+    }
+    function bind() {
+      $("#kb-img").onclick = poke; $("#kb-prev").onclick = () => step(-1); $("#kb-next").onclick = () => step(1); $("#kb-skin").onclick = skin;
+    }
+    return { start, bind };
+  })();
 
   // 换图不闪白：新图下载好再替换，没下完前继续显示旧图
   function swapImg(img, src) {
@@ -301,7 +416,7 @@ window.Main = (function () {
 
   function boot() {
     fit(); window.addEventListener("resize", fit);
-    UI.bindButtons();
+    UI.bindButtons(); Lobby.bind();
     $("#btn-start").onclick = () => { newBg(); Sound.track("menu"); Sound.music(Sound.S.music); Sound.sfx("click"); select(); };
     $("#btn-rules").onclick = () => { Sound.sfx("click"); rules("quick"); };
     $("#ru-close").onclick = () => { Sound.sfx("click", 0.4); closeRules(); };

@@ -28,7 +28,7 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 .logo .b2 { background: var(--acc); color: #fff; border: .04em solid rgba(255, 255, 255, .95); margin-left: -.16em; transform: rotate(4deg) translateY(-.3em);
   box-shadow: 0 .08em .24em rgba(40, 120, 200, .3); z-index: 2; }
 .logo .b2::after { content: ""; position: absolute; right: .46em; bottom: -.2em; border-style: solid; border-width: .24em 0 0 .22em; border-color: #4aa8ff transparent transparent transparent; }
-.logo.big { font-size: 132px; position: absolute; left: 0; right: 0; top: calc(118px + var(--dy) / 2); justify-content: center; }
+.logo.big { font-size: 104px; position: absolute; left: calc(var(--dx) + 700px); width: 860px; top: calc(70px + var(--dy) / 6); justify-content: center; }
 .logo.mid { font-size: 50px; }
 .logo.tiny { font-size: 24px; }
 .logo.tiny .b2 { transform: rotate(4deg) translateY(-.22em); }
@@ -56,9 +56,46 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 
 /* ---------- 标题页 ---------- */
 /* 首页封面：背景 + 12 位 AI娘合成的一张图。按舞台像素 1:1 居中：16:9 正好是中间的安全区，更宽 / 更高的屏多露一点背景 */
-#scr-title { background: url("../assets/img/title_cover_land.webp") center / 2133px 1200px no-repeat; }
+/* 首页大厅：左边看板娘（点她换表情说话），右边 logo + 群聊 + 按钮。背景用对局那套场景图轮换 */
+#kb { position: absolute; left: calc(var(--dx) + 30px); bottom: 0; width: 620px; height: calc(900px + var(--dy)); }
+.kb-glow { position: absolute; left: 30px; right: 30px; bottom: 60px; height: 640px; border-radius: 50%; background: radial-gradient(closest-side, var(--l, #fff) 0%, rgba(255, 255, 255, .55) 55%, rgba(255, 255, 255, 0) 100%); }
+#kb-img { position: absolute; left: 10px; bottom: 0; width: 600px; height: 900px; object-fit: contain; object-position: bottom; cursor: pointer;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 7%, #000 93%, transparent 100%); mask-image: linear-gradient(to right, transparent 0, #000 7%, #000 93%, transparent 100%); animation: kbbob 4.8s ease-in-out infinite; -webkit-tap-highlight-color: transparent; }
+#kb-img.in { animation: kbin .45s cubic-bezier(.2, .9, .3, 1), kbbob 4.8s ease-in-out .45s infinite; }
+#kb-img.poke { animation: kbpoke .28s ease-out, kbbob 4.8s ease-in-out .28s infinite; }
+@keyframes kbbob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes kbin { from { transform: translateX(-60px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes kbpoke { 0% { transform: translateY(0); } 40% { transform: translateY(10px); } 100% { transform: translateY(0); } }
+#kb-say { position: absolute; left: 380px; top: calc(110px + var(--dy)); max-width: 400px; padding: 16px 22px; border-radius: 22px; background: #fff; border: 3px solid var(--c, #8b7be0);
+  font-size: 26px; font-weight: 700; line-height: 1.4; color: #3d3a5c; z-index: 3; animation: sayin .25s ease-out; pointer-events: none; }
+#kb-say::before { content: ""; position: absolute; left: -16px; top: 26px; border-style: solid; border-width: 10px 16px 10px 0; border-color: transparent var(--c, #8b7be0) transparent transparent; }
+@keyframes sayin { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
+.kb-plate { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 22px;
+  background: rgba(255, 255, 255, .86); border: 2px solid #fff; box-shadow: 0 6px 18px rgba(80, 100, 180, .18); z-index: 2; white-space: nowrap; }
+.kb-nm { display: flex; flex-direction: column; align-items: center; min-width: 210px; line-height: 1.15; }
+.kb-nm b { font-family: var(--title); font-weight: normal; font-size: 32px; color: var(--c, #5a4aa8); }
+.kb-nm small { font-size: 18px; color: #6a6f93; font-weight: 700; }
+.kb-arw { width: 50px; height: 50px; border-radius: 50%; border: 0; background: var(--c, #8b7be0); color: #fff; font-size: 36px; line-height: 1; cursor: pointer; padding: 0 0 4px; }
+.kb-skin { font-family: var(--title); font-size: 20px; border: 2px solid var(--c, #8b7be0); color: var(--c, #8b7be0); background: #fff; border-radius: 14px; padding: 8px 12px; cursor: pointer; }
+#lobby-chat { position: absolute; left: calc(var(--dx) + 700px); width: 860px; top: calc(250px + var(--dy) / 3); bottom: calc(130px + var(--dy) / 3); display: flex; flex-direction: column;
+  border-radius: 26px; background: rgba(255, 255, 255, .72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 3px solid #fff; box-shadow: 0 10px 30px rgba(80, 100, 180, .16); overflow: hidden; }
+.lc-head { padding: 12px 22px; font-size: 22px; color: #4a5a90; border-bottom: 2px solid rgba(120, 140, 200, .15); background: rgba(255, 255, 255, .6); }
+.lc-head span { color: #8a92b8; margin-left: 6px; font-weight: 700; }
+#lc-list { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; padding: 12px 20px 34px; overflow: hidden; }
+.lc-msg { display: flex; gap: 12px; align-items: flex-start; animation: lcin .3s ease-out; cursor: pointer; flex: none; }
+.lc-msg img { width: 52px; height: 52px; border-radius: 50%; border: 3px solid var(--c); background: var(--l); flex: none; }
+.lc-msg b { display: block; font-size: 17px; color: var(--c); margin-bottom: 2px; }
+.lc-msg p { margin: 0; display: inline-block; padding: 9px 16px; border-radius: 4px 18px 18px 18px; background: #fff; font-size: 22px; font-weight: 700; color: #3d3a5c; line-height: 1.35; max-width: 680px; }
+.lc-msg p em { font-style: normal; color: var(--at); }
+.lc-msg.voice p::after { content: " 🔊"; font-size: .75em; opacity: .55; }
+.lc-sys { align-self: center; font-size: 17px; color: #7d84a8; background: rgba(255, 255, 255, .7); border-radius: 10px; padding: 3px 14px; animation: lcin .3s ease-out; flex: none; }
+.lc-sys.news { color: #fff; background: #ff9f1c; font-weight: 700; }
+#lc-typing { position: absolute; left: 22px; bottom: 6px; font-size: 16px; color: #8a92b8; }
+@keyframes lcin { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-.title-btns { position: absolute; bottom: calc(34px + var(--dy) / 2); left: 0; right: 0; display: flex; justify-content: center; gap: 28px; }
+.title-btns { position: absolute; bottom: calc(34px + var(--dy) / 4); left: calc(var(--dx) + 700px); width: 860px; display: flex; justify-content: space-between; gap: 18px; }
+.title-btns .btn { flex: 1; padding: 14px 0; }
+.title-btns .btn.primary { flex: 1.5; font-size: 36px; }
 
 /* ---------- 选人 ---------- */
 .sel-head { position: absolute; left: 50px; right: 50px; top: calc(28px + var(--dy) / 4); display: flex; align-items: center; justify-content: space-between; }
@@ -406,11 +443,21 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 
 /* ================= 竖屏（手机竖着拿）：舞台宽 760 起、高 1300 起，--dy = 高 - 1300，--w = 舞台宽 ================= */
 /* 标题：整组内容竖直居中 */
-#stage.portrait .logo.big { font-size: 102px; top: calc(118px + var(--dy) / 2); }
-#stage.portrait .subtitle { top: calc(1300px + var(--dy) / 2); font-size: 32px; }   /* 挪到按钮下面，别压住上层云台人物的头 */
-#stage.portrait #scr-title { background-image: url("../assets/img/title_cover_port.webp"); background-size: 1013px 1800px; }
-#stage.portrait .title-btns { top: calc(1088px + var(--dy) / 2); bottom: auto; left: 50%; right: auto; width: 680px; transform: translateX(-50%); flex-wrap: wrap; gap: 22px; }
-#stage.portrait .title-btns .btn { width: 320px; padding: 16px 0; font-size: 34px; }
+#stage.portrait .logo.big { font-size: 84px; left: 0; width: 100%; top: calc(40px + var(--dy) / 8); }
+#stage.portrait #kb { left: 0; width: 760px; top: calc(170px + var(--dy) / 8); bottom: auto; height: 780px; }
+#stage.portrait .kb-glow { left: 60px; right: 60px; bottom: 80px; height: 560px; }
+#stage.portrait #kb-img { left: 120px; width: 520px; height: 780px;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 7%, #000 93%, transparent 100%), linear-gradient(to bottom, #000 78%, transparent 97%); -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0, #000 7%, #000 93%, transparent 100%), linear-gradient(to bottom, #000 78%, transparent 97%); mask-composite: intersect; }
+#stage.portrait #kb-say { left: auto; right: 16px; top: 40px; max-width: 250px; font-size: 22px; }
+#stage.portrait #kb-say::before { left: 30px; top: auto; bottom: -16px; border-width: 16px 10px 0 10px; border-color: var(--c, #8b7be0) transparent transparent transparent; }
+#stage.portrait .kb-plate { bottom: 14px; }
+#stage.portrait #lobby-chat { left: 20px; width: 720px; top: calc(960px + var(--dy) / 8); bottom: calc(190px + var(--dy) / 8); }
+#stage.portrait .lc-msg p { font-size: 22px; max-width: 580px; }
+#stage.tiny .lc-msg p { font-size: 27px; } #stage.tiny .lc-msg b { font-size: 21px; } #stage.tiny #kb-say { font-size: 30px; }
+#stage.portrait .title-btns { left: 20px; width: 720px; bottom: calc(24px + var(--dy) / 8); flex-wrap: wrap; gap: 14px; }
+#stage.portrait .title-btns .btn { flex: 1 1 30%; padding: 14px 0; font-size: 28px; }
+#stage.portrait .title-btns .btn.primary { flex: 1 1 100%; font-size: 38px; }
 /* 选人：上面 5 列小卡，下面详情 */
 #stage.portrait .sel-head { left: 16px; right: 16px; top: calc(24px + var(--dy) / 10); flex-direction: column; gap: 14px; }
 #stage.portrait .sel-head .logo.mid { font-size: 52px; }
