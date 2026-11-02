@@ -700,6 +700,13 @@ window.UI = (function () {
     e.style.left = c.x + "px"; e.style.top = c.y - 70 + "px";
     $("#fx").appendChild(e); setTimeout(() => e.remove(), 2000 * Math.max(0.6, Engine.speed));
   }
+  // v33 突发事件：从上方滑下来一张"突发新闻"卡片，停 2 秒多
+  function news(title, sub, tone) {
+    const b = el("div", "news " + (tone || "mix"));
+    b.innerHTML = `<div class="nw-tag">突发</div><div class="nw-t">${title}</div><div class="nw-s">${sub}</div>`;
+    b.style.animationDuration = 2.4 * Engine.speed + "s";             // 观战加速时一起变快
+    $("#fx").appendChild(b); setTimeout(() => b.remove(), 2400 * Engine.speed + 100);
+  }
   function banner(text) { const b = el("div", "banner", text); $("#fx").appendChild(b); setTimeout(() => b.remove(), 950); }
 
   // ---------------------------------------------------------------- 玩家：出牌阶段
@@ -1144,6 +1151,6 @@ window.UI = (function () {
     const tip = $("#ctip"); if (tip) tip.className = "hidden";
   }
 
-  return { attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, skillNote, band, banner, phase, toast,
+  return { attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, skillNote, band, banner, news, phase, toast,
     humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr, throwProp, asset: A };
 })();

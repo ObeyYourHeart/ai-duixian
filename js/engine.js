@@ -52,6 +52,8 @@ window.Engine = (function () {
     banterRate: 0.35, chatterRate: 0.22,                  // 每轮开头随机斗嘴的概率；有人破防时路人在群里起哄的概率   // 宕机：每次检查爆的概率、伤害；防火墙拦截率；充电宝手牌上限
     bundleLook: 3, bundleKeep: 2, bundleRival: false,     // 千问·全家桶：亮出几张、自己留几张、送牌是否只能送对手
     bundleRandom: true,                                   // 千问·全家桶：剩下那张随机送人（不用选目标）
+    evRate: 0.5, evFrom: 2, evMax: 3, evOff: [],          // v33 突发事件：第 evFrom 轮起每轮开头触发的概率、一局最多几次、关掉哪几条（id）；evRate 0 = 整个关掉
+    evFund: 2, evViral: 1, evLayoff: 1, evThrottle: 1, evStorm: 1, evPrice: 2, evOpen: 1,   // 各事件的数值
     saleDraw: 1, saleExtra: 1, saleChop: false,           // 千问·狂欢：开的时候摸几张；吐槽多几次（null = 不限）；回合结束是否弃光手牌（剁手）
   }, window.TUNE || {});
   // 抢群主的四种身份（内部 id 沿用 lord/loyal/rebel/spy）
@@ -60,6 +62,16 @@ window.Engine = (function () {
   for (const [a, b, t] of (window.GAME_DATA.relations || [])) { REL[a + "|" + b] = t; REL[b + "|" + a] = t; }
   const CHATTER = ["哈哈哈哈哈", "🍿 吃瓜中", "前排围观", "+1", "好家伙", "截图了截图了", "这波可以"];
   const ROLE = { lord: "群主", loyal: "管理员", rebel: "黑粉", spy: "潜水党" };
+  // v33 突发事件：群里突然推送一条行业大新闻，全场立刻结算（或这一轮生效）。tone：good 全场受益 / bad 全场挨刀 / mix 只落到某个人
+  const EVENTS = [
+    { id: "fund", tone: "mix", title: "融资到账", sub: () => `随机一位拿到新一轮融资：摸 ${T.evFund} 张` },
+    { id: "viral", tone: "good", can: (g) => g.alive().some((p) => p.hp < p.maxHp), title: "全网爆火", sub: () => `AI 话题冲上热搜第一：全员心态 +${T.evViral}` },
+    { id: "layoff", tone: "bad", can: (g) => g.alive().some((p) => p.hand.length), title: "裁员潮", sub: () => `大厂集体降本增效：全员随机弃 ${T.evLayoff} 张` },
+    { id: "throttle", tone: "bad", title: "全网限流", sub: () => `算力紧张：这一轮每人回合开始少摸 ${T.evThrottle} 张` },
+    { id: "storm", tone: "mix", can: (g) => g.alive().some((p) => p.hp >= 2), title: "舆论风暴", sub: () => `树大招风：心态最高的那位 −${T.evStorm}` },
+    { id: "price", tone: "mix", title: "降价大战", sub: () => `谁穷谁先抢：手牌最少的那位摸 ${T.evPrice} 张` },
+    { id: "open", tone: "good", title: "开源周", sub: () => `一周连发好几个开源项目：全员摸 ${T.evOpen} 张` },
+  ];
   const ROLE_LEAN = { lord: 10, loyal: 5, rebel: -5, spy: 0 };
   const EQ_SLOT = { xianka: "hw", fanghuoqiang: "sec", jiami: "sec", yunbeifen: "sec", chongdianbao: "bag" };   // 装备分格：硬件 / 安全 / 外设
   const EQ_SLOT_NAME = { hw: "硬件", sec: "安全", bag: "外设" };
@@ -365,6 +377,8 @@ window.Engine = (function () {
         if (d(next) <= d(this.cur)) {
           this.round++;
           if (Math.random() < T.banterRate) await this.banter();
+          if (this.round >= T.evFrom && (this.evN || 0) < T.evMax && Math.random() < T.evRate) await this.breaking();
+          if (this.over) break;
           if (this.round === T.rageRound) {
             this.ui.banner("吵上头了！"); Sound.sfx("drumroll", 0.6); if (Sound.track) Sound.track("rage");
             this.ui.sys(`第 ${T.rageRound} 轮：大家吵上头了，从现在起每回合可以【吐槽】两次！`, "bad");
@@ -373,6 +387,42 @@ window.Engine = (function () {
         }
         this.cur = next;
       }
+    }
+    // v33 突发事件：一局最多 evMax 次、同一条不重复
+    async breaking() {
+      this.evUsed = this.evUsed || new Set();
+      const pool = EVENTS.filter((e) => !this.evUsed.has(e.id) && !T.evOff.includes(e.id) && (!e.can || e.can(this)));   // 不会生效的（心态全满时的爆火）不抽
+      if (!pool.length) return;
+      const ev = pool[rnd(pool.length)], al = this.alive();
+      this.evUsed.add(ev.id); this.evN = (this.evN || 0) + 1;
+      this.ui.news(ev.title, ev.sub(), ev.tone);
+      this.ui.sys(`📢 突发：${ev.title}——${ev.sub()}`, ev.tone === "good" ? "good" : ev.tone === "bad" ? "bad" : "prop");
+      Sound.sfx(ev.tone === "bad" ? "glitch_vhs" : "notify", 0.7);
+      await wait(1600);
+      const pick = (arr) => arr[rnd(arr.length)];
+      if (ev.id === "fund") {
+        const p = pick(al); this.ui.log(p, `拿到了融资：摸 ${T.evFund} 张`); this.ui.say(p, "smug", true);
+        await this.draw(p, T.evFund, true);
+      } else if (ev.id === "viral") {
+        for (const p of al) { const n = Math.min(T.evViral, p.maxHp - p.hp); if (n > 0) { p.hp += n; this.ui.heal(p, n); } }
+        this.ui.say(pick(al), "smug", true);
+      } else if (ev.id === "layoff") {
+        for (const p of al) { const out = this.dropRandom(p, T.evLayoff); if (out.length) this.ui.log(p, `被裁员潮波及，弃掉了${out.map((c) => `【${CD[c.k].name}】`).join("")}`); }
+        this.ui.say(pick(al), "hurt", true);
+      } else if (ev.id === "throttle") {
+        this.evThrottle = this.round;
+      } else if (ev.id === "storm") {
+        const top = Math.max(...al.map((p) => p.hp)), cand = al.filter((p) => p.hp === top && p.hp >= 2);
+        if (cand.length) { const p = pick(cand); this.ui.log(p, `树大招风，被舆论风暴卷了进去`); await this.damage(null, p, T.evStorm); }
+      } else if (ev.id === "price") {
+        const low = Math.min(...al.map((p) => p.hand.length)), p = pick(al.filter((q) => q.hand.length === low));
+        this.ui.log(p, `降价大战里抢到了便宜：摸 ${T.evPrice} 张`); this.ui.say(p, "smug", true);
+        await this.draw(p, T.evPrice, true);
+      } else if (ev.id === "open") {
+        for (const p of al) { await this.draw(p, T.evOpen, true); if (this.over) return; }
+      }
+      this.ui.sync(); await wait(700);
+      this.checkOver();
     }
     // 中途斗嘴：挑一组还都在群里、这局没说过的
     async banter() {
@@ -483,7 +533,8 @@ window.Engine = (function () {
         const nfirst = this.nation && this.round === 1 ? (T.nationFirst[p.i] || 0) + (T.nationDraw[p.ch.nation] || 0) : 0;   // 全明星赛：第一回合补牌（按座位 / 按国家）
         if (think) { this.ui.skillNote(p, SN(p.key, "think")); if (Math.random() < 0.3) this.ui.say(p, "think"); }
         const lordX = p.role === "lord" ? T.lordDraw : 0;                         // 抢群主：群主每回合多摸
-        await this.draw(p, (first ? T.teamFirstDraw : 2) + nfirst + (T.extraDraw[p.key] || 0) + think + lordX, true, bottom, true);   // 回合开始的正常摸牌（只有这里摸到的宕机一定炸）
+        const thr = this.evThrottle === this.round ? T.evThrottle : 0;            // v33 突发·全网限流：这一轮少摸（至少摸 1）
+        await this.draw(p, Math.max(1, (first ? T.teamFirstDraw : 2) + nfirst + (T.extraDraw[p.key] || 0) + think + lordX - thr), true, bottom, true);   // 回合开始的正常摸牌（只有这里摸到的宕机一定炸）
       }
       if (!cut) this.ui.sys(`${p.name} 摸牌`);
       if (this.over || !p.alive) return;

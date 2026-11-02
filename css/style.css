@@ -775,3 +775,14 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .hero.has-band .tnum { z-index: 3; }
 .float.band { color: #7b5cff; font-size: 34px; white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .hero .band i.new { animation: none; } }
+
+/* v33 突发事件卡片 */
+.news { position: absolute; left: 50%; top: calc(250px + var(--dy) / 2); width: 640px; transform: translateX(-50%); z-index: 61; pointer-events: none;
+  background: rgba(255, 255, 255, .96); border-radius: 22px; border: 4px solid var(--nw, #ff5a6e); padding: 22px 30px 20px 30px;
+  box-shadow: 0 16px 40px rgba(70, 50, 140, .28); text-align: center; animation: newsin 2.4s cubic-bezier(.2, .9, .3, 1) both; }
+.news.good { --nw: #22b573; } .news.bad { --nw: #ff5a6e; } .news.mix { --nw: #ff9f1c; }
+.news .nw-tag { position: absolute; left: -4px; top: -20px; background: var(--nw, #ff5a6e); color: #fff; font-family: var(--title); font-size: 24px; padding: 4px 16px; border-radius: 12px; letter-spacing: 2px; }
+.news .nw-t { font-family: var(--title); font-size: 64px; line-height: 1.1; color: var(--nw, #ff5a6e); }
+.news .nw-s { margin-top: 10px; font-size: 26px; font-weight: 800; color: #4a3f6b; }
+@keyframes newsin { 0% { transform: translate(-50%, -60px); opacity: 0; } 12% { transform: translate(-50%, 0); opacity: 1; } 85% { transform: translate(-50%, 0); opacity: 1; } 100% { transform: translate(-50%, -20px); opacity: 0; } }
+#stage.portrait .news { top: calc(var(--table-y) + 20px); width: 680px; }
