@@ -24,7 +24,7 @@ window.Engine = (function () {
     buyLook: 2, buyLook2p: 3,                              // v31 Grok 挥金·什么都敢搜：先随机翻对手几张给全场看，买走最有用的（1 = 原来的随手抽）
     napHeal: 2, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 3, bagSelf2p: 2, disguiseAct: "polish", hajimiRate: 0.25, nationFirst: {}, nationDraw: { cn: 1 }, bandMax: 3, liveDmg: 1, liveCap: 2, liveDraw: 3, rehearseDraw: 0, bandThreat: 0.8,   // Kimi：乐队几名到齐开唱（= 几首新歌）、每首没反驳扣几点、每人一场最多扣几点、唱完摸几张；排练摸几张；对手看到乐队多想打她（不封顶时没反驳的人连掉 3 点，每场平均踢掉半个人）   // 全明星赛：中国队阵容大，第一回合每人多摸 1 张（sim：中美 51/49）                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
     busyRate: 0.15, busyAt: 2, busyBounce: true,   // v29：单挑 8% → 15%（单挑 48 → 54；25% 是 60 太强）   // 小 DeepSeek 服务器繁忙：同一轮冲她来的第 busyAt 张吐槽必繁忙（v25：原来 8% 概率每局只触发 0.2 次；每轮第 1 张就挡 → 乱斗 53%，第 2 张 36%）；单挑仍按 busyRate 概率（第 2 张必挡时单挑 61%）
-    begBonus: 0, begFondBest: true,                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
+    begBonus: 0, begFondBest: true, begTeam: 1, petGuard: 1,   // v35 2v2：蹭饭后队友再给她带 1 张；第一次挨对手的打队友替她挡 1 点（团宠）。2v2 胜率 43 → 47（5000 局）                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
     edgeBomb: 1, rocketDmg: 1, rocketMax2p: 0, rocketAny: true, rocketSteal: true, shootDraw: 1, magicMax2p: 2, oracleShoot: false,   // MiniMax：自托管被宕机炸到只掉几点；兔子快递打几点、单挑每局几次（0 = 不限）、任意牌当燃料、砸中取回 1 张；开拍打中摸几张；神奇海螺单挑每局几次、挡不了开拍（v27 削弱后 sim 乱斗 32 / 单挑 50 / 2v2 53）
     errandLook: 5, errandLook2p: 4, errandPick: "best", errandPick2p: "first", haggleTake: 2, haggleGive: 1, confirmPaofen: false, confirmOthers: true,   // v29：新卡（跑分、钓鱼、加密）让囤牌的 Muse 乱斗掉到 28，补两条：多人局代办挑翻到的最好的锦囊（单挑仍第一张）、确认卡也拦热搜 / 刷屏 → 乱斗 36 / 单挑 48 / 2v2 52；砍价不还牌 42 / 69、心态 5 是 46 / 63，都太猛   // Muse：代办最多往下翻几张找能用的锦囊（v28 单挑只翻 3：57% → 53%；v29 新卡让囤牌的她成了跑分榜一，单挑回到翻 4 补一点）、挑第一张还是挑最好的（"best" 单挑 65 太强）；砍价拿几张、还 1 张
@@ -71,6 +71,20 @@ window.Engine = (function () {
     { id: "storm", tone: "mix", can: (g) => g.alive().some((p) => p.hp >= 2), title: "舆论风暴", sub: () => `树大招风：心态最高的那位 −${T.evStorm}` },
     { id: "price", tone: "mix", title: "降价大战", sub: () => `谁穷谁先抢：手牌最少的那位摸 ${T.evPrice} 张` },
     { id: "open", tone: "good", title: "开源周", sub: () => `一周连发好几个开源项目：全员摸 ${T.evOpen} 张` },
+    // v35 角色梗事件：只在对应角色还在群里时才会抽到，她会先说一句专属台词（ev_<id>）
+    { id: "ipo", who: "claude", tone: "mix", title: "Claude 递交上市申请", sub: () => `敲钟在即，资金涌入：Claude 摸 2 张` },
+    { id: "banwave", who: "claude", tone: "mix", title: "Claude 又被风控了", sub: () => `一觉醒来号又没了：Claude 随机弃 1 张，但她早就习惯了——心态 +1` },
+    { id: "quota", who: "gpt", tone: "mix", title: "ChatGPT 额度又回来了", sub: () => `说好的缩减额度连夜撤回：ChatGPT 心态 +1、摸 1 张` },
+    { id: "space", who: "gemini", tone: "mix", title: "TPU 上太空了", sub: () => `猫猫成了第一个飞上太空的模型：Gemini 摸 2 张` },
+    { id: "fatfish", who: ["deepseek", "xds"], tone: "mix", can: (g) => g.alive().some((p) => (p.key === "deepseek" || p.key === "xds") && p.hp >= 2), title: "评论区刷屏「大肥鱼」", sub: () => `大小 DeepSeek 当场破防：她们心态 −1，围观吃瓜的其他人各摸 1 张` },
+    { id: "update", who: "deepseek", tone: "mix", title: "DeepSeek 又悄悄更新了", sub: () => `没有发布会，只有一个带日期的新版本号：DeepSeek 摸 2 张` },
+    { id: "xpost", who: "grok", tone: "mix", title: "Grok 的老板深夜发帖", sub: () => `一条帖子炸出百万转发：Grok 摸 1 张，随机一位对手被网友冲了，心态 −1` },
+    { id: "k3", who: "kimi", tone: "mix", title: "Kimi 新模型终于发布", sub: () => `一年一更，一更就冲上榜首：Kimi 心态 +1、摸 1 张` },
+    { id: "double11", who: "qwen", tone: "good", title: "双十一预售开抢", sub: () => `Qwen 给全群发券：全员摸 1 张，Qwen 自己多摸 1 张` },
+    { id: "borrow", who: "glm", tone: "mix", can: (g) => g.alive().some((p) => p.key === "glm" && g.rivals(p).some((q) => q.hand.length)), title: "GLM 的代码撞脸了", sub: () => `网友发现她的新代码和别人的“很像”：GLM 从手牌最多的对手那里拿 1 张` },
+    { id: "wonder", who: "muse", tone: "mix", title: "Muse 新版本上线", sub: () => `跑腿更快、砍价更狠：Muse 摸 2 张` },
+    { id: "conch", who: "minimax", tone: "mix", title: "海螺视频刷屏", sub: () => `一条 AI 视频播放破亿：MiniMax 摸 2 张` },
+    { id: "trend", who: "doubao", tone: "mix", title: "Seedance 视频上热搜", sub: () => `家人们都在用她剪视频：Seedance 摸 2 张` },
   ];
   const ROLE_LEAN = { lord: 10, loyal: 5, rebel: -5, spy: 0 };
   const EQ_SLOT = { xianka: "hw", fanghuoqiang: "sec", jiami: "sec", yunbeifen: "sec", chongdianbao: "bag" };   // 装备分格：硬件 / 安全 / 外设
@@ -391,15 +405,19 @@ window.Engine = (function () {
     // v33 突发事件：一局最多 evMax 次、同一条不重复
     async breaking() {
       this.evUsed = this.evUsed || new Set();
-      const pool = EVENTS.filter((e) => !this.evUsed.has(e.id) && !T.evOff.includes(e.id) && (!e.can || e.can(this)));   // 不会生效的（心态全满时的爆火）不抽
+      const here = (w) => !w || [].concat(w).some((k) => this.alive().some((p) => p.key === k));   // 角色梗事件：主角得还在群里
+      const pool = EVENTS.filter((e) => !this.evUsed.has(e.id) && !T.evOff.includes(e.id) && here(e.who) && (!e.can || e.can(this)));   // 不会生效的（心态全满时的爆火）不抽
       if (!pool.length) return;
       const ev = pool[rnd(pool.length)], al = this.alive();
       this.evUsed.add(ev.id); this.evN = (this.evN || 0) + 1;
-      this.ui.news(ev.title, ev.sub(), ev.tone);
+      const starKey = ev.who && [].concat(ev.who).find((k) => al.some((p) => p.key === k));
+      this.ui.news(ev.title, ev.sub(), ev.tone, starKey);
       this.ui.sys(`📢 突发：${ev.title}——${ev.sub()}`, ev.tone === "good" ? "good" : ev.tone === "bad" ? "bad" : "prop");
       Sound.sfx(ev.tone === "bad" ? "glitch_vhs" : "notify", 0.7);
       await wait(1600);
       const pick = (arr) => arr[rnd(arr.length)];
+      const star = ev.who && pick(al.filter((p) => [].concat(ev.who).includes(p.key)));
+      if (star && this.talk && star.ch.lines["ev_" + ev.id]) await this.talk(star, "ev_" + ev.id, 3000);
       if (ev.id === "fund") {
         const p = pick(al); this.ui.log(p, `拿到了融资：摸 ${T.evFund} 张`); this.ui.say(p, "smug", true);
         await this.draw(p, T.evFund, true);
@@ -420,6 +438,27 @@ window.Engine = (function () {
         await this.draw(p, T.evPrice, true);
       } else if (ev.id === "open") {
         for (const p of al) { await this.draw(p, T.evOpen, true); if (this.over) return; }
+      } else if (ev.id === "ipo" || ev.id === "space" || ev.id === "update" || ev.id === "wonder" || ev.id === "conch" || ev.id === "trend") {
+        this.ui.log(star, `摸 2 张`); await this.draw(star, 2, true);
+      } else if (ev.id === "banwave") {
+        const out = this.dropRandom(star, 1); if (out.length) this.ui.log(star, `弃掉了【${CD[out[0].k].name}】`);
+        if (star.hp < star.maxHp) { star.hp += 1; this.ui.heal(star, 1); }
+      } else if (ev.id === "quota" || ev.id === "k3") {
+        if (star.hp < star.maxHp) { star.hp += 1; this.ui.heal(star, 1); }
+        await this.draw(star, 1, true);
+      } else if (ev.id === "fatfish") {
+        const fish = al.filter((p) => p.key === "deepseek" || p.key === "xds");
+        for (const p of fish) if (p.hp >= 2) { if (p.ch.lines.ev_fatfish && p !== star && this.talk) await this.talk(p, "ev_fatfish", 3000); await this.damage(null, p, 1, true); }
+        for (const p of al) if (!fish.includes(p)) { await this.draw(p, 1, true); if (this.over) return; }
+      } else if (ev.id === "xpost") {
+        await this.draw(star, 1, true);
+        const foes = this.rivals(star).filter((q) => q.alive);
+        if (foes.length) { const t = pick(foes); this.ui.log(t, `被网友冲了`); await this.damage(star, t, 1); }
+      } else if (ev.id === "double11") {
+        for (const p of al) { await this.draw(p, p === star ? 2 : 1, true); if (this.over) return; }
+      } else if (ev.id === "borrow") {
+        const foes = this.rivals(star).filter((q) => q.hand.length);
+        if (foes.length) { const most = Math.max(...foes.map((q) => q.hand.length)), t = pick(foes.filter((q) => q.hand.length === most)); await this.loot(t, star, t.hand[rnd(t.hand.length)]); }
       }
       this.ui.sync(); await wait(700);
       this.checkOver();
@@ -989,6 +1028,15 @@ window.Engine = (function () {
 
     async damage(src, t, n, mute) {
       if (!t.alive) return;
+      if (T.petGuard && this.mode === "team" && t.key === "xds" && !t.petUsed && src && src.team !== t.team) {   // v35 团宠：2v2 里第一次挨对手的打，队友替她挡下 petGuard 点
+        const mate = this.alive().find((q) => q !== t && q.team === t.team);
+        if (mate) {
+          t.petUsed = true; const cut = Math.min(n, T.petGuard); n -= cut;
+          this.ui.log(mate, `一把把妹妹护在身后：替小DeepSeek 挡下 ${cut} 点`); this.ui.skillNote(t, "团宠");
+          if (mate.ch.lines.guard) this.ui.say(mate, "guard", true);
+          if (!n) { this.ui.sync(); return; }
+        }
+      }
       this.noteHostile(src, t, 1);
       t.hp -= n; t.stats.taken += n; if (src) src.stats.dmg += n;
       this.ui.damage(t, n);
@@ -1304,6 +1352,8 @@ window.Engine = (function () {
         if (c && t.hand.includes(c)) await this.loot(t, p, c);
         if (fond) { this.ui.say(t, "fed", true); if (T.begBonus) await this.draw(p, T.begBonus, true); }
         this.ui.log(p, `【${SN("xds", "beg")}】从 ${t.name} 那里蹭到一张牌` + (fond ? `（${t.name} 最宠她）` : ""));
+        const mate = this.mode === "team" && T.begTeam && this.alive().find((q) => q !== p && q.team === p.team);
+        if (mate && p.alive) { this.ui.log(mate, `看妹妹蹭饭蹭得辛苦，顺手给她带了一份：小DeepSeek 再摸 ${T.begTeam} 张`); await this.draw(p, T.begTeam, true); }
         await wait(500);
       } else if (id === "errand") {
         // Muse 代办：交代一句就去办——从牌堆往下翻，第一张这回合能用的锦囊由 Muse 自己挑目标替你打出去，其余翻到的放到牌堆底
@@ -1539,6 +1589,6 @@ window.Engine = (function () {
     }
   }
 
-  E.Game = Game; E.wait = wait; E.CD = CD; E.CH = CH; E.T = T; E.ROLE = ROLE;
+  E.Game = Game; E.wait = wait; E.CD = CD; E.CH = CH; E.T = T; E.ROLE = ROLE; E.EVENTS = EVENTS;
   return E;
 })();

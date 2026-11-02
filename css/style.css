@@ -81,6 +81,15 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
   border-radius: 26px; background: rgba(255, 255, 255, .72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 3px solid #fff; box-shadow: 0 10px 30px rgba(80, 100, 180, .16); overflow: hidden; }
 .lc-head { padding: 12px 22px; font-size: 22px; color: #4a5a90; border-bottom: 2px solid rgba(120, 140, 200, .15); background: rgba(255, 255, 255, .6); }
 .lc-head span { color: #8a92b8; margin-left: 6px; font-weight: 700; }
+.lc-head { display: flex; align-items: center; }
+.lc-acts { margin-left: auto; display: flex; gap: 8px; }
+.lc-acts button { font: inherit; font-size: 18px; font-weight: 800; color: #4a5a90; background: #fff; border: 2px solid rgba(120, 140, 200, .35); border-radius: 999px; padding: 5px 14px; cursor: pointer; }
+.lc-acts button:hover { border-color: var(--c, #6a7bd8); color: var(--c, #6a7bd8); }
+.lc-acts button:disabled { opacity: .45; cursor: default; }
+.lc-msg.me { flex-direction: row-reverse; align-self: flex-end; text-align: right; }
+.lc-msg.me p { border-radius: 18px 4px 18px 18px; background: #95ec69; }
+.lc-msg.me .me-av { width: 52px; height: 52px; border-radius: 50%; background: #e6f4ff; border: 3px solid #8fb8ff; display: grid; place-items: center; font-size: 28px; flex: none; }
+.lc-sys.red { color: #fff; background: #f05b48; font-weight: 700; }
 #lc-list { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; padding: 12px 20px 34px; overflow: hidden; }
 .lc-msg { display: flex; gap: 12px; align-items: flex-start; animation: lcin .3s ease-out; cursor: pointer; flex: none; }
 .lc-msg img { width: 52px; height: 52px; border-radius: 50%; border: 3px solid var(--c); background: var(--l); flex: none; }
@@ -455,6 +464,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #stage.portrait .kb-plate { bottom: 14px; }
 #stage.portrait #lobby-chat { left: 20px; width: 720px; top: calc(960px + var(--dy) / 8); bottom: calc(190px + var(--dy) / 8); }
 #stage.portrait .lc-msg p { font-size: 22px; max-width: 580px; }
+#stage.portrait .lc-acts button { font-size: 17px; padding: 4px 10px; } #stage.portrait .lc-head b { font-size: 20px; }
 #stage.tiny .lc-msg p { font-size: 27px; } #stage.tiny .lc-msg b { font-size: 21px; } #stage.tiny #kb-say { font-size: 30px; }
 #stage.portrait .title-btns { left: 20px; width: 720px; bottom: calc(24px + var(--dy) / 8); flex-wrap: wrap; gap: 14px; }
 #stage.portrait .title-btns .btn { flex: 1 1 30%; padding: 14px 0; font-size: 28px; }
@@ -834,3 +844,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .news .nw-s { margin-top: 10px; font-size: 26px; font-weight: 800; color: #4a3f6b; }
 @keyframes newsin { 0% { transform: translate(-50%, -60px); opacity: 0; } 12% { transform: translate(-50%, 0); opacity: 1; } 85% { transform: translate(-50%, 0); opacity: 1; } 100% { transform: translate(-50%, -20px); opacity: 0; } }
 #stage.portrait .news { top: calc(var(--table-y) + 20px); width: 680px; }
+.news.long .nw-t { font-size: 50px; }
+.news.who { width: 780px; padding-left: 156px; text-align: left; }
+.news .nw-av { position: absolute; left: 22px; top: 50%; width: 112px; height: 112px; margin-top: -56px; border-radius: 50%; object-fit: cover; border: 5px solid var(--nw, #ff9f1c); background: #fff; }
+#stage.portrait .news.long .nw-t { font-size: 40px; }

@@ -109,15 +109,63 @@ window.Main = (function () {
       d.querySelector("img").onclick = (e) => { e.stopPropagation(); if (k !== kb) step(keys.indexOf(k) - keys.indexOf(kb)); };   // 点头像：让她来当看板娘
       push(d);
     }
-    function sys(text, news) { const d = document.createElement("div"); d.className = "lc-sys" + (news ? " news" : ""); d.textContent = text; push(d); }
+    function sys(text, kind) { const d = document.createElement("div"); d.className = "lc-sys" + (kind === true ? " news" : kind ? " " + kind : ""); d.textContent = text; push(d); }
     const NEWS = ["📢 突发：某大厂又发了新模型，群里炸锅了", "📢 突发：算力涨价，全员限流一小时", "📢 突发：开源周来了，免费模型满天飞", "📢 突发：某 AI 一句话上了热搜", "📢 突发：融资到账，今晚有人请客"];
     const wait = (ms, my) => new Promise((r) => setTimeout(() => r(my === run && $("#scr-title").classList.contains("active")), ms));
     async function typing(k, ms, my) {
       const t = $("#lc-typing"); t.textContent = `${CH[k].name} 正在输入…`; t.classList.remove("hidden");
       const ok = await wait(ms, my); t.classList.add("hidden"); return ok;
     }
+    // v35 群聊快捷互动：玩家也能插话。一次只跑一段，跑完按钮才能再点；跑的时候自动聊天暂停
+    let busy = false;
+    const voiceOf = (k, ln) => { if (has(k, ln[0], ln[1])) { Sound.voice(k, ln[0], ln[1]); return (window.VOICES || {})[`${k}_${ln[0]}${ln[1]}`] || 0; } return 0; };
+    function me(text) {
+      const d = document.createElement("div"); d.className = "lc-msg me";
+      d.innerHTML = `<div class="me-av">🙋</div><div><b>我</b><p>${text}</p></div>`; push(d);
+    }
+    const STARS = () => (Engine.EVENTS || []).filter((e) => e.who && [].concat(e.who).some((k) => (CH[k].lines || {})["ev_" + e.id]));
+    async function act(kind) {
+      if (busy) return; busy = true; const my = run;
+      for (const b of document.querySelectorAll(".lc-acts button")) b.disabled = true;
+      Sound.music(Sound.S.music); Sound.sfx("click", 0.4);
+      const others = keys.slice().sort(() => Math.random() - 0.5);
+      try {
+        if (kind === "hi") {
+          me("@全体成员 在吗？");
+          let first = true;
+          for (const k of others.slice(0, 3)) {
+            const ln = line(k, ["greet"]); if (!ln || !(await typing(k, 700, my))) break;
+            msg(k, ln); const ms = first ? voiceOf(k, ln) : 0; first = false;
+            if (!(await wait(Math.max(900, ms), my))) break;
+          }
+        } else if (kind === "red") {
+          sys("🧧 你发了一个红包：吵完记得来吃饭", "red");
+          const got = others.slice(0, 3), luck = rnd(got);
+          for (const k of got) { if (!(await wait(500, my))) break; sys(`${CH[k].name} 领取了你的红包`); }
+          sys(`🏆 ${CH[luck].name} 是手气最佳`);
+          const ln = line(luck, ["win", "fans", "sale", "dad", "fed"]);
+          if (ln && (await typing(luck, 700, my))) { msg(luck, ln); await wait(Math.max(1200, voiceOf(luck, ln)), my); }
+        } else {
+          const ev = rnd(STARS()), k = [].concat(ev.who).find((x) => (CH[x].lines || {})["ev_" + ev.id]);
+          me("有什么新瓜吗？");
+          if (await wait(700, my)) {
+            sys(`📢 突发：${ev.title}`, true);
+            const L = CH[k].lines["ev_" + ev.id], i = Math.floor(Math.random() * L.length), ln = ["ev_" + ev.id, i, L[i]];
+            if (await typing(k, 800, my)) {
+              msg(k, ln); const ms = voiceOf(k, ln);
+              const fan = rnd(keys.filter((x) => x !== k && ((CH[x].lines || {})[k] || []).length));
+              if (fan && (await wait(Math.max(1200, ms), my)) && (await typing(fan, 800, my))) { const F = CH[fan].lines[k], j = Math.floor(Math.random() * F.length); msg(fan, [k, j, F[j]], k); }
+            }
+          }
+        }
+      } finally {
+        busy = false;
+        for (const b of document.querySelectorAll(".lc-acts button")) b.disabled = false;
+      }
+    }
     async function loop(my) {
       while (await wait(2600 + Math.random() * 1800, my)) {
+        if (busy) continue;
         const r = Math.random(), a = rnd(keys);
         const targets = keys.filter((b) => b !== a && ((CH[a].lines || {})[b] || []).length);
         if (r < 0.55 && targets.length) {                    // 互相 @：a 冲 b 说一句，b 回嘴
@@ -132,6 +180,10 @@ window.Main = (function () {
         } else if (r < 0.92) {
           const b = rnd(keys.filter((x) => x !== a));
           sys(rnd([`${CH[a].name} 拍了拍 ${CH[b].name}`, `${CH[a].name} 撤回了一条消息`, `${CH[a].name} 领取了 ${CH[b].name} 的红包`, `${CH[a].name} 把群名改成了“${CH[a].name}粉丝群”`]));
+        } else if (Math.random() < 0.5 && STARS().length) {     // 一半的突发是角色梗：主角跟一句专属台词
+          const ev = rnd(STARS()), k = [].concat(ev.who).find((x) => (CH[x].lines || {})["ev_" + ev.id]), L = CH[k].lines["ev_" + ev.id], i = Math.floor(Math.random() * L.length);
+          sys(`📢 突发：${ev.title}`, true);
+          if ((await wait(1000, my)) && (await typing(k, 800, my))) msg(k, ["ev_" + ev.id, i, L[i]]);
         } else sys(rnd(NEWS), true);
         if (Math.random() < 0.22 && $("#kb-say").classList.contains("hidden")) {   // 看板娘闲着也会冒一句（只出气泡不出声，免得吵）
           const ln = line(kb, ["greet", "trick", "code", "beauty", "dumb", "low"]);
@@ -150,6 +202,7 @@ window.Main = (function () {
     }
     function bind() {
       $("#kb-img").onclick = poke; $("#kb-prev").onclick = () => step(-1); $("#kb-next").onclick = () => step(1); $("#kb-skin").onclick = skin;
+      $("#lc-hi").onclick = () => act("hi"); $("#lc-red").onclick = () => act("red"); $("#lc-news").onclick = () => act("news");
     }
     return { start, bind };
   })();

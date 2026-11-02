@@ -519,8 +519,8 @@ window.UI = (function () {
     else { wrap.style.left = Math.max(8, Math.min(q.x + 6, SW - 330)) + "px"; wrap.style.top = q.y + HERO_H * seatScale(p) + 14 + "px"; }
     $("#fx").appendChild(wrap);
     if (key === "exposed") expr(p, "exposed", 1800);
-    else if (HURT_KEYS.includes(key)) expr(p, "hurt", key === "out" ? 0 : 1600);
-    else if (SMUG_KEYS.includes(key)) expr(p, key === "win" ? "win" : "smug", 1400);   // 赢的时候用胜利立绘（v30）
+    else if (HURT_KEYS.includes(key) || key === "ev_fatfish") expr(p, "hurt", key === "out" ? 0 : 1600);
+    else if (SMUG_KEYS.includes(key) || key.startsWith("ev_")) expr(p, key === "win" ? "win" : "smug", 1400);   // 赢的时候用胜利立绘（v30）
     setTimeout(() => wrap.remove(), Math.max(1800, text.length * 170));
     return (window.VOICES || {})[`${p.key}_${key}${idx}`] || 0;   // 配音时长（毫秒），没有配音返回 0
   }
@@ -701,9 +701,9 @@ window.UI = (function () {
     $("#fx").appendChild(e); setTimeout(() => e.remove(), 2000 * Math.max(0.6, Engine.speed));
   }
   // v33 突发事件：从上方滑下来一张"突发新闻"卡片，停 2 秒多
-  function news(title, sub, tone) {
-    const b = el("div", "news " + (tone || "mix"));
-    b.innerHTML = `<div class="nw-tag">突发</div><div class="nw-t">${title}</div><div class="nw-s">${sub}</div>`;
+  function news(title, sub, tone, key) {
+    const b = el("div", "news " + (tone || "mix") + (title.length > 9 ? " long" : "") + (key ? " who" : ""));   // v35 角色梗事件：卡片左上角带主角头像
+    b.innerHTML = `<div class="nw-tag">突发</div>${key ? `<img class="nw-av" src="${portrait(key, "avatar")}" alt="">` : ""}<div class="nw-t">${title}</div><div class="nw-s">${sub}</div>`;
     b.style.animationDuration = 2.4 * Engine.speed + "s";             // 观战加速时一起变快
     $("#fx").appendChild(b); setTimeout(() => b.remove(), 2400 * Engine.speed + 100);
   }
