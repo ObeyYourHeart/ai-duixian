@@ -142,6 +142,7 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 .hero .plate { position: absolute; left: 0; right: 0; bottom: 0; padding: 4px 8px 6px; background: linear-gradient(transparent, var(--c) 30%); color: #fff; text-align: center; }
 .hero .plate b { font-family: var(--title); font-size: 26px; display: block; line-height: 1.1; }
 .hero .plate small { font-size: 13px; opacity: .92; }
+.hero .plate small:empty { display: none; }   /* 名字下面不再放称号（用户觉得过时）；只有小DeepSeek 伪装时这里写一行提示 */
 .hero .hp { position: absolute; left: 8px; top: 8px; display: flex; gap: 2px; }
 .heart { width: 24px; height: 22px; }
 .heart path { fill: #ff4f70; stroke: #fff; stroke-width: 2.4; }

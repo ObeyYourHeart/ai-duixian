@@ -59,7 +59,7 @@ window.Main = (function () {
     function paint(slide) {
       const c = CH[kb], st = $("#scr-title"), img = $("#kb-img");
       st.style.setProperty("--c", c.color); st.style.setProperty("--l", c.light);
-      $("#kb-name").textContent = c.name; $("#kb-title").textContent = c.title;
+      $("#kb-name").textContent = c.name;
       const sk = Settings.skinsOf(kb), id = Settings.skinOf(kb), b = $("#kb-skin");
       b.classList.toggle("hidden", !sk.length); b.textContent = `👗 ${id ? sk.find((x) => x.id === id).name : "默认"}`;
       swapImg(img, UI.portrait(kb, "base"));
@@ -214,7 +214,7 @@ window.Main = (function () {
       const tile = $("#sel-grid .pick.on img"); if (tile) swapImg(tile, UI.portrait(pickKey, TILE()));
       sb.textContent = `👗 ${skinName()}`;
     };
-    $("#sd-name").textContent = c.name; $("#sd-name").style.whiteSpace = "nowrap"; $("#sd-name").style.fontSize = c.name.length > 7 ? "36px" : ""; $("#sd-title").textContent = c.title;
+    $("#sd-name").textContent = c.name; $("#sd-name").style.whiteSpace = "nowrap"; $("#sd-name").style.fontSize = c.name.length > 7 ? "36px" : "";
     $("#sd-bio").textContent = c.bio || "";
     $("#sd-hp").innerHTML = `心态 <span>${"❤".repeat(c.hp)}</span>`;
     // 人物关系：盟友 / 交好 / 宿敌各是谁（悬停看那句设定）
@@ -278,13 +278,13 @@ window.Main = (function () {
         if (!k) { slots.push(`<div class="tm-slot empty"><span>＋</span><small>点下面的人加入</small></div>`); continue; }
         const c = CH[k], you = mine && i === 0;
         slots.push(`<div class="tm-slot" data-k="${k}" style="--c:${c.color};--l:${c.light}"><img src="${UI.portrait(k, "pose")}" alt="">
-          <div class="tm-nm"><b>${c.name}</b><small>${c.title}</small></div>${you ? '<i class="tm-you">你</i>' : '<i class="tm-x" title="移出">✕</i>'}</div>`);
+          <div class="tm-nm"><b>${c.name}</b></div>${you ? '<i class="tm-you">你</i>' : '<i class="tm-x" title="移出">✕</i>'}</div>`);
       }
       const rels = (D.relations || []).filter(([a, b]) => members.includes(a) && members.includes(b))
         .map(([a, b, t, note]) => `<span class="${t}" title="${note}"><b>${REL_T[t]}</b>${CH[a].name} × ${CH[b].name}</span>`).join("");
       const tiles = roster.map((k) => {
         const c = CH[k], on = members.includes(k), you = mine && k === pickKey;
-        return `<button class="tm-pick${on ? " on" : ""}${you ? " you" : ""}" data-k="${k}" style="--c:${c.color};--l:${c.light}" title="${c.name} · ${c.title}\n${c.skills.map((s) => `【${s.name}】${s.short || ""}`).join("\n")}">
+        return `<button class="tm-pick${on ? " on" : ""}${you ? " you" : ""}" data-k="${k}" style="--c:${c.color};--l:${c.light}" title="${c.name}\n${c.skills.map((s) => `【${s.name}】${s.short || ""}`).join("\n")}">
           <img src="${UI.portrait(k, "avatar")}" alt=""><span>${c.name}</span>${you ? "<i>你</i>" : on ? "<i>✓</i>" : ""}</button>`;
       }).join("");
       el.className = "tm-side nat-" + nat;
@@ -360,7 +360,7 @@ window.Main = (function () {
     }],
     ["chars", "角色与技能", () => `<h2>角色与技能 <small>每人三到五个技能，看设定多少</small></h2>
       <div class="ru-chars">${keys.map((k) => { const c = CH[k]; return `<div class="ru-ch" style="--c:${c.color};--l:${c.light}">
-        <div class="ru-ch1"><img src="${UI.portrait(k, "avatar")}" alt=""><div><b>${c.name}</b><small>${c.title}</small><span>${"❤".repeat(c.hp)}</span></div></div>
+        <div class="ru-ch1"><img src="${UI.portrait(k, "avatar")}" alt=""><div><b>${c.name}</b><span>${"❤".repeat(c.hp)}</span></div></div>
         <div class="ru-sks">${c.skills.map((s) => `<div class="ru-sk" title="${s.desc}"><b>${s.name}</b><em class="${s.type}">${s.type === "active" ? "主动" : "被动"}</em><span>${s.short || s.desc}</span></div>`).join("")}</div></div>`; }).join("")}</div>
       <h3>人物关系</h3><ul class="ru-list">${(D.relations || []).map(([a, b, t, note]) => `<li><b class="rel ${t}">${{ ally: "盟友", friend: "交好", rival: "宿敌" }[t]}</b>${CH[a].name} × ${CH[b].name}——${note}</li>`).join("")}</ul>
       <p class="ru-note">三人乱斗和单挑里：盟友在场上还有别人时互不吐槽，只剩她俩时「协议到期」；宿敌会优先针对对方；交好的下手轻一点。</p>`],

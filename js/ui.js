@@ -104,7 +104,7 @@ window.UI = (function () {
       const tags = p.ch.skills.map((s) => `<span class="${s.type}" title="${s.short || s.desc}">${s.name}</span>`).join("");
       h.innerHTML = `<div class="por"><img src="${portrait(p.key, "base")}" alt=""></div><div class="flash"></div><div class="hp"></div>
         <div class="cnt"><i></i><span>0</span></div><div class="status"></div><div class="stags${p.ch.skills.length > 3 ? " many" : ""}">${tags}</div>
-        <div class="plate"><b>${p.name}</b><small>${p.ch.title}</small></div>${p.human ? '<div class="you">你</div>' : ""}${p.ch.skills.some((s) => s.id === "rehearse") ? '<div class="band"></div>' : ""}<div class="side"></div><div class="tnum"></div>`;
+        <div class="plate"><b>${p.name}</b><small></small></div>${p.human ? '<div class="you">你</div>' : ""}${p.ch.skills.some((s) => s.id === "rehearse") ? '<div class="band"></div>' : ""}<div class="side"></div><div class="tnum"></div>`;
       // 点技能名直接打开详情卡；但她正被当作目标时，点哪里都算选她
       h.querySelectorAll(".stags span").forEach((sp, k) => sp.addEventListener("click", (ev) => {
         if (h.classList.contains("target")) return;
@@ -314,7 +314,7 @@ window.UI = (function () {
     const side = g.mode === "team" && p !== me ? (g.nation ? `${((window.GAME_DATA.nations || {})[p.ch.nation] || {}).name} · ` : "") + (p.team === me.team ? "队友" : "对手") : g.mode === "id5" ? (p.role === "lord" || p.human || p.revealed ? Engine.ROLE[p.role] : "身份未知") : "";
     const st = heroStatus(p);
     box.style.setProperty("--c", p.ch.color); box.style.setProperty("--l", p.ch.light);
-    box.innerHTML = `<div class="hi-head"><img src="${portrait(p.key, "avatar")}" alt=""><div class="hi-nm"><b>${p.name}</b><small>${p.ch.title}</small></div><button class="hi-x" title="关闭">✕</button></div>
+    box.innerHTML = `<div class="hi-head"><img src="${portrait(p.key, "avatar")}" alt=""><div class="hi-nm"><b>${p.name}</b></div><button class="hi-x" title="关闭">✕</button></div>
       <div class="hi-stat"><span>❤ 心态 ${Math.max(0, p.hp)} / ${p.maxHp}</span><span>🂠 手牌 ${p.hand.length}（上限 ${g.handLimit(p)}）</span>${g.equips(p).map((eq) => `<span>${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`).join("")}${side ? `<span>${side}</span>` : ""}${p.alive ? "" : "<span>已退群</span>"}</div>
       ${st.length ? `<div class="hi-st">${st.join(" · ")}</div>` : ""}
       ${rel ? `<div class="hi-rel ${rel}"><b>${REL_NAME[rel]}</b>${relRow}</div>` : ""}
@@ -688,7 +688,7 @@ window.UI = (function () {
     img.src = on ? portrait("xds_cl", "base") : portrait("xds_cl", "exposed");
     if (!on) exprTimers[p.i] = setTimeout(() => { if (g && !p.disguise) img.src = portrait(p.key, "base"); }, 1200 * Math.max(0.6, Engine.speed));
     h.querySelector(".plate b").textContent = on ? "Claude？" : p.name;
-    h.querySelector(".plate small").textContent = on ? "（其实是小DeepSeek）" : p.ch.title;
+    h.querySelector(".plate small").textContent = on ? "（其实是小DeepSeek）" : "";
     if (on) sparks(p, "#f0a050", 18);
     sync();
   }
