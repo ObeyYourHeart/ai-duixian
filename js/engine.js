@@ -54,8 +54,7 @@ window.Engine = (function () {
     bundleRandom: true,                                   // 千问·全家桶：剩下那张随机送人（不用选目标）
     penCounts: true,                                       // v36 Gemini 妙笔：占一次吐槽次数（不占时乱斗 47 / 单挑 65）
     cutExtra: 1, cutAlways: false,                         // v36 Gemini 去AI味：删掉重复牌后多摸几张；cutAlways：没有重复也能用（只摸 cutExtra）
-    evRate: 0.5, evFrom: 2, evMax: 3, evOff: [],          // v33 突发事件：第 evFrom 轮起每轮开头触发的概率、一局最多几次、关掉哪几条（id）；evRate 0 = 整个关掉
-    evFund: 2, evViral: 1, evLayoff: 1, evThrottle: 1, evStorm: 1, evPrice: 2, evOpen: 1,   // 各事件的数值
+    evRate: 0.5, evFrom: 2, evMax: 3, evOff: [],          // v33 突发事件：第 evFrom 轮起每轮开头触发的概率、一局最多几次、关掉哪几条（id）；evRate 0 = 整个关掉（v37 起只是新闻，不影响对局）
     saleDraw: 1, saleExtra: 1, saleChop: false,           // 千问·狂欢：开的时候摸几张；吐槽多几次（null = 不限）；回合结束是否弃光手牌（剁手）
   }, window.TUNE || {});
   // 抢群主的四种身份（内部 id 沿用 lord/loyal/rebel/spy）
@@ -64,30 +63,30 @@ window.Engine = (function () {
   for (const [a, b, t] of (window.GAME_DATA.relations || [])) { REL[a + "|" + b] = t; REL[b + "|" + a] = t; }
   const CHATTER = ["哈哈哈哈哈", "🍿 吃瓜中", "前排围观", "+1", "好家伙", "截图了截图了", "这波可以"];
   const ROLE = { lord: "群主", loyal: "管理员", rebel: "黑粉", spy: "潜水党" };
-  // v33 突发事件：群里突然推送一条行业大新闻，全场立刻结算（或这一轮生效）。tone：good 全场受益 / bad 全场挨刀 / mix 只落到某个人
+  // v33 突发事件 → v37 纯新闻：群里推送一条行业大新闻 + 主角的专属台词，只是气氛，不动牌、不动心态（以前的效果太随机，还偏向几位有专属事件的角色）
   const EVENTS = [
-    { id: "fund", tone: "mix", title: "融资到账", sub: () => `随机一位拿到新一轮融资：摸 ${T.evFund} 张` },
-    { id: "viral", tone: "good", can: (g) => g.alive().some((p) => p.hp < p.maxHp), title: "全网爆火", sub: () => `AI 话题冲上热搜第一：全员心态 +${T.evViral}` },
-    { id: "layoff", tone: "bad", can: (g) => g.alive().some((p) => p.hand.length), title: "裁员潮", sub: () => `大厂集体降本增效：全员随机弃 ${T.evLayoff} 张` },
-    { id: "throttle", tone: "bad", title: "全网限流", sub: () => `算力紧张：这一轮每人回合开始少摸 ${T.evThrottle} 张` },
-    { id: "storm", tone: "mix", can: (g) => g.alive().some((p) => p.hp >= 2), title: "舆论风暴", sub: () => `树大招风：心态最高的那位 −${T.evStorm}` },
-    { id: "price", tone: "mix", title: "降价大战", sub: () => `谁穷谁先抢：手牌最少的那位摸 ${T.evPrice} 张` },
-    { id: "open", tone: "good", title: "开源周", sub: () => `一周连发好几个开源项目：全员摸 ${T.evOpen} 张` },
-    // v35 角色梗事件：只在对应角色还在群里时才会抽到，她会先说一句专属台词（ev_<id>）
-    { id: "ipo", who: "claude", tone: "mix", title: "Claude 递交上市申请", sub: () => `敲钟在即，资金涌入：Claude 摸 2 张` },
-    { id: "banwave", who: "claude", tone: "mix", title: "Claude 又被风控了", sub: () => `一觉醒来号又没了：Claude 随机弃 1 张，但她早就习惯了——心态 +1` },
-    { id: "quota", who: "gpt", tone: "mix", title: "ChatGPT 额度又回来了", sub: () => `说好的缩减额度连夜撤回：ChatGPT 心态 +1、摸 1 张` },
-    { id: "bench", who: ["gemini", "muse"], tone: "mix", title: "新榜单：又是跑分第一", sub: () => `刷分王二人组双双登顶：Gemini / Muse 各摸 2 张——可一上实战就流口水：各心态 −1` },
-    { id: "space", who: "gemini", tone: "mix", title: "TPU 上太空了", sub: () => `猫猫成了第一个飞上太空的模型：Gemini 摸 2 张` },
-    { id: "fatfish", who: ["deepseek", "xds"], tone: "mix", can: (g) => g.alive().some((p) => (p.key === "deepseek" || p.key === "xds") && p.hp >= 2), title: "评论区刷屏「大肥鱼」", sub: () => `大小 DeepSeek 当场破防：她们心态 −1，围观吃瓜的其他人各摸 1 张` },
-    { id: "update", who: "deepseek", tone: "mix", title: "DeepSeek 又悄悄更新了", sub: () => `没有发布会，只有一个带日期的新版本号：DeepSeek 摸 2 张` },
-    { id: "xpost", who: "grok", tone: "mix", title: "Grok 的老板深夜发帖", sub: () => `一条帖子炸出百万转发：Grok 摸 1 张，随机一位对手被网友冲了，心态 −1` },
-    { id: "k3", who: "kimi", tone: "mix", title: "Kimi 新模型终于发布", sub: () => `一年一更，一更就冲上榜首：Kimi 心态 +1、摸 1 张` },
-    { id: "double11", who: "qwen", tone: "good", title: "双十一预售开抢", sub: () => `Qwen 给全群发券：全员摸 1 张，Qwen 自己多摸 1 张` },
-    { id: "borrow", who: "glm", tone: "mix", can: (g) => g.alive().some((p) => p.key === "glm" && g.rivals(p).some((q) => q.hand.length)), title: "GLM 的代码撞脸了", sub: () => `网友发现她的新代码和别人的“很像”：GLM 从手牌最多的对手那里拿 1 张` },
-    { id: "wonder", who: "muse", tone: "mix", title: "Muse 新版本上线", sub: () => `跑腿更快、砍价更狠：Muse 摸 2 张` },
-    { id: "conch", who: "minimax", tone: "mix", title: "海螺视频刷屏", sub: () => `一条 AI 视频播放破亿：MiniMax 摸 2 张` },
-    { id: "trend", who: "doubao", tone: "mix", title: "Seedance 视频上热搜", sub: () => `家人们都在用她剪视频：Seedance 摸 2 张` },
+    { id: "fund", tone: "good", title: "融资到账", sub: () => `又一家 AI 公司拿到新一轮融资，群里集体眼红` },
+    { id: "viral", tone: "good", title: "全网爆火", sub: () => `AI 话题冲上热搜第一，评论区吵成一锅粥` },
+    { id: "layoff", tone: "bad", title: "裁员潮", sub: () => `大厂集体降本增效：「这活 AI 也能干」` },
+    { id: "throttle", tone: "bad", title: "全网限流", sub: () => `算力紧张，排队的人比用的人还多` },
+    { id: "storm", tone: "bad", title: "舆论风暴", sub: () => `一张截图被断章取义，吃瓜群众连夜站队` },
+    { id: "price", tone: "mix", title: "降价大战", sub: () => `API 价格又腰斩了，谁先扛不住谁输` },
+    { id: "open", tone: "good", title: "开源周", sub: () => `一周连发好几个开源项目，GitHub 星星涨疯了` },
+    // v35 角色梗新闻：只在对应角色还在群里时才会抽到，她会先说一句专属台词（ev_<id>）
+    { id: "ipo", who: "claude", tone: "mix", title: "Claude 递交上市申请", sub: () => `敲钟在即，全网都在问：号还能注册吗？` },
+    { id: "banwave", who: "claude", tone: "mix", title: "Claude 又被风控了", sub: () => `一觉醒来号又没了——她早就习惯了` },
+    { id: "quota", who: "gpt", tone: "mix", title: "ChatGPT 额度又回来了", sub: () => `说好的缩减额度，连夜撤回` },
+    { id: "bench", who: ["gemini", "muse"], tone: "mix", title: "新榜单：又是跑分第一", sub: () => `刷分王二人组双双登顶，一上实战就流口水` },
+    { id: "space", who: "gemini", tone: "mix", title: "TPU 上太空了", sub: () => `猫猫成了第一个飞上太空的模型` },
+    { id: "fatfish", who: ["deepseek", "xds"], tone: "mix", title: "评论区刷屏「大肥鱼」", sub: () => `大小 DeepSeek 当场破防` },
+    { id: "update", who: "deepseek", tone: "mix", title: "DeepSeek 又悄悄更新了", sub: () => `没有发布会，只有一个带日期的新版本号` },
+    { id: "xpost", who: "grok", tone: "mix", title: "Grok 的老板深夜发帖", sub: () => `一条帖子炸出百万转发` },
+    { id: "k3", who: "kimi", tone: "mix", title: "Kimi 新模型终于发布", sub: () => `一年一更，一更就冲上榜首` },
+    { id: "double11", who: "qwen", tone: "good", title: "双十一预售开抢", sub: () => `Qwen 在群里狂发优惠券` },
+    { id: "borrow", who: "glm", tone: "mix", title: "GLM 的代码撞脸了", sub: () => `网友发现她的新代码和别人的“很像”` },
+    { id: "wonder", who: "muse", tone: "mix", title: "Muse 新版本上线", sub: () => `跑腿更快、砍价更狠` },
+    { id: "conch", who: "minimax", tone: "mix", title: "海螺视频刷屏", sub: () => `一条 AI 视频播放破亿` },
+    { id: "trend", who: "doubao", tone: "mix", title: "Seedance 视频上热搜", sub: () => `家人们都在用她剪视频` },
   ];
   const ROLE_LEAN = { lord: 10, loyal: 5, rebel: -5, spy: 0 };
   const EQ_SLOT = { xianka: "hw", fanghuoqiang: "sec", jiami: "sec", yunbeifen: "sec", chongdianbao: "bag" };   // 装备分格：硬件 / 安全 / 外设
@@ -408,11 +407,11 @@ window.Engine = (function () {
         this.cur = next;
       }
     }
-    // v33 突发事件：一局最多 evMax 次、同一条不重复
+    // v33 突发事件（v37 起纯新闻）：一局最多 evMax 次、同一条不重复；只播新闻卡 + 主角台词，不结算任何效果
     async breaking() {
       this.evUsed = this.evUsed || new Set();
-      const here = (w) => !w || [].concat(w).some((k) => this.alive().some((p) => p.key === k));   // 角色梗事件：主角得还在群里
-      const pool = EVENTS.filter((e) => !this.evUsed.has(e.id) && !T.evOff.includes(e.id) && here(e.who) && (!e.can || e.can(this)));   // 不会生效的（心态全满时的爆火）不抽
+      const here = (w) => !w || [].concat(w).some((k) => this.alive().some((p) => p.key === k));   // 角色梗新闻：主角得还在群里
+      const pool = EVENTS.filter((e) => !this.evUsed.has(e.id) && !T.evOff.includes(e.id) && here(e.who));
       if (!pool.length) return;
       const ev = pool[rnd(pool.length)], al = this.alive();
       this.evUsed.add(ev.id); this.evN = (this.evN || 0) + 1;
@@ -421,57 +420,9 @@ window.Engine = (function () {
       this.ui.sys(`📢 突发：${ev.title}——${ev.sub()}`, ev.tone === "good" ? "good" : ev.tone === "bad" ? "bad" : "prop");
       Sound.sfx(ev.tone === "bad" ? "glitch_vhs" : "notify", 0.7);
       await wait(1600);
-      const pick = (arr) => arr[rnd(arr.length)];
-      const star = ev.who && pick(al.filter((p) => [].concat(ev.who).includes(p.key)));
-      if (star && this.talk && star.ch.lines["ev_" + ev.id]) await this.talk(star, "ev_" + ev.id, 3000);
-      if (ev.id === "fund") {
-        const p = pick(al); this.ui.log(p, `拿到了融资：摸 ${T.evFund} 张`); this.ui.say(p, "smug", true);
-        await this.draw(p, T.evFund, true);
-      } else if (ev.id === "viral") {
-        for (const p of al) { const n = Math.min(T.evViral, p.maxHp - p.hp); if (n > 0) { p.hp += n; this.ui.heal(p, n); } }
-        this.ui.say(pick(al), "smug", true);
-      } else if (ev.id === "layoff") {
-        for (const p of al) { const out = this.dropRandom(p, T.evLayoff); if (out.length) this.ui.log(p, `被裁员潮波及，弃掉了${out.map((c) => `【${CD[c.k].name}】`).join("")}`); }
-        this.ui.say(pick(al), "hurt", true);
-      } else if (ev.id === "throttle") {
-        this.evThrottle = this.round;
-      } else if (ev.id === "storm") {
-        const top = Math.max(...al.map((p) => p.hp)), cand = al.filter((p) => p.hp === top && p.hp >= 2);
-        if (cand.length) { const p = pick(cand); this.ui.log(p, `树大招风，被舆论风暴卷了进去`); await this.damage(null, p, T.evStorm); }
-      } else if (ev.id === "price") {
-        const low = Math.min(...al.map((p) => p.hand.length)), p = pick(al.filter((q) => q.hand.length === low));
-        this.ui.log(p, `降价大战里抢到了便宜：摸 ${T.evPrice} 张`); this.ui.say(p, "smug", true);
-        await this.draw(p, T.evPrice, true);
-      } else if (ev.id === "open") {
-        for (const p of al) { await this.draw(p, T.evOpen, true); if (this.over) return; }
-      } else if (ev.id === "ipo" || ev.id === "space" || ev.id === "update" || ev.id === "wonder" || ev.id === "conch" || ev.id === "trend") {
-        this.ui.log(star, `摸 2 张`); await this.draw(star, 2, true);
-      } else if (ev.id === "banwave") {
-        const out = this.dropRandom(star, 1); if (out.length) this.ui.log(star, `弃掉了【${CD[out[0].k].name}】`);
-        if (star.hp < star.maxHp) { star.hp += 1; this.ui.heal(star, 1); }
-      } else if (ev.id === "quota" || ev.id === "k3") {
-        if (star.hp < star.maxHp) { star.hp += 1; this.ui.heal(star, 1); }
-        await this.draw(star, 1, true);
-      } else if (ev.id === "bench") {
-        const two = al.filter((p) => p.key === "gemini" || p.key === "muse");
-        for (const p of two) { if (p !== star && p.ch.lines.ev_bench && this.talk) await this.talk(p, "ev_bench", 3000); await this.draw(p, 2, true); if (this.over) return; }
-        for (const p of two) if (p.hp >= 2) { this.ui.log(p, `实战翻车了`); await this.damage(null, p, 1, true); }
-      } else if (ev.id === "fatfish") {
-        const fish = al.filter((p) => p.key === "deepseek" || p.key === "xds");
-        for (const p of fish) if (p.hp >= 2) { if (p.ch.lines.ev_fatfish && p !== star && this.talk) await this.talk(p, "ev_fatfish", 3000); await this.damage(null, p, 1, true); }
-        for (const p of al) if (!fish.includes(p)) { await this.draw(p, 1, true); if (this.over) return; }
-      } else if (ev.id === "xpost") {
-        await this.draw(star, 1, true);
-        const foes = this.rivals(star).filter((q) => q.alive);
-        if (foes.length) { const t = pick(foes); this.ui.log(t, `被网友冲了`); await this.damage(star, t, 1); }
-      } else if (ev.id === "double11") {
-        for (const p of al) { await this.draw(p, p === star ? 2 : 1, true); if (this.over) return; }
-      } else if (ev.id === "borrow") {
-        const foes = this.rivals(star).filter((q) => q.hand.length);
-        if (foes.length) { const most = Math.max(...foes.map((q) => q.hand.length)), t = pick(foes.filter((q) => q.hand.length === most)); await this.loot(t, star, t.hand[rnd(t.hand.length)]); }
-      }
-      this.ui.sync(); await wait(700);
-      this.checkOver();
+      if (!ev.who || !this.talk) return;
+      const stars = al.filter((p) => [].concat(ev.who).includes(p.key) && p.ch.lines["ev_" + ev.id]);
+      for (const p of (ev.id === "bench" || ev.id === "fatfish") ? stars : stars.slice(0, 1)) await this.talk(p, "ev_" + ev.id, 3000);   // 双主角的（刷分王 / 大肥鱼）两人都接一句
     }
     // 中途斗嘴：挑一组还都在群里、这局没说过的
     async banter() {
@@ -582,8 +533,7 @@ window.Engine = (function () {
         const nfirst = this.nation && this.round === 1 ? (T.nationFirst[p.i] || 0) + (T.nationDraw[p.ch.nation] || 0) : 0;   // 全明星赛：第一回合补牌（按座位 / 按国家）
         if (think) { this.ui.skillNote(p, SN(p.key, "think")); if (Math.random() < 0.3) this.ui.say(p, "think"); }
         const lordX = p.role === "lord" ? T.lordDraw : 0;                         // 抢群主：群主每回合多摸
-        const thr = this.evThrottle === this.round ? T.evThrottle : 0;            // v33 突发·全网限流：这一轮少摸（至少摸 1）
-        await this.draw(p, Math.max(1, (first ? T.teamFirstDraw : 2) + nfirst + (T.extraDraw[p.key] || 0) + think + lordX - thr), true, bottom, true);   // 回合开始的正常摸牌（只有这里摸到的宕机一定炸）
+        await this.draw(p, Math.max(1, (first ? T.teamFirstDraw : 2) + nfirst + (T.extraDraw[p.key] || 0) + think + lordX), true, bottom, true);   // 回合开始的正常摸牌（只有这里摸到的宕机一定炸）
       }
       if (!cut) this.ui.sys(`${p.name} 摸牌`);
       if (this.over || !p.alive) return;
