@@ -8,7 +8,7 @@ window.Engine = (function () {
   const BIGS = ["gpt", "claude"];
   // 技能数值表（平衡都在这里调；sim.js 可以用 TUNE 覆盖）
   const T = Object.assign({
-    hand: { kimi: 2, xds: 1, gpt: 2, gemini: 2, qwen: 2, claude: 1 },                    // 手牌上限加成
+    hand: { kimi: 2, xds: 1, gpt: 2, gemini: 2, qwen: 2, claude: 1, grok: 3 },          // 手牌上限加成（v36.2 Grok +3：开局多拿的 3 张终于留得住——乱斗 35→36 / 单挑 52→54 / 2v2 50→55 / 抢群主 37→42）
     extraDraw: {},                                        // 每回合多摸
     searchLook: 5, knowLook: 3, knowKeep: true, knowKeepOnce: true, knowKeep2p: false, searchPick: true,   // v36：搜索从看到的 3 张里挑 1 张；知识库翻 3 张、没查到也收 1 张（每轮 1 次、单挑不收——单挑收牌时 65%）。sim 乱斗 38 / 单挑 51 / 2v2 53 / 抢群主 41                           // Gemini 搜索：看几张；博闻：翻几张找反驳
     sorryDraw: 2, sorryDraw2p: 1, sorryBoom: true,   // （v24b：4 / 2 → 3 / 1；v29 删掉以假乱真后被挡的吐槽变多，3 → 2：乱斗 33 / 单挑 51 / 2v2 50）   // 豆包 嘻嘻抱歉：做错事摸几张；自己宕机了也算做错事
