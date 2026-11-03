@@ -92,6 +92,8 @@ window.Main = (function () {
     function skin() {
       const ids = ["", ...Settings.skinsOf(kb).map((x) => x.id)], i = ids.indexOf(Settings.skinOf(kb));
       Settings.setSkin(kb, ids[(i + 1) % ids.length]); Sound.sfx("click", 0.4); paint(true);
+      const ln = skinGreet(kb);                                   // v36 换上有专属开场白的皮肤：她说一句
+      if (ln) { Sound.music(Sound.S.music); Sound.voice(kb, ln[0], ln[1]); swapImg($("#kb-img"), UI.portrait(kb, "smug")); say(ln[2], (window.VOICES || {})[`${kb}_${ln[0]}${ln[1]}`] + 600 || 2400); }
     }
     // ---- 群聊
     const list = () => $("#lc-list");
@@ -266,6 +268,7 @@ window.Main = (function () {
       swapImg($("#sd-img"), UI.portrait(pickKey, "pose"));
       const tile = $("#sel-grid .pick.on img"); if (tile) swapImg(tile, UI.portrait(pickKey, TILE()));
       sb.textContent = `👗 ${skinName()}`;
+      const ln = skinGreet(pickKey); if (ln) Sound.voice(pickKey, ln[0], ln[1]);   // 换上有专属开场白的皮肤：播她那句
     };
     $("#sd-name").textContent = c.name; $("#sd-name").style.whiteSpace = "nowrap"; $("#sd-name").style.fontSize = c.name.length > 7 ? "36px" : "";
     $("#sd-bio").textContent = c.bio || "";
@@ -317,6 +320,13 @@ window.Main = (function () {
     game.run().catch((e) => console.error(e));
   }
 
+  // v36 皮肤专属开场白：greet_<皮肤 id> 有配音就返回 [台词类, 第几句, 文字]
+  function skinGreet(k) {
+    const sid = Settings.skinOf(k), L = sid && (CH[k].lines || {})["greet_" + sid];
+    if (!L || !L.length) return null;
+    const i = Math.floor(Math.random() * L.length);
+    return (window.VOICES || {})[`${k}_greet_${sid}${i}`] ? ["greet_" + sid, i, L[i]] : null;
+  }
   // v36 快速开局：用首页的看板娘 + 上次玩的模式（没玩过就三人乱斗）直接开一局，跳过选人页
   const MODE_NAME = { 2: "单挑", 3: "三人乱斗", 4: "2v2", 5: "抢群主", 6: "全明星赛" };
   function lastMode() { let m = 3; try { m = +localStorage.getItem("duixian_mode") || 3; } catch (e) {} return MODE_NAME[m] ? m : 3; }
