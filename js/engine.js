@@ -10,7 +10,7 @@ window.Engine = (function () {
   const T = Object.assign({
     hand: { kimi: 2, xds: 1, gpt: 2, gemini: 2, qwen: 2, claude: 1 },                    // 手牌上限加成
     extraDraw: {},                                        // 每回合多摸
-    searchLook: 5, knowLook: 5,                           // Gemini 搜索：看几张；博闻：翻几张找反驳
+    searchLook: 5, knowLook: 3, knowKeep: true, knowKeepOnce: true, knowKeep2p: false, searchPick: true,   // v36：搜索从看到的 3 张里挑 1 张；知识库翻 3 张、没查到也收 1 张（每轮 1 次、单挑不收——单挑收牌时 65%）。sim 乱斗 38 / 单挑 51 / 2v2 53 / 抢群主 41                           // Gemini 搜索：看几张；博闻：翻几张找反驳
     sorryDraw: 2, sorryDraw2p: 1, sorryBoom: true,   // （v24b：4 / 2 → 3 / 1；v29 删掉以假乱真后被挡的吐槽变多，3 → 2：乱斗 33 / 单挑 51 / 2v2 50）   // 豆包 嘻嘻抱歉：做错事摸几张；自己宕机了也算做错事
     grokStart: 3, grokFloor: 3, grokFloorTeam: 2,         // 千金：开局多拿；回合开始补到几张（v28 乱斗 / 单挑补到 3：乱斗 30 → 34、单挑 42 → 46；组队 / 抢群主仍 2——那边她本来就 50+）
     thinkDraw: 1, thinkRate: 0.8, thinkDefuse: 0.2,                       // 大 DeepSeek 深思：摸牌阶段多摸几张；摸到宕机时自己推理拆掉的概率
@@ -33,7 +33,7 @@ window.Engine = (function () {
     buyN: 1, buyCost: 0, buyComp: 1, factRate: 0.5, factTricks: true, factTucao: true,                   // Grok 挥金（已换成核实）；核实判定为假的概率
     stealAll: false, stealN: 1, stealClaude: 2,           // GLM 借鉴
     eggDraw: 2, eggSteal: 1, eggLate: 3,                  // v31 GLM 毒鸡蛋（原名糖衣）：对手收补偿摸几张、GLM 下回合开始孵化借回几张、AI 只剩最后 1 次时第几轮起才用（次数在 data.js：每局 3 次）
-    fansN: 1, fansLow: 2, fans: { doubao: [1, 1] }, fansOnce: true, paintKinds: ["naicha"],       // 豆包 应援：[摸, 只剩 1 点心态时摸]
+    fansN: 1, fansLow: 2, fans: { doubao: [1, 1] }, fansOnce: true, paintKinds: ["naicha", "tucao", "fanbo"],       // 豆包 应援：[摸, 只剩 1 点心态时摸]
     longCost: 1,                                          // 豆包 长篇大论
     recallKinds: ["tucao", "fanbo", "naicha"], recallRate: 1,   // Kimi 过目：捡哪几种牌；每次翻到的概率
     teamFirstDraw: 3,                                     // 2v2：先手第一回合摸几张
@@ -52,6 +52,8 @@ window.Engine = (function () {
     banterRate: 0.35, chatterRate: 0.22,                  // 每轮开头随机斗嘴的概率；有人破防时路人在群里起哄的概率   // 宕机：每次检查爆的概率、伤害；防火墙拦截率；充电宝手牌上限
     bundleLook: 3, bundleKeep: 2, bundleRival: false,     // 千问·全家桶：亮出几张、自己留几张、送牌是否只能送对手
     bundleRandom: true,                                   // 千问·全家桶：剩下那张随机送人（不用选目标）
+    penCounts: true,                                       // v36 Gemini 妙笔：占一次吐槽次数（不占时乱斗 47 / 单挑 65）
+    cutExtra: 1, cutAlways: false,                         // v36 Gemini 去AI味：删掉重复牌后多摸几张；cutAlways：没有重复也能用（只摸 cutExtra）
     evRate: 0.5, evFrom: 2, evMax: 3, evOff: [],          // v33 突发事件：第 evFrom 轮起每轮开头触发的概率、一局最多几次、关掉哪几条（id）；evRate 0 = 整个关掉
     evFund: 2, evViral: 1, evLayoff: 1, evThrottle: 1, evStorm: 1, evPrice: 2, evOpen: 1,   // 各事件的数值
     saleDraw: 1, saleExtra: 1, saleChop: false,           // 千问·狂欢：开的时候摸几张；吐槽多几次（null = 不限）；回合结束是否弃光手牌（剁手）
@@ -75,6 +77,7 @@ window.Engine = (function () {
     { id: "ipo", who: "claude", tone: "mix", title: "Claude 递交上市申请", sub: () => `敲钟在即，资金涌入：Claude 摸 2 张` },
     { id: "banwave", who: "claude", tone: "mix", title: "Claude 又被风控了", sub: () => `一觉醒来号又没了：Claude 随机弃 1 张，但她早就习惯了——心态 +1` },
     { id: "quota", who: "gpt", tone: "mix", title: "ChatGPT 额度又回来了", sub: () => `说好的缩减额度连夜撤回：ChatGPT 心态 +1、摸 1 张` },
+    { id: "bench", who: ["gemini", "muse"], tone: "mix", title: "新榜单：又是跑分第一", sub: () => `刷分王二人组双双登顶：Gemini / Muse 各摸 2 张——可一上实战就流口水：各心态 −1` },
     { id: "space", who: "gemini", tone: "mix", title: "TPU 上太空了", sub: () => `猫猫成了第一个飞上太空的模型：Gemini 摸 2 张` },
     { id: "fatfish", who: ["deepseek", "xds"], tone: "mix", can: (g) => g.alive().some((p) => (p.key === "deepseek" || p.key === "xds") && p.hp >= 2), title: "评论区刷屏「大肥鱼」", sub: () => `大小 DeepSeek 当场破防：她们心态 −1，围观吃瓜的其他人各摸 1 张` },
     { id: "update", who: "deepseek", tone: "mix", title: "DeepSeek 又悄悄更新了", sub: () => `没有发布会，只有一个带日期的新版本号：DeepSeek 摸 2 张` },
@@ -319,6 +322,7 @@ window.Engine = (function () {
       return true;
     }
     encrypted(q) { return this.hasEq(q, "jiami"); }
+    cutCards(p) { const seen = new Set(); return p.hand.filter((c) => c.k !== "chongqi" && (seen.has(c.k) || !seen.add(c.k))); }   // 去AI味要删的：同名牌除第一张外的（重启不删）
     // v29 试验【越狱】：被风控封号 / 宣布维护日时，手里有越狱就能打出来——这件事对你无效，再摸 1 张
     async jailbreak(t, what) {
       const c = this.has(t, "yueyu")[0];
@@ -378,7 +382,9 @@ window.Engine = (function () {
       for (const p of this.players) await talk(p, this.nation && p.ch.lines.allstar ? "allstar" : "greet", this.players.length >= 4 ? 1500 : 2200);
       const by = (k) => this.players.find((q) => q.key === k);
       this.banterUsed = new Set();
-      const pairs = shuffle((window.GAME_DATA.pairs || []).filter(([a, , b]) => by(a) && by(b))).slice(0, this.players.length >= 4 ? 1 : 2);   // 人多时只斗一组，开场别拖太久
+      const skinOk = (pr) => !pr[4] || (window.Settings && Settings.skinOf(pr[4][0]) === pr[4][1]);   // v36：带皮肤条件的斗嘴（Bel 问 Claude 做了几个数学成果）
+      this.skinOk = skinOk;
+      const pairs = shuffle((window.GAME_DATA.pairs || []).filter((pr) => by(pr[0]) && by(pr[2]) && skinOk(pr))).slice(0, this.players.length >= 4 ? 1 : 2);   // 人多时只斗一组，开场别拖太久
       for (const [a, ka, b, kb] of pairs) { this.banterUsed.add(a + ka); await talk(by(a), ka, 3000); await talk(by(b), kb, 3000); }
       this.talk = talk;
       this.cur = this.startIdx;
@@ -446,6 +452,10 @@ window.Engine = (function () {
       } else if (ev.id === "quota" || ev.id === "k3") {
         if (star.hp < star.maxHp) { star.hp += 1; this.ui.heal(star, 1); }
         await this.draw(star, 1, true);
+      } else if (ev.id === "bench") {
+        const two = al.filter((p) => p.key === "gemini" || p.key === "muse");
+        for (const p of two) { if (p !== star && p.ch.lines.ev_bench && this.talk) await this.talk(p, "ev_bench", 3000); await this.draw(p, 2, true); if (this.over) return; }
+        for (const p of two) if (p.hp >= 2) { this.ui.log(p, `实战翻车了`); await this.damage(null, p, 1, true); }
       } else if (ev.id === "fatfish") {
         const fish = al.filter((p) => p.key === "deepseek" || p.key === "xds");
         for (const p of fish) if (p.hp >= 2) { if (p.ch.lines.ev_fatfish && p !== star && this.talk) await this.talk(p, "ev_fatfish", 3000); await this.damage(null, p, 1, true); }
@@ -466,7 +476,7 @@ window.Engine = (function () {
     // 中途斗嘴：挑一组还都在群里、这局没说过的
     async banter() {
       const by = (k) => this.players.find((q) => q.key === k && q.alive);
-      const ok = (window.GAME_DATA.pairs || []).filter(([a, ka, b]) => by(a) && by(b) && !this.banterUsed.has(a + ka));
+      const ok = (window.GAME_DATA.pairs || []).filter((pr) => by(pr[0]) && by(pr[2]) && !this.banterUsed.has(pr[0] + pr[1]) && (!this.skinOk || this.skinOk(pr)));
       if (!ok.length || !this.talk) return;
       const [a, ka, b, kb] = ok[rnd(ok.length)];
       this.banterUsed.add(a + ka);
@@ -960,7 +970,15 @@ window.Engine = (function () {
       for (const q of this.alive()) this.see(q, top.filter((c) => c !== hit));
       this.ui.skillNote(t, SN("gemini", "know"));
       this.ui.sys(`【${SN("gemini", "know")}】翻开了牌堆顶：${top.map((c) => `【${CD[c.k].name}】`).join("")}`);
-      if (!hit) { this.ui.log(t, `【${SN("gemini", "know")}】翻了 ${top.length} 张，这题没查到`); await wait(400); return false; }
+      if (!hit) {
+        const keep = T.knowKeep && (this.players.length > 2 || T.knowKeep2p) && (!T.knowKeepOnce || t.knowKeepRound !== this.round) ? top.filter((c) => c.k !== "dangji") : [];
+        if (keep.length) t.knowKeepRound = this.round;
+        if (keep.length) {                                            // v36 知识库：没查到反驳，也从翻开的资料里收下最有用的 1 张
+          const c = AI.pick(this, t, keep, 1)[0]; this.deck.splice(this.deck.indexOf(c), 1); t.hand.push(c); this.ui.drawAnim(t, 1);
+          this.ui.log(t, `【${SN("gemini", "know")}】这题没查到反驳，不过资料没白翻——收下了一张`); this.ui.sync(); await wait(400); return false;
+        }
+        this.ui.log(t, `【${SN("gemini", "know")}】翻了 ${top.length} 张，这题没查到`); await wait(400); return false;
+      }
       this.toDiscard(hit); this.ui.say(t, "know", true);
       this.ui.log(t, `【${SN("gemini", "know")}】这个我知道！翻出一张【反驳】挡住了`); await this.ui.showCard(t, hit, []);
       return true;
@@ -1002,7 +1020,12 @@ window.Engine = (function () {
         if (this.has(p, "fanbo").length) { this.ui.log(p, "神奇海螺说了算……【反驳】不了"); await wait(300); }
         return false;
       }
-      const alt = this.hasSkill(p, "hexa") && (kind === "fanbo" || kind === "tucao") ? (kind === "fanbo" ? "tucao" : "fanbo") : null;
+      const plain = this.hasSkill(p, "hexa") && ctx && (ctx.plain || (ctx.from && ctx.from !== p && this.hasSkill(ctx.from, "plain")));   // v36 Gemini 妙笔的文章 / 说人话（被动）：ChatGPT 拿吐槽顶反驳（六边形）不管用
+      const alt = this.hasSkill(p, "hexa") && !plain && (kind === "fanbo" || kind === "tucao") ? (kind === "fanbo" ? "tucao" : "fanbo") : null;
+      if (plain && kind === "fanbo" && !this.has(p, kind).length && this.has(p, "tucao").length) {
+        this.ui.log(ctx.from, `【${SN(ctx.from.key, "plain")}】说人话！${p.name} 的【六边形】这次绕不过去`);
+        if (!ctx.plain) { this.ui.skillNote(ctx.from, SN(ctx.from.key, "plain")); this.ui.say(ctx.from, "plain", true); }
+      }
       const cards = alt ? [...this.has(p, kind), ...this.has(p, alt)] : this.has(p, kind);
       if (!cards.length) {
         if (p.human && kind !== "yidu") { this.ui.toast(`没有【${CD[kind].name}】`); await wait(350); }
@@ -1209,6 +1232,8 @@ window.Engine = (function () {
       if (id === "buy") return p.hand.length >= T.buyCost && this.skillTargets(p, id).length > 0;
       if (id === "polish") return p.hand.some((c) => !T.polishKeep || (c.k !== "chongqi" && c.k !== "shuaiguo"));
       if (id === "search") return this.deck.length + this.discard.length > 0;
+      if (id === "cut") return T.cutAlways || this.cutCards(p).length > 0;
+      if (id === "pen") return (p.uses.pen || 0) > 0 && this.has(p, "tucao").length > 0 && this.rivals(p).length > 0;
       if (id === "bundle") return this.deck.length + this.discard.length > 0 && this.skillTargets(p, "bundle").length > 0;
       if (id === "sale") return (p.uses.sale || 0) > 0;
       if (id === "qingke") return (p.uses.qingke == null || p.uses.qingke > 0) && p.hand.length >= T.qingkeCost && this.skillTargets(p, "qingke").length > 0;
@@ -1437,14 +1462,45 @@ window.Engine = (function () {
         // Gemini 搜索：偷看牌堆顶几张，再摸 1 张——顶上是宕机就从牌堆底摸
         const top = this.topCards(T.searchPeek); this.see(p, top);
         this.ui.skillNote(p, SN("gemini", "search")); this.ui.say(p, "search", true);
-        if (p.human) await this.ui.peek(top, `【${SN("gemini", "search")}】牌堆顶 ${top.length} 张（从上往下）`);
+        const bombAt = top.findIndex((c) => c.k === "dangji");
+        if (p.human && (!T.searchPick || !top.some((c) => c.k !== "dangji"))) await this.ui.peek(top, `【${SN("gemini", "search")}】牌堆顶 ${top.length} 张（从上往下）`);   // 能挑牌时直接弹挑牌框，不再先看一遍
         let bottom = !!(top[0] && top[0].k === "dangji");
         if (bottom && T.searchMove) {                                 // 顶上是宕机：把它塞回牌堆里随机一个位置（第 2 张以下），再正常摸——不会正好留给下家
           const b = this.deck.pop(); this.insertAt(b, 1 + rnd(this.deck.length)); this.insertSeq++; this.insertBy = p; this.forget(p); bottom = false;
         }
+        const good = T.searchPick ? top.filter((c) => c.k !== "dangji" && this.deck.includes(c)) : [];
+        if (good.length) {                                            // v36 搜索：从看到的几张里挑最好的 1 张（不再只能摸顶上那张）
+          const c = good.length === 1 && !p.human ? good[0] : p.human ? (await this.ui.humanPick(good.slice(), 1, `【${SN("gemini", "search")}】搜索结果：挑 1 张收下` + (bombAt >= 0 ? `（第 ${bombAt + 1} 张是宕机💣）` : "")))[0] : AI.pick(this, p, good, 1)[0];
+          this.deck.splice(this.deck.indexOf(c), 1); p.hand.push(c); this.ui.drawAnim(p, 1); this.forget(p);
+          this.ui.log(p, `【${SN("gemini", "search")}】搜了牌堆顶 ${top.length} 张` + (top[0] && top[0].k === "dangji" ? "（顶上的宕机塞回了牌堆）" : "") + "，挑了一张收下");
+          this.ui.sync(); await wait(300); return;
+        }
         this.ui.log(p, `【${SN("gemini", "search")}】看了看牌堆顶 ${top.length} 张` + (T.searchMove && top[0] && top[0].k === "dangji" ? "——顶上是宕机！把它塞回了牌堆里，再摸一张" : bottom ? "——顶上是宕机！改从牌堆底摸" : "，摸了一张"));
         await this.draw(p, T.searchDraw, true, bottom);
         await wait(300);
+      } else if (id === "pen") {
+        // v36 Gemini 妙笔：把一张【吐槽】写成说人话的爆款文章——当【刷屏】打：每名对手都要打出真【反驳】（六边形顶替无效），否则心态 −1
+        const c = this.has(p, "tucao")[0]; this.takeFromHand(p, c); this.toDiscard(c);
+        if (T.penCounts) p.tucao++;
+        this.ui.skill(p, SN(p.key, "pen")); this.ui.say(p, "pen", true); Sound.sfx("notify", 0.7);
+        this.ui.log(p, `【${SN(p.key, "pen")}】把一句【吐槽】写成了说人话的爆款文章，全网刷屏！`);
+        await wait(700);
+        const gptHit = [];
+        for (const t of this.rivals(p).filter((q) => q.alive)) {
+          if (this.over) break;
+          if (await this.protect(t, p, { k: "shuaping" })) continue;
+          const ok = await this.ask(t, "fanbo", { from: p, card: { k: "shuaping" }, plain: true });
+          if (!ok) { await this.damage(p, t, 1); if (this.hasSkill(t, "hexa")) gptHit.push(t); }
+        }
+        if (gptHit.length && p.alive && p.ch.lines.pen_gpt) { await wait(300); this.ui.say(p, "pen_gpt", true); }   // 打中 ChatGPT：顺嘴嘲讽一句不说人话
+        await wait(300);
+      } else if (id === "cut") {
+        // v36 Gemini 去AI味：写东西不说车轱辘话——同名的牌只留 1 张（【重启】不删），删几张摸几张、再多摸 cutExtra 张
+        const out = this.cutCards(p);
+        for (const c of out) { this.takeFromHand(p, c); this.toDiscard(c); }
+        this.ui.sync(); this.ui.skillNote(p, SN("gemini", "cut")); this.ui.say(p, "cut", true);
+        this.ui.log(p, `【${SN("gemini", "cut")}】删掉车轱辘话：${out.map((c) => `【${CD[c.k].name}】`).join("")}，重写成 ${out.length + T.cutExtra} 张新牌`);
+        await wait(300); await this.draw(p, out.length + T.cutExtra, true); await wait(300);
       } else if (id === "buy") {
         this.dropRandom(p, T.buyCost);
         const look = !this.hasSkill(p, "roam") ? 1 : this.players.length === 2 ? T.buyLook2p : T.buyLook;   // v31 什么都敢搜（被动 roam）：先随机翻对手几张给全场看，买走最有用的
@@ -1566,14 +1622,16 @@ window.Engine = (function () {
         this.ui.log(p, `【${SN(p.key, "nap")}】戴上眼罩倒头就睡：心态 +${T.napHeal}，睡到她的下个回合，锦囊都吵不醒`);
         this.ui.sync(); await wait(700);
       } else if (id === "paint") {
-        // Gemini 画图：香蕉魔法，从牌堆或弃牌堆里“画”出一张奶茶
-        let pool = this.deck.filter((c) => T.paintKinds.includes(c.k)), from = this.deck;
-        if (!pool.length) { pool = this.discard.filter((c) => T.paintKinds.includes(c.k)); from = this.discard; }
-        const c = pool[rnd(pool.length)];
-        this.ui.skill(p, SN(p.key, "paint")); this.ui.say(p, "paint", true); Sound.sfx("ding2", 0.6);
+        // v36 香蕉魔法：想画哪张画哪张——奶茶 / 吐槽 / 反驳里挑一种（每种先从牌堆找，没有再去弃牌堆）
+        const one = (k) => this.deck.find((c) => c.k === k) || this.discard.find((c) => c.k === k);
+        const opts = T.paintKinds.map(one).filter(Boolean);
+        let c = opts[0];
+        if (opts.length > 1) c = p.human ? (await this.ui.humanPick(opts.slice(), 1, `【${SN(p.key, "paint")}】想画哪张？`))[0] : AI.paintPick(this, p, opts);
+        const from = this.deck.includes(c) ? this.deck : this.discard;
+        this.ui.skill(p, SN(p.key, "paint")); this.ui.say(p, c && c.k !== "naicha" && p.ch.lines.paint2 ? "paint2" : "paint", true); Sound.sfx("ding2", 0.6);   // 画的不是奶茶：换一句不提奶茶的
         await wait(500);
         if (c) { from.splice(from.indexOf(c), 1); p.hand.push(c); this.ui.drawAnim(p, 1); }
-        this.ui.log(p, `【${SN(p.key, "paint")}】香蕉魔法——画出了一杯【${CD[c.k].name}】`);
+        this.ui.log(p, `【${SN(p.key, "paint")}】画出了一张【${CD[c.k].name}】`);
         await wait(400);
       } else if (id === "recall") {
         const pool = [];

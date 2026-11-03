@@ -53,13 +53,13 @@ window.Main = (function () {
     const line = (k, ls) => {
       const L = CH[k].lines || {}, ok = ls.filter((l) => L[l] && L[l].length);
       if (!ok.length) return null;
-      const l = rnd(ok), i = Math.floor(Math.random() * L[l].length);
+      const l = UI.skinKey(k, rnd(ok), L), i = Math.floor(Math.random() * L[l].length);   // 穿着皮肤：换成皮肤专属台词
       return [l, i, L[l][i]];
     };
     function paint(slide) {
       const c = CH[kb], st = $("#scr-title"), img = $("#kb-img");
       st.style.setProperty("--c", c.color); st.style.setProperty("--l", c.light);
-      $("#kb-name").textContent = c.name;
+      $("#kb-name").textContent = c.name; if (window.quickSub) window.quickSub(kb);
       const sk = Settings.skinsOf(kb), id = Settings.skinOf(kb), b = $("#kb-skin");
       b.classList.toggle("hidden", !sk.length); b.textContent = `👗 ${id ? sk.find((x) => x.id === id).name : "默认"}`;
       swapImg(img, UI.portrait(kb, "base"));
@@ -204,7 +204,7 @@ window.Main = (function () {
       $("#kb-img").onclick = poke; $("#kb-prev").onclick = () => step(-1); $("#kb-next").onclick = () => step(1); $("#kb-skin").onclick = skin;
       $("#lc-hi").onclick = () => act("hi"); $("#lc-red").onclick = () => act("red"); $("#lc-news").onclick = () => act("news");
     }
-    return { start, bind };
+    return { start, bind, kb: () => kb };
   })();
 
   // 换图不闪白：新图下载好再替换，没下完前继续显示旧图
@@ -305,6 +305,7 @@ window.Main = (function () {
       opp = pool.slice(0, players - 1);
     }
     lastOpp = opp;
+    try { localStorage.setItem("duixian_mode", players); } catch (e) {}
     show("scr-game");
     Sound.track("battle");
     newBg();
@@ -315,6 +316,17 @@ window.Main = (function () {
     UI.attach(game);
     game.run().catch((e) => console.error(e));
   }
+
+  // v36 快速开局：用首页的看板娘 + 上次玩的模式（没玩过就三人乱斗）直接开一局，跳过选人页
+  const MODE_NAME = { 2: "单挑", 3: "三人乱斗", 4: "2v2", 5: "抢群主", 6: "全明星赛" };
+  function lastMode() { let m = 3; try { m = +localStorage.getItem("duixian_mode") || 3; } catch (e) {} return MODE_NAME[m] ? m : 3; }
+  function quickSub(kb) { const e = $("#quick-sub"); if (e) e.textContent = `${CH[kb].name} · ${MODE_NAME[lastMode()]}`; }
+  function quick() {
+    pickKey = Lobby.kb(); players = lastMode();
+    document.querySelectorAll(".mode").forEach((x) => x.classList.toggle("on", +x.dataset.mode === players)); modeDesc();
+    start(false);
+  }
+  window.quickSub = quickSub;
 
   // ---------------------------------------------------------------- 全明星组队：左边你的国家队，右边对手队；点人加入 / 移出，人齐了开赛
   const REL_T = { ally: "盟友", friend: "交好", rival: "宿敌同队", mentor: "师徒" };
@@ -465,6 +477,27 @@ window.Main = (function () {
       <h3>音效（CC BY）</h3><ul>${sfx}</ul><p>其余音效为 CC0 公共领域素材。</p>
       <h3>美术与配音</h3><p>角色立绘、插画与配音均为 AI 生成。字体：阿里妈妈方圆体、阿里巴巴普惠体 2.0。</p>`);
   }
+  window.showCredits = credits;
+  // v36 台词图鉴：选人页点「🎙 台词」，按场合列出她所有配过音的台词，点一句播一句
+  const LINE_GROUP = [["开场", ["greet", "allstar"]], ["出手", ["attack", "trick", "ko", "sig", "roger", "def"]], ["技能", null],
+    ["挨打", ["hurt", "low", "hajimi", "pelted", "egged", "stolen", "exposed", "dug"]], ["宕机", ["boom", "reboot"]], ["赢 / 退群", ["win", "out", "mourn", "pact_end"]],
+    ["突发事件", ["ev_"]], ["对别人说", "@"], ["其他", "*"]];
+  function lineBook(k) {
+    const c = CH[k], L = c.lines || {}, V = window.VOICES || {}, used = new Set(), skillIds = new Set(c.skills.map((s) => s.id));
+    const groups = LINE_GROUP.map(([title, keys]) => {
+      const pick = Object.keys(L).filter((lk) => !used.has(lk) && (
+        keys === "*" ? true : keys === "@" ? !!CH[lk] || lk.startsWith("vs_") : keys === null ? skillIds.has(lk) || c.skills.some((s) => lk.startsWith(s.id)) : keys.some((x) => x.endsWith("_") ? lk.startsWith(x) : lk === x)));
+      pick.forEach((lk) => used.add(lk));
+      const rows = pick.flatMap((lk) => L[lk].map((t, i) => [lk, i, t])).filter(([lk, i]) => V[`${k}_${lk}${i}`]);
+      return rows.length ? `<h3>${title} <small>${rows.length}</small></h3>` + rows.map(([lk, i, t]) => `<button class="lb-row" data-l="${lk}" data-i="${i}">${CH[lk] ? `<em>@${CH[lk].name}</em> ` : ""}${t}</button>`).join("") : "";
+    }).join("");
+    const n = Object.keys(V).filter((x) => x.startsWith(k + "_")).length;
+    modal(`<h2 class="lb-title" style="--c:${c.color}">${c.name} 的台词 <small>${n} 句配音 · 点一句听一句</small></h2><div class="lb">${groups}</div>`);
+    document.querySelectorAll("#modal .lb-row").forEach((b) => b.onclick = () => {
+      Sound.music(Sound.S.music); Sound.voice(k, b.dataset.l, +b.dataset.i);
+      document.querySelectorAll("#modal .lb-row.on").forEach((x) => x.classList.remove("on")); b.classList.add("on");
+    });
+  }
   function modal(html) { $("#modal-body").innerHTML = html; $("#modal").classList.remove("hidden"); }
 
   function boot() {
@@ -486,7 +519,8 @@ window.Main = (function () {
       if ($("#scr-select").classList.contains("active")) { $("#btn-back").click(); done(); return; }
       if ($("#scr-team").classList.contains("active")) { $("#tm-back").click(); done(); return; }
     }, true);
-    $("#btn-credits").onclick = () => { Sound.sfx("click"); credits(); };
+    $("#btn-lines").onclick = () => { Sound.sfx("click", 0.5); lineBook(pickKey); };
+    $("#btn-quick").onclick = () => { Sound.sfx("click"); Sound.music(Sound.S.music); quick(); };
     $("#btn-go").onclick = () => { Sound.sfx("click"); if (players === 6) team(); else start(false); };   // 全明星赛先去组队页
     $("#tm-back").onclick = () => { Sound.sfx("click"); select(); };
     $("#tm-rand").onclick = teamRandom;

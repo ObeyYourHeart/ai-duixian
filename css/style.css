@@ -104,7 +104,16 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 .title-btns { position: absolute; bottom: calc(34px + var(--dy) / 4); left: calc(var(--dx) + 700px); width: 860px; display: flex; justify-content: space-between; gap: 18px; }
 .title-btns .btn { flex: 1; padding: 14px 0; }
-.title-btns .btn.primary { flex: 1.5; font-size: 36px; }
+.title-btns .btn.primary { flex: 1.7; font-size: 40px; }
+/* v36 首页：开始游戏最大；快速开局 = 当前看板娘 + 上次的模式直接开打；玩法 / 设置缩成图标按钮（素材署名收进设置） */
+.title-btns .btn.quick { flex: 1.5; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 0; line-height: 1.15; }
+.title-btns .btn.quick span { font-size: 32px; }
+.title-btns .btn.quick small { font-family: var(--body, inherit); font-size: 17px; font-weight: 800; opacity: .75; }
+.title-btns .btn.ico { flex: 0 0 104px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px 0; line-height: 1.1; }
+.title-btns .btn.ico span { font-size: 34px; }
+.title-btns .btn.ico small { font-size: 17px; }
+#stage.tiny .lc-acts button { font-size: 26px; padding: 7px 16px; }
+#stage.tiny .lc-head b { font-size: 26px; }
 
 /* ---------- 选人 ---------- */
 .sel-head { position: absolute; left: 50px; right: 50px; top: calc(28px + var(--dy) / 4); display: flex; align-items: center; justify-content: space-between; }
@@ -469,6 +478,8 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #stage.portrait .title-btns { left: 20px; width: 720px; bottom: calc(24px + var(--dy) / 8); flex-wrap: wrap; gap: 14px; }
 #stage.portrait .title-btns .btn { flex: 1 1 30%; padding: 14px 0; font-size: 28px; }
 #stage.portrait .title-btns .btn.primary { flex: 1 1 100%; font-size: 38px; }
+#stage.portrait .title-btns .btn.quick { flex: 1 1 50%; padding: 8px 0; }
+#stage.portrait .title-btns .btn.ico { flex: 0 0 112px; padding: 6px 0; }
 /* 选人：上面 5 列小卡，下面详情 */
 #stage.portrait .sel-head { left: 16px; right: 16px; top: calc(24px + var(--dy) / 10); flex-direction: column; gap: 14px; }
 #stage.portrait .sel-head .logo.mid { font-size: 52px; }
@@ -848,3 +859,15 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .news.who { width: 780px; padding-left: 156px; text-align: left; }
 .news .nw-av { position: absolute; left: 22px; top: 50%; width: 112px; height: 112px; margin-top: -56px; border-radius: 50%; object-fit: cover; border: 5px solid var(--nw, #ff9f1c); background: #fff; }
 #stage.portrait .news.long .nw-t { font-size: 40px; }
+
+/* v36 台词图鉴 */
+.lb-title small { font-size: 18px; color: #8a92b8; margin-left: 8px; }
+.lb { max-height: 560px; overflow-y: auto; padding-right: 6px; }
+#stage.tiny .lb-row { font-size: 28px; } #stage.tiny .lb h3 { font-size: 28px; } #stage.portrait .lb { max-height: 900px; }
+.lb h3 { margin: 14px 0 6px; font-size: 22px; color: #4a5a90; }
+.lb h3 small { font-size: 16px; color: #9aa0c0; }
+.lb-row { display: block; width: 100%; text-align: left; font: inherit; font-size: 20px; font-weight: 700; color: #3d3a5c; background: #fff; border: 2px solid rgba(120, 140, 200, .2); border-radius: 14px; padding: 8px 14px; margin: 6px 0; cursor: pointer; }
+.lb-row::after { content: " 🔊"; font-size: .75em; opacity: .5; }
+.lb-row:hover, .lb-row.on { border-color: var(--acc, #6a7bd8); background: #f3f6ff; }
+.lb-row em { font-style: normal; color: #6a7bd8; }
+#stage.portrait .lc-acts button { font-size: 20px; padding: 6px 12px; }

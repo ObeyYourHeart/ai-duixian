@@ -72,7 +72,7 @@ window.Settings = (function () {
           <p class="set-note keys">1–9 选牌（再按一次出牌）· 选目标时按对手头上的数字 · Enter 确认 · 空格 结束回合 · Q / W / E 技能 · Esc 取消 / 关窗口</p>
         </div>
       </div>
-      <div class="set-foot"><button class="btn small" id="set-full">全屏</button><button class="btn small" id="set-reset">恢复默认</button></div>`;
+      <div class="set-foot"><button class="btn small" id="set-full">全屏</button><button class="btn small" id="set-reset">恢复默认</button><button class="btn small" id="set-credits">素材署名</button></div>`;
     const body = $("#modal-body");
     body.querySelectorAll("input[data-vol]").forEach((r) => {
       const k = r.dataset.vol, out = body.querySelector(`[data-val="${k}"]`);
@@ -92,6 +92,7 @@ window.Settings = (function () {
       });
       paint();
     });
+    $("#set-credits").onclick = () => { Sound.sfx("click", 0.5); if (window.showCredits) window.showCredits(); };
     $("#set-reset").onclick = () => { reset(); Sound.sfx("click", 0.5); open(); UI.toast("已恢复默认设置"); };
     const fs = $("#set-full");
     fs.textContent = fsOn() ? "退出全屏" : "全屏";

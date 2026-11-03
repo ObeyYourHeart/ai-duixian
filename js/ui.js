@@ -497,10 +497,17 @@ window.UI = (function () {
     if (ms && p.alive) exprTimers[p.i] = setTimeout(() => { if (p.alive && g) img.src = portrait(pkey(p), "base"); }, ms);
   }
   const HURT_KEYS = ["hurt", "hajimi", "out", "stolen", "fury", "halluc", "low", "mourn", "egged"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
-    "polish", "zuiying", "beg", "beg_gpt", "beg_claude", "claw", "dad", "maint", "long", "busy", "fed", "think", "sis", "search", "know", "sorry", "bundle", "sale",
+    "polish", "zuiying", "beg", "beg_gpt", "beg_claude", "claw", "dad", "maint", "long", "busy", "fed", "think", "sis", "search", "know", "cut", "plain", "pen", "pen_gpt", "paint2", "sorry", "bundle", "sale",
     "ko", "def", "qingke", "qingke_self", "pact_end", "egg", "egg_claude", "hatch"];
+  // v36 皮肤专属台词：穿着某套皮肤时，<台词类>_<皮肤 id> 有内容就六成概率改说这句（Bel 皮肤的 ChatGPT 满嘴数学）
+  function skinKey(ck, key, lines) {
+    if (window.GAME_DATA.chars[key]) return key;                     // 冲某个角色说的话不换（对方的回嘴是配好对的）
+    const sid = window.Settings && Settings.skinOf(ck), alt = sid && key + "_" + sid;
+    return alt && (lines[alt] || []).length && Math.random() < 0.6 ? alt : key;
+  }
   function say(p, key, important) {
     if (!g) return;
+    const base = key; key = skinKey(p.key, key, p.ch.lines);
     const arr = p.ch.lines[key];
     if (!arr || !arr.length) return;
     const now = performance.now();
@@ -518,9 +525,9 @@ window.UI = (function () {
     if (p.human) { wrap.style.left = q.x + 20 + "px"; wrap.style.top = q.y - 14 + "px"; wrap.style.transform = "translateY(-100%)"; }
     else { wrap.style.left = Math.max(8, Math.min(q.x + 6, SW - 330)) + "px"; wrap.style.top = q.y + HERO_H * seatScale(p) + 14 + "px"; }
     $("#fx").appendChild(wrap);
-    if (key === "exposed") expr(p, "exposed", 1800);
-    else if (HURT_KEYS.includes(key) || key === "ev_fatfish") expr(p, "hurt", key === "out" ? 0 : 1600);
-    else if (SMUG_KEYS.includes(key) || key.startsWith("ev_")) expr(p, key === "win" ? "win" : "smug", 1400);   // 赢的时候用胜利立绘（v30）
+    if (base === "exposed") expr(p, "exposed", 1800);
+    else if (HURT_KEYS.includes(base) || base === "ev_fatfish") expr(p, "hurt", base === "out" ? 0 : 1600);
+    else if (SMUG_KEYS.includes(base) || base.startsWith("ev_")) expr(p, base === "win" ? "win" : "smug", 1400);   // 赢的时候用胜利立绘（v30）
     setTimeout(() => wrap.remove(), Math.max(1800, text.length * 170));
     return (window.VOICES || {})[`${p.key}_${key}${idx}`] || 0;   // 配音时长（毫秒），没有配音返回 0
   }
@@ -1151,6 +1158,6 @@ window.UI = (function () {
     const tip = $("#ctip"); if (tip) tip.className = "hidden";
   }
 
-  return { attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, skillNote, band, banner, news, phase, toast,
+  return { skinKey, attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, skillNote, band, banner, news, phase, toast,
     humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr, throwProp, asset: A };
 })();

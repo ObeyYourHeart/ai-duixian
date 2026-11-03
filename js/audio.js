@@ -8,6 +8,7 @@ window.Sound = (function () {
   const src = (p) => (window.ASSET && window.ASSET[p]) || p;
   let bgm = null, duck = 0, duckTimer = null, kind = null, lastPick = "";
   const decks = [new Audio(), new Audio()];                      // 配乐两台来回切：淡出一台、淡入另一台
+  for (const d of decks) d.preload = "none";                     // v36：首页音乐（1.3 MB）等第一次点击真要播的时候才下载，手机首次打开少下一大半
   const pools = {};
   const voices = {};
   // 配乐：按场景换曲，切换时淡入淡出；对局曲每局随机一首

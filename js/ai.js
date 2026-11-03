@@ -191,6 +191,8 @@ window.AI = (function () {
     // 小DeepSeek 变身：冒充 Claude，顺手学她润色——手里的牌不好就变
     if (g.canSkill(p, "disguise") && g.round >= 2 && !risky(p.hand.length + 1) && polishGain(g, p) > 0) return { skill: "disguise" };
     if (g.canSkill(p, "search")) return { skill: "search" };
+    if (g.canSkill(p, "pen") && g.rivals(p).filter((q) => q.alive).length >= (g.players.length === 2 ? 1 : 2) || g.canSkill(p, "pen") && g.rivals(p).some((q) => q.alive && q.hp <= 1)) return { skill: "pen" };   // 妙笔：对手多时刷一片划算；有人只剩 1 点也补一刀
+    if (g.canSkill(p, "cut") && !risky(p.hand.length + 1)) return { skill: "cut" };
     if (g.canSkill(p, "qingke")) { const t = treatTarget(g, p); if (t && (t !== p || p.hp <= p.maxHp - 1)) return { skill: "qingke", target: t }; }
     if (g.canSkill(p, "bundle") && !risky(3)) { if (Engine.T.bundleRandom) return { skill: "bundle" }; const t = giftTarget(g, p); if (t) return { skill: "bundle", target: t }; }
     if (g.canSkill(p, "halluc") && (Engine.T.hallucCost ? p.hand.length >= 2 : true) && p.hp >= 2) return { skill: "halluc" };
@@ -210,7 +212,7 @@ window.AI = (function () {
     }
     if (g.canSkill(p, "luckybag") && (p.hand.length <= 2 || g.round >= 3)) return { skill: "luckybag" };
     if (g.canSkill(p, "opensrc") && g.rivals(p).reduce((n, q) => n + q.hand.length, 0) >= 4 && (g.round >= 2 || r() < 0.3)) return { skill: "opensrc" };
-    if (g.canSkill(p, "paint") && !H("naicha").length && (p.hp < p.maxHp || g.round >= 3)) return { skill: "paint" };
+    if (g.canSkill(p, "paint") && ((!H("naicha").length && p.hp < p.maxHp) || ((p.uses.pen || 0) > 0 && !H("tucao").length) || (!H("fanbo").length && g.round >= 2) || g.round >= 4)) return { skill: "paint" };   // v36 香蕉魔法三选一：缺什么画什么
     if (g.canSkill(p, "steal")) { const t = richest(g.skillTargets(p, "steal"), p); if (t) return { skill: "steal", target: t }; }
     if (g.canSkill(p, "buy")) {
       const ts = g.skillTargets(p, "buy").filter((q) => q.hand.length >= 2);
@@ -328,6 +330,15 @@ window.AI = (function () {
 
   function discard(g, p, n) { return cheapest(g, p, n); }
   // Claude 润色（整手重写）值不值：手里的平均价值低于一张新牌才写
+  // v36 Gemini 香蕉魔法画哪张：快不行了画奶茶；妙笔还能用却没吐槽就画吐槽；没反驳画反驳；都不缺按心态
+  function paintPick(g, p, opts) {
+    const by = (k) => opts.find((c) => c.k === k), has = (k) => p.hand.some((c) => c.k === k);
+    if (p.hp <= 2 && by("naicha")) return by("naicha");
+    if (g.canSkill(p, "pen") === false && (p.uses.pen || 0) > 0 && !has("tucao") && by("tucao")) return by("tucao");
+    if (!has("fanbo") && by("fanbo")) return by("fanbo");
+    if (p.hp < p.maxHp && by("naicha")) return by("naicha");
+    return by("tucao") || opts[0];
+  }
   function polishGain(g, p) {
     const cards = Engine.T.polishKeep ? p.hand.filter((c) => c.k !== "chongqi" && c.k !== "shuaiguo") : p.hand;   // polishKeep：重启 / 甩锅不会被扔，不算进去
     if (!cards.length) return 0;
@@ -340,6 +351,6 @@ window.AI = (function () {
   // 豆包：吐槽被挡后要不要弃牌接着说；GPT：没反驳时要不要弃一张硬顶
   function wantLong(g, p, t) { return p.hand.length >= 2 || t.hp <= 1; }
   function wantZuiying(g, t, p) { return t.hp <= 2 || t.hand.length >= 4; }
-  return { choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard, treatTarget, autoTargets,
+  return { paintPick, choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard, treatTarget, autoTargets,
     drawOrder, placeBomb, bombChoice, wantMoyu, arrange };
 })();
