@@ -247,6 +247,7 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 #hand .card.dragging { opacity: .25; }
 .card .kn { display: none; position: absolute; left: 6px; top: 46px; width: 26px; height: 26px; border-radius: 50%; background: rgba(42, 36, 64, .7); color: #fff;
   font-size: 15px; font-weight: 800; line-height: 26px; text-align: center; }
+.card .swp { position: absolute; left: 6px; top: 150px; font-size: 13px; line-height: 20px; padding: 0 6px; border-radius: 6px; background: #ffb547; color: #fff; font-weight: 800; white-space: nowrap; pointer-events: none; }
 @media (hover: hover) and (pointer: fine) { #hand.keys .card .kn:not(:empty) { display: block; } }
 .card.ghost { left: 0; top: 0; pointer-events: none; z-index: 70; transition: none; opacity: .96; box-shadow: 0 20px 40px rgba(60, 40, 120, .38); }
 .card.ghost.armed { box-shadow: 0 0 0 5px #ffcf3f, 0 0 34px rgba(255, 190, 60, .85), 0 20px 40px rgba(60, 40, 120, .38); }
@@ -259,6 +260,7 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
   padding: 10px 16px; box-shadow: 0 10px 26px rgba(70, 50, 140, .28); pointer-events: none; font-size: 18px; line-height: 1.45; color: var(--ink); font-weight: 700; }
 #ctip .tt b { font-family: var(--title); font-weight: normal; color: #e0632a; }
 #ctip .tno { margin-top: 4px; color: #e2525b; font-weight: 800; font-size: 16px; }
+#ctip .tsw { margin-top: 4px; color: #d9822b; font-weight: 800; font-size: 16px; }
 #ctip .tgo { margin-top: 8px; display: flex; align-items: center; gap: 10px; font-weight: 800; color: #5a4aa8; font-size: 16px; }
 #ctip .tgo .btn { pointer-events: auto; font-size: 22px; padding: 6px 24px; }
 #skillbox kbd { margin-left: 6px; vertical-align: 3px; }

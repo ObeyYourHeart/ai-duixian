@@ -8,12 +8,14 @@ window.Engine = (function () {
   const BIGS = ["gpt", "claude"];
   // 技能数值表（平衡都在这里调；sim.js 可以用 TUNE 覆盖）
   const T = Object.assign({
-    hand: { kimi: 2, xds: 1, gpt: 2, gemini: 2, qwen: 2, claude: 1, grok: 3 },          // 手牌上限加成（v36.2 Grok +3：开局多拿的 3 张终于留得住——乱斗 35→36 / 单挑 52→54 / 2v2 50→55 / 抢群主 37→42）
+    hand: { kimi: 2, xds: 2, gpt: 2, gemini: 2, qwen: 2, claude: 1, grok: 3, glm: 1 }, hand2p: { glm: 0 },   // v37 GLM +1（单挑不加：加了 51→58）、小DeepSeek 1→2
+             // 手牌上限加成（v36.2 Grok +3：开局多拿的 3 张终于留得住——乱斗 35→36 / 单挑 52→54 / 2v2 50→55 / 抢群主 37→42）
     extraDraw: {},                                        // 每回合多摸
     searchLook: 5, knowLook: 3, knowKeep: true, knowKeepOnce: true, knowKeep2p: false, searchPick: true,   // v36：搜索从看到的 3 张里挑 1 张；知识库翻 3 张、没查到也收 1 张（每轮 1 次、单挑不收——单挑收牌时 65%）。sim 乱斗 38 / 单挑 51 / 2v2 53 / 抢群主 41                           // Gemini 搜索：看几张；博闻：翻几张找反驳
     sorryDraw: 2, sorryDraw2p: 1, sorryBoom: true,   // （v24b：4 / 2 → 3 / 1；v29 删掉以假乱真后被挡的吐槽变多，3 → 2：乱斗 33 / 单挑 51 / 2v2 50）   // 豆包 嘻嘻抱歉：做错事摸几张；自己宕机了也算做错事
     grokStart: 3, grokFloor: 3, grokFloorTeam: 2,         // 千金：开局多拿；回合开始补到几张（v28 乱斗 / 单挑补到 3：乱斗 30 → 34、单挑 42 → 46；组队 / 抢群主仍 2——那边她本来就 50+）
-    thinkDraw: 1, thinkRate: 0.8, thinkDefuse: 0.2,                       // 大 DeepSeek 深思：摸牌阶段多摸几张；摸到宕机时自己推理拆掉的概率
+    thinkDraw: 1, thinkRate: 0.8, thinkRate2p: 0.6, thinkDefuse: 0.2,   // v37 单挑 0.6（0.8 时单挑 57%）
+                          // 大 DeepSeek 深思：摸牌阶段多摸几张；摸到宕机时自己推理拆掉的概率
     searchPeek: 3, searchDraw: 1,                         // Gemini 搜索：偷看几张、再摸几张
     polishExtra: 1, polishExtra2p: 0,                                       // Claude 润色：整手重写时多摸几张
     zuiyingCost: 1,                                       // 嘴硬：弃几张硬顶（v12 起没人有）
@@ -175,7 +177,7 @@ window.Engine = (function () {
     has(p, k) { return p.hand.filter((c) => c.k === k); }
     hasSkill(p, id) { return p.ch.skills.some((s) => s.id === id); }
     limitTucao(p) { const base = 1 + (this.round >= T.rageRound ? 1 : 0) + (this.hasEq(p, "xianka") ? 1 : 0) + 0; return p.dumb ? 0 : p.sale ? (T.saleExtra == null ? 99 : base + T.saleExtra) : base; }
-    handLimit(p) { return Math.max(0, p.hp) + (T.hand[p.key] || 0) + (this.hasEq(p, "chongdianbao") ? T.powerbank : 0); }
+    handLimit(p) { const h2 = this.players.length === 2 && T.hand2p[p.key] != null ? T.hand2p[p.key] : T.hand[p.key]; return Math.max(0, p.hp) + (h2 || 0) + (this.hasEq(p, "chongdianbao") ? T.powerbank : 0); }
     // 装备栏（v30 equipSlots）：按类型分格——硬件（显卡）/ 安全（防火墙、加密、云备份）/ 外设（充电宝）各一格，可以同时装；关掉就是原来的一格
     equips(p) { return T.equipSlots ? Object.values(p.equips || {}) : p.equip ? [p.equip] : []; }
     hasEq(p, k) { return this.equips(p).some((c) => c.k === k); }
@@ -501,7 +503,7 @@ window.Engine = (function () {
       } else {
         // 摸鱼：知道顶上有雷、或者刚有人往牌堆里塞过宕机，可以改从牌堆底摸
         let bottom = false;
-        const think = this.hasSkill(p, "think") && Math.random() < T.thinkRate ? T.thinkDraw : 0;   // 深思：这回合想得深不深看运气
+        const think = this.hasSkill(p, "think") && Math.random() < (this.players.length === 2 ? T.thinkRate2p : T.thinkRate) ? T.thinkDraw : 0;   // 深思：这回合想得深不深看运气
         const danger = this.knowsBomb(p, 2 + think) >= 0;
         if (this.has(p, "moyu").length && (danger || this.insertSeq > p.lastSeq)) {
           const go = p.human ? await this.ui.humanConfirm(danger ? "牌堆顶有【宕机】！打出【摸鱼】，这回合改从牌堆底摸牌？" : "刚有人往牌堆里塞了东西……打出【摸鱼】，这回合改从牌堆底摸牌？", danger) : AI.wantMoyu(this, p);
@@ -1597,6 +1599,6 @@ window.Engine = (function () {
     }
   }
 
-  E.Game = Game; E.wait = wait; E.CD = CD; E.CH = CH; E.T = T; E.ROLE = ROLE; E.EVENTS = EVENTS;
+  E.Game = Game; E.wait = wait; E.CD = CD; E.CH = CH; E.T = T; E.ROLE = ROLE; E.EVENTS = EVENTS; E.EQ_SLOT = EQ_SLOT; E.EQ_SLOT_NAME = EQ_SLOT_NAME;
   return E;
 })();

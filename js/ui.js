@@ -243,6 +243,8 @@ window.UI = (function () {
       e.classList.toggle("sel", selected === c.id);
       e.classList.toggle("hov", hoverId === c.id);
       e.classList.toggle("pick2", discardPick.includes(c.id));
+      const old = swapOld(c), sw = e.querySelector(".swp");
+      if (old && !sw) e.appendChild(el("div", "swp", `换下${CD[old.k].name}`)); else if (old) sw.textContent = `换下${CD[old.k].name}`; else if (sw) sw.remove();
       e.classList.toggle("dragging", (drag && drag.on && drag.id === c.id) || dropId === c.id);
     });
     for (const id in existing) if (!keep.has(id)) existing[id].remove();
@@ -339,6 +341,13 @@ window.UI = (function () {
   }
   function hideHeroInfo() { infoP = null; const b = $("#hinfo"); if (b) b.className = "hidden"; }
 
+  // v37 装备冲突：这张装备会把同一格里现有的那件换下来（旧的进弃牌堆）→ 手牌角标 + 浮窗提醒；一键出牌 / 双击时先选中、不直接换
+  function swapOld(c) { return CD[c.k].type === "equip" && g.eqIn ? g.eqIn(g.human, c.k) : null; }
+  function swapNote(c) {
+    const old = swapOld(c); if (!old) return "";
+    const slot = Engine.EQ_SLOT_NAME && Engine.EQ_SLOT_NAME[Engine.EQ_SLOT[c.k]];
+    return old.k === c.k ? `⚠ 你已经装着【${CD[old.k].name}】了，再装只是换一张一样的` : `⚠ 会换下你身上的【${CD[old.k].name}】${slot ? `（同在${slot}格）` : ""}，旧的直接进弃牌堆`;
+  }
   // ---------------------------------------------------------------- 牌的说明浮窗（悬停那张 / 选中那张）
   function renderTip() {
     const tip = $("#ctip"); if (!tip || !g) return;
@@ -356,6 +365,7 @@ window.UI = (function () {
       else html += `<div class="tgo"><button class="btn small primary" id="tip-go">出牌</button>${SET().keys ? '<kbd class="kb">Enter</kbd>' : ""}<span>或把牌往上拖</span></div>`;
     } else if (mode === "respond" && respondCards.includes(c.id)) html += `<div class="tgo"><span>👉 点这张打出</span></div>`;
     else if (!$("#prompt").classList.contains("hidden")) { tip.className = "hidden"; return; }
+    if (swapNote(c) && !(playing && !g.canUse(me, c))) html = html.replace("</div>", `</div><div class="tsw">${swapNote(c)}</div>`);   // 装备冲突提醒，紧跟在说明下面
     tip.innerHTML = html;
     tip.className = "";
     const go = tip.querySelector("#tip-go");
@@ -784,7 +794,7 @@ window.UI = (function () {
     if (skillMode) { skillMode = null; clearTargets(); }
     if (!g.canUse(me, c)) { toast(whyNot(me, c)); return; }
     const d = CD[c.k];
-    if (SET().click === 1 && selected !== id) {
+    if (SET().click === 1 && selected !== id && !swapOld(c)) {
       if (d.target !== "one") { selected = id; act(() => g.useCard(me, c, [])); return; }
       const ts = g.targetsFor(me, c);
       if (ts.length === 1) { selected = id; act(() => g.useCard(me, c, [ts[0]])); return; }
@@ -826,6 +836,7 @@ window.UI = (function () {
     const me = g.human; const c = me.hand.find((x) => x.id === id);
     if (!c || mode !== "play" || busy || skillMode) return;
     if (!g.canUse(me, c)) return;
+    if (swapOld(c) && selected !== id) { onCardClick(id); return; }   // 会换下装备的：双击先选中看提醒
     if (CD[c.k].target !== "one") { selected = id; act(() => g.useCard(me, c, [])); }
   }
   function whyNot(me, c) {
