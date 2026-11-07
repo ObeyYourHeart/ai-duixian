@@ -208,7 +208,7 @@ window.Engine = (function () {
       const H = p.ch.harness, cmd = p.disguise && H.cmd2 ? H.cmd2 : H.cmd;
       if (this.ui.deploy) await this.ui.deploy(p, cmd, H.name);           // v48 上线演出：浅色薄纱 + 居中终端卡片 + 「上线！」章 + 头像光环 + 音效 / 短乐句
       this.ui.sys(`${p.name} 的 ${H.name} 部署完成，上线了：${H.short}`, "good");
-      if (p.ch.lines.deploy) this.ui.say(p, "deploy", true);
+      if (p.ch.lines.deploy && !p.human) this.ui.say(p, "deploy", true);   // 玩家自己上线：台词在演出里说
       if (p.human && Sound.track) Sound.track("harness");                    // 玩家自己的 harness 上线：对局 BGM 换成 Harness 曲（吵上头的 rage 曲优先）
       await wait(500);
     }

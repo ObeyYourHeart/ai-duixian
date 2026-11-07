@@ -520,7 +520,8 @@ window.Main = (function () {
       if (e.key !== "Escape") return;
       const done = () => { e.preventDefault(); e.stopImmediatePropagation(); };
       if (!$("#rules").classList.contains("hidden")) { closeRules(); done(); return; }
-      if ($("#report")) { $("#report .rp-x").click(); done(); return; }   // v43 战报卡：Esc 只关战报，回到结算框
+      if ($("#report")) { $("#report .rp-x").click(); done(); return; }
+      if ($("#fx .dshow")) { UI.skipDeploy(); done(); return; }   // v48 上线演出：Esc 跳过   // v43 战报卡：Esc 只关战报，回到结算框
       const md = $("#modal");
       if (!md.classList.contains("hidden")) {
         if ($("#modal-close").style.display !== "none") md.classList.add("hidden");

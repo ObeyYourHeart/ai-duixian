@@ -864,30 +864,51 @@ window.UI = (function () {
       step();
     });
   }
-  // v48 上线演出：全屏浅色薄纱 + 居中终端卡片（角色主题色）逐行打部署命令 → 盖「XX 上线！」章 + 头像光环。
-  //   不震屏、不用集中线；玩家自己上线完整版约 1.8 秒，电脑上线短版约 1 秒
+  // v48 上线演出（改版：以立绘为主）：
+  //   玩家自己上线——浅色薄纱上大立绘居中，镜头慢推（整张等比放大，不扭曲）→ 切到第 2 帧 + 身后光点散开 + 配音 + 眨眼；
+  //   旁边全息小屏打部署命令，「XX 上线！」章在一侧。点一下 / Esc 跳过。电脑上线——只用第 2 帧，半屏切入约 1 秒（同技能切入）
+  let deploySkip = null;
+  function skipDeploy() { if (deploySkip) deploySkip(); }
+  const HZ_BLINK = ["gemini", "deepseek", "doubao", "kimi", "grok", "qwen", "xds", "xds_cl"];   // 有眨眼帧的（Claude / GPT / GLM 合成不自然，不眨）
+  function hzImg(p, f) { const k = p.key === "xds" && p.disguise ? "xds_cl" : p.key; return A(`assets/img/hz_${k}_${k === "xds_cl" && f === "a" ? "b" : f}.webp`); }
   function deployShow(p, cmd, name) {
-    const H = p.ch.harness || {}, full = !!p.human;
-    const lines = full ? [`$ ${cmd} deploy`, ...(H.wiki ? ["📖 生成「全家桶 Wiki」", ...H.wiki.map((w, i) => `  ${i === H.wiki.length - 1 ? "└" : "├"} ${w}.md`)] : [`  installing ${name} …`]), `✓ ${name} ready`]
-      : [`$ ${cmd} deploy`, ...(H.wiki ? [`📖 全家桶 Wiki（${H.wiki.length} 页）`] : []), `✓ ${name} ready`];
-    const txt = lines.join("\n"), sp = Math.max(0.3, Engine.speed || 0), per = (full ? 24 : 12) * sp;
-    const veil = el("div", "dveil"), card = el("div", "dcard" + (full ? "" : " short"));
-    card.style.setProperty("--c", p.ch.color); card.style.setProperty("--l", p.ch.light || "#fff");
-    card.innerHTML = `<div class="tm-bar"><i></i><i></i><i></i><span>${p.name} · ${name}</span></div><pre></pre><div class="dstamp">${name} 上线！</div>`;
-    $("#fx").append(veil, card);
-    const hero = heroes[p.i];
+    const H = p.ch.harness || {}, sp = Math.max(0.3, Engine.speed || 0), hero = heroes[p.i];
+    const halo = () => { if (hero) { hero.classList.add("halo"); setTimeout(() => hero.classList.remove("halo"), 2600 * sp); } };
+    if (!(Engine.speed > 0)) return Promise.resolve(false);
+    if (!p.human) {                                                   // 电脑：半屏切入
+      const c = el("div", "cutin hzcut"); c.style.setProperty("--c", p.ch.color); c.style.setProperty("--l", p.ch.light);
+      c.innerHTML = `<img src="${hzImg(p, "b")}" alt=""><div class="ct2">${p.name} · Harness</div><div class="ct1">${name} 上线！</div><div class="ct3">${H.short || ""}</div>`;
+      $("#fx").appendChild(c); Sound.sfx("deploy_ok", 0.7); Sound.sfx("harness_sting", 0.5); halo();
+      return new Promise((res) => setTimeout(() => { c.remove(); res(false); }, 1100 * sp));
+    }
+    const lines = [`$ ${cmd} deploy`, ...(H.wiki ? ["📖 生成「全家桶 Wiki」", ...H.wiki.map((w, i) => ` ${i === H.wiki.length - 1 ? "└" : "├"} ${w}.md`)] : [` installing ${name} …`]), `✓ ${name} ready`];
+    const txt = lines.join("\n");
+    const box = el("div", "dshow"); box.style.setProperty("--c", p.ch.color); box.style.setProperty("--l", p.ch.light || "#fff");
+    box.innerHTML = `<div class="ds-veil"></div><div class="ds-cam"><div class="ds-pt"></div><img class="ds-a" src="${hzImg(p, "a")}" alt=""><img class="ds-b" src="${hzImg(p, "b")}" alt="">${HZ_BLINK.includes(p.key === "xds" && p.disguise ? "xds_cl" : p.key) ? `<img class="ds-bl" src="${hzImg(p, "b_blink")}" alt="">` : ""}</div>
+      <div class="ds-holo"><div class="tm-bar"><i></i><i></i><i></i><span>${name}</span></div><pre></pre></div><div class="ds-stamp">${name} 上线！</div><div class="ds-skip">点一下跳过</div>`;
+    $("#fx").appendChild(box);
+    const pre = box.querySelector("pre"), cam = box.querySelector(".ds-cam"), pt = box.querySelector(".ds-pt");
+    for (let k = 0; k < 26; k++) {                                     // 光点：从立绘身后往外散开（hit 时才动）
+      const d = el("i"), a = Math.random() * Math.PI * 2, r = 160 + Math.random() * 260;
+      d.style.setProperty("--dx", Math.cos(a) * r + "px"); d.style.setProperty("--dy", Math.sin(a) * r * 0.8 + "px");
+      d.style.setProperty("--s", (6 + Math.random() * 10).toFixed(1) + "px"); d.style.animationDelay = (Math.random() * 0.25).toFixed(2) + "s"; pt.appendChild(d);
+    }
+    const timers = []; const at = (ms, f) => timers.push(setTimeout(f, ms * sp));
     return new Promise((res) => {
-      const done = () => { veil.classList.add("out"); card.classList.add("out"); setTimeout(() => { veil.remove(); card.remove(); }, 380 * sp); res(); };
-      if (!(Engine.speed > 0)) { done(); return; }
+      let over = false;
+      const done = () => { if (over) return; over = true; deploySkip = null; timers.forEach(clearTimeout); box.classList.add("out"); setTimeout(() => box.remove(), 350); res(true); };
+      deploySkip = done; box.onclick = (e) => { e.stopPropagation(); done(); };
+      requestAnimationFrame(() => cam.classList.add("push"));
       Sound.sfx("type_keys", 0.35);
-      const pre = card.querySelector("pre"); let i = 0;
-      const step = () => {
-        if (i <= txt.length) { pre.innerHTML = txt.slice(0, i).replace(/✓[^\n]*/, (m) => `<b>${m}</b>`) + "<u></u>"; i += 1; setTimeout(step, per); return; }
-        card.classList.add("stamped"); Sound.sfx("deploy_ok", 0.8); Sound.sfx("harness_sting", 0.55);
-        if (hero) { hero.classList.add("halo"); setTimeout(() => hero.classList.remove("halo"), 2600 * sp); }
-        setTimeout(done, (full ? 650 : 380) * sp);
-      };
-      step();
+      const per = 1000 / Math.max(1, txt.length);                      // 打字在 1 秒内打完
+      for (let i = 0; i <= txt.length; i++) at(i * per, () => { pre.innerHTML = txt.slice(0, i).replace(/✓[^\n]*/, (m) => `<b>${m}</b>`) + "<u></u>"; });
+      at(1050, () => {                                                  // 发动成功：切第 2 帧 + 光点 + 章 + 配音
+        box.classList.add("hit"); Sound.sfx("deploy_ok", 0.8); Sound.sfx("harness_sting", 0.55); halo();
+        if (p.ch.lines.deploy) say(p, "deploy", true);
+      });
+      const vm = (window.VOICES || {})[`${p.key}_deploy0`] || 1800;
+      at(1050 + Math.min(vm, 2600) * 0.55, () => { box.classList.add("blink"); at(140, () => box.classList.remove("blink")); });
+      at(1050 + Math.max(1500, Math.min(vm, 3000)) + 250, done);
     });
   }
   function skillNote(p, name) { Sound.sfx("chime", 0.5); skillPop(p, name); sync(); }
@@ -1483,5 +1504,5 @@ window.UI = (function () {
   }
 
   return { skinKey, attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, clash, lean, skillNote, band, banner, rage, news, phase, toast,
-    deploy, humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr, throwProp, asset: A };
+    deploy, skipDeploy, humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr, throwProp, asset: A };
 })();
