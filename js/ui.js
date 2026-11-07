@@ -287,6 +287,8 @@ window.UI = (function () {
     if (s.type === "active" && p.used && p.used[s.id] && g.cur === p.i) out.push("这回合用过");
     if (s.id === "saint") out.push(p.saintUsed ? "已经护法过" : "还没触发");
     if (s.id === "dumb" && p.dumb) out.push("现在降智中");
+    if (s.id === "codex" && p.cloud) out.push(`云端在跑【${CD[p.cloud.k].name}】`);                       // v47 harness 技能
+    if (s.id === "dsh") out.push(`插件 ${(p.plugins || []).length} / ${g.dshMax ? g.dshMax() : 2}${(p.plugins || []).length ? "：" + p.plugins.map((c) => CD[c.k].name).join("、") : ""}`);
     if (s.id === "fact" && p.used && p.used.fact) out.push("这轮核实过");
     if (s.id === "fans" && p.used && p.used.fans) out.push("这轮刷过礼物");
     if (s.id === "disguise" && p.disguise) out.push("伪装中");

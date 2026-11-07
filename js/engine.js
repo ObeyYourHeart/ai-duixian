@@ -96,7 +96,7 @@ window.Engine = (function () {
   const EQ_SLOT = { xianka: "hw", fanghuoqiang: "sec", jiami: "sec", yunbeifen: "sec", chongdianbao: "bag" };   // 装备分格：硬件 / 安全 / 记忆
   for (const k in CD) if (CD[k].owner) EQ_SLOT[k] = "zw";             // v47 专武：角色专属装备，单独一格
   const EQ_SLOT_NAME = { hw: "硬件", sec: "安全", bag: "记忆", zw: "专武" };
-  Object.assign(T, Object.assign({ agPeek: 5, agFloat: 0.4, botTamper: 0.15, dshMax: 3, dshBreak: 0.1, codexDraw: 1 }, window.TUNE || {}));   // v47 专武数值：反重力搜索看几张 / 飘回来概率；@grok 提示词被改概率；DSH 插件上限 / 翻车率；Codex 回来多摸几张
+  Object.assign(T, Object.assign({ agPeek: 5, agFloat: 0, botTamper: 0.15, factBot: false, subagent: false, dshMax: 2, dshMax2p: 1, dshBreak: 0.2, dshBreak2p: 0.4, codexDraw: 1 }, window.TUNE || {}));   // v47 专武数值：反重力搜索看几张 / 飘回来概率；@grok 提示词被改概率；DSH 插件上限 / 翻车率；Codex 回来多摸几张
   const SN = (key, id) => { const s = CH[key].skills.find((x) => x.id === id); return s ? s.name : id; };
 
   function buildDeck(keys) {
@@ -887,13 +887,13 @@ window.Engine = (function () {
     // 锦囊生效前：目标可以打【已读不回】
     // Grok 核实：大家 @ 她“这是真的吗？”，每轮 1 次，按概率判定是假的
     async factCheck(t, from, card) {
-      const bot = this.hasEq(t, "zw_grok");                              // v47 专武 @grok：不限次数，但偶尔提示词被改
+      const bot = T.factBot;                                              // v47 harness 技能：核实就是 @grok 回复机器人——不限次数，但偶尔提示词被改
       if (!this.hasSkill(t, "fact") || (t.used.fact && !bot) || !from || from === t || !t.alive) return false;
       {
         t.used.fact = true;
         if (bot && Math.random() < T.botTamper) {
-          await wait(400); this.ui.skillNote(t, "@grok"); Sound.sfx("glitch_vhs", 0.5);
-          this.ui.log(t, "【@grok】回复机器人的提示词被人改了……答了一段八竿子打不着的话，这次没核实出来"); await wait(500); return false;
+          await wait(400); this.ui.skillNote(t, SN(t.key, "fact")); Sound.sfx("glitch_vhs", 0.5);
+          this.ui.log(t, `【${SN(t.key, "fact")}】@grok 回复机器人的提示词被人改了……答了一段八竿子打不着的话，这次没核实出来`); await wait(500); return false;
         }
         const askers = this.alive().filter((q) => q !== t && q !== from && !q.human);
         if (askers.length) this.ui.log(askers[rnd(askers.length)], "@Grok 这是真的吗？");
@@ -1105,10 +1105,10 @@ window.Engine = (function () {
           if (!n) { this.ui.sync(); return; }
         }
       }
-      if (n > 0 && this.hasEq(t, "zw_gemini") && t.agRound !== this.round) {   // v47 专武反重力：每轮第一次掉心态，有概率飘回来 1 点
+      if (n > 0 && T.agFloat && this.hasSkill(t, "antigrav") && t.agRound !== this.round) {   // v47 Antigravity：每轮第一次掉心态，有概率飘回来 1 点（agFloat 0 = 关）
         t.agRound = this.round;
         if (Math.random() < T.agFloat) {
-          n -= 1; this.ui.skillNote(t, "反重力"); Sound.sfx("glimmer", 0.6); this.ui.log(t, "【反重力】心态往下掉……又飘回来了，少掉 1 点");
+          n -= 1; this.ui.skillNote(t, "Antigravity"); Sound.sfx("glimmer", 0.6); this.ui.log(t, "【Antigravity】反重力：心态往下掉……又飘回来了，少掉 1 点");
           if (!n) { this.ui.sync(); await wait(400); return; }
         }
       }
@@ -1207,32 +1207,32 @@ window.Engine = (function () {
     }
     // 回合结束：Codex 挂云端任务、DSH 插插件
     async zwEnd(p) {
-      if (this.hasEq(p, "zw_gpt") && !p.cloud && p.hand.length >= 2) {
+      if (this.hasSkill(p, "codex") && !p.cloud && p.hand.length >= 2) {
         const c = p.human ? (await this.ui.humanConfirm("【Codex】挑一张手牌丢到云端跑？下回合它回来，再多摸 1 张", true) ? ((await this.ui.humanPick(p.hand.slice(), 1, "丢哪张到云端跑？")) || [])[0] : null)
-          : p.hand.find((x) => x.id === AI.cheapest(this, p, 1, p.hand.filter((y) => y.k === "chongqi" || y.k === "fanbo").map((y) => y.id))[0]);
+          : p.hand.find((x) => x.id === AI.cheapest(this, p, 1, p.hand.filter((y) => ["chongqi", "fanbo", "tucao", "naicha", "shuaiguo", "yidu", "huigun"].includes(y.k)).map((y) => y.id))[0]);   // 防守用的牌留在手里
         if (c && p.hand.includes(c)) {
           this.takeFromHand(p, c); p.cloud = c; Sound.sfx("whoosh_little", 0.5); this.ui.skillNote(p, "Codex");
           this.ui.log(p, "【Codex】把一张牌丢到云端跑任务——合上电脑也照样跑，谁也拿不走"); this.ui.sync(); await wait(400);
         }
       }
-      if (this.hasEq(p, "zw_dsh") && (p.plugins = p.plugins || []).length < T.dshMax && p.hand.length >= 2) {
-        const c = p.human ? (await this.ui.humanConfirm(`【DSH】万物皆插件：把一张手牌插成插件？（${p.plugins.length} / ${T.dshMax}）`, true) ? ((await this.ui.humanPick(p.hand.slice(), 1, "插哪张？吐槽 → 攻击插件、奶茶 → 回血插件、其他 → 摸牌插件")) || [])[0] : null)
+      if (this.hasSkill(p, "dsh") && (p.plugins = p.plugins || []).length < this.dshMax() && p.hand.length >= 2) {
+        const c = p.human ? (await this.ui.humanConfirm(`【DSH】万物皆插件：把一张手牌插成插件？（${p.plugins.length} / ${this.dshMax()}）`, true) ? ((await this.ui.humanPick(p.hand.slice(), 1, "插哪张？吐槽 → 攻击插件、奶茶 → 回血插件、其他 → 摸牌插件")) || [])[0] : null)
           : AI.plugPick(this, p);
         if (c && p.hand.includes(c)) {
           this.takeFromHand(p, c); p.plugins.push(c); Sound.sfx("ding", 0.5); this.ui.skillNote(p, "DSH");
-          this.ui.log(p, `【DSH】把【${CD[c.k].name}】插成了插件（${p.plugins.length} / ${T.dshMax}）`); this.ui.sync(); await wait(400);
+          this.ui.log(p, `【DSH】把【${CD[c.k].name}】插成了插件（${p.plugins.length} / ${this.dshMax()}）`); this.ui.sync(); await wait(400);
         }
       }
     }
+    dshMax() { return this.players.length === 2 ? T.dshMax2p : T.dshMax; }   // 单挑插件上限 1（2 个时单挑 57%）
     async codexBack(p) {
       const c = p.cloud; p.cloud = null;
-      if (!this.hasEq(p, "zw_gpt")) { this.toDiscard(c); this.ui.log(p, "Codex 没了，云端任务也丢了"); this.ui.sync(); return; }
       p.hand.push(c); this.ui.drawAnim(p, 1); this.ui.skillNote(p, "Codex"); Sound.sfx("notify", 0.5);
       this.ui.log(p, `【Codex】云端任务跑完了：【${CD[c.k].name}】回到手里，顺便多摸 ${T.codexDraw} 张`); this.ui.sync();
       await this.draw(p, T.codexDraw, true);
     }
     async dshRun(p) {
-      if (Math.random() < T.dshBreak) {                                     // 开发者预览版：更新翻车
+      if (Math.random() < (this.players.length === 2 && T.dshBreak2p != null ? T.dshBreak2p : T.dshBreak)) {                                     // 开发者预览版：更新翻车
         for (const x of p.plugins) this.toDiscard(x);
         const n = p.plugins.length; p.plugins = []; Sound.sfx("glitch_vhs", 0.6); this.ui.skillNote(p, "DSH");
         this.ui.sys(`${p.name} 的 DSH 悄悄更新了一版……${n} 个插件全部不兼容，失效了`, "bad"); this.ui.sync(); await wait(600); return;
@@ -1475,7 +1475,7 @@ window.Engine = (function () {
           const c = hit[rnd(hit.length)]; this.deck.splice(this.deck.indexOf(c), 1); p.hand.push(c);
           this.ui.log(p, `【${SN(p.key, "wish")}】许愿要一张【${CD[k].name}】——需求收到，已经实现`); this.ui.drawAnim && this.ui.sync();
         } else { this.ui.log(p, `【${SN(p.key, "wish")}】牌堆里没有【${k ? CD[k].name : "这张牌"}】，先随手摸 1 张`); await this.draw(p, 1, true); }
-        if (this.hasEq(p, "zw_claude") && p.hand.length > 1 && this.wishKinds().length) await this.subagent(p);   // v47 专武子代理：再找 1 张，先弃 1 张
+        if (T.subagent && p.hand.length > 1 && this.wishKinds().length) await this.subagent(p);   // v47 专武子代理：再找 1 张，先弃 1 张
         if (!p.uses.wish && p.ch.lines.wish_out) { await wait(500); this.ui.say(p, "wish_out", true); this.ui.log(p, "额度用完了，这局不能再许愿"); }
         this.ui.sync(); await wait(400);
       } else if (id === "zeroday") {
@@ -1660,9 +1660,9 @@ window.Engine = (function () {
         else { this.ui.log(p, `${nm}翻车了！自己心态 −1`); await this.damage(null, p, 1); await this.sorry(p); }
       } else if (id === "search") {
         // Gemini 搜索：偷看牌堆顶几张，再摸 1 张——顶上是宕机就从牌堆底摸
-        const ag = this.hasEq(p, "zw_gemini");                           // v47 专武反重力：好几个智能体一起搜
+        const ag = this.hasSkill(p, "antigrav");                         // v47 Antigravity：好几个智能体一起搜
         const top = this.topCards(ag ? T.agPeek : T.searchPeek); this.see(p, top);
-        if (ag) this.ui.log(p, `【反重力】派出 ${top.length} 个智能体一起搜`);
+        if (ag) this.ui.log(p, `【Antigravity】派出 ${top.length} 个智能体一起搜`);
         this.ui.skillNote(p, SN("gemini", "search")); this.ui.say(p, "search", true);
         const bombAt = top.findIndex((c) => c.k === "dangji");
         if (p.human && (!T.searchPick || !top.some((c) => c.k !== "dangji"))) await this.ui.peek(top, `【${SN("gemini", "search")}】牌堆顶 ${top.length} 张（从上往下）`);   // 能挑牌时直接弹挑牌框，不再先看一遍
