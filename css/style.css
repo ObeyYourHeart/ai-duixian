@@ -919,3 +919,6 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .result .rq b { color: var(--c); font-size: 20px; flex: none; }
 .result .rq span { font-size: 20px; font-weight: 700; color: #3a3456; }
 @keyframes rqIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* v42 吵上头了（第 3 轮起）：背景慢慢罩上一层暖色，只调色、不加特效、不压暗 */
+#bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255, 150, 80, .42), rgba(255, 105, 135, .34)); opacity: 0; transition: opacity 1.6s ease; pointer-events: none; }
+#bg.rage::after { opacity: 1; }

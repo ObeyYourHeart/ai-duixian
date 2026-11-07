@@ -409,7 +409,7 @@ window.Engine = (function () {
           if (this.round >= T.evFrom && (this.evN || 0) < T.evMax && Math.random() < T.evRate) await this.breaking();
           if (this.over) break;
           if (this.round === T.rageRound) {
-            this.ui.banner("吵上头了！"); Sound.sfx("drumroll", 0.6); if (Sound.track) Sound.track("rage");
+            this.ui.banner("吵上头了！"); if (this.ui.rage) this.ui.rage(true); Sound.sfx("drumroll", 0.6); if (Sound.track) Sound.track("rage");
             this.ui.sys(`第 ${T.rageRound} 轮：大家吵上头了，从现在起每回合可以【吐槽】两次！`, "bad");
             await wait(1100);
           }

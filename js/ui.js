@@ -93,7 +93,7 @@ window.UI = (function () {
 
   // ---------------------------------------------------------------- 装配
   function attach(game) {
-    g = game; heroes = []; for (const k in blinkAt) delete blinkAt[k];
+    g = game; heroes = []; for (const k in blinkAt) delete blinkAt[k]; rage(false);
     const seats = $("#seats"); seats.innerHTML = "";
     $("#pile").innerHTML = ""; $("#chat-list").innerHTML = ""; $("#fx").innerHTML = ""; skillSig = "";
     $("#chat-n").textContent = g.players.length;
@@ -840,6 +840,7 @@ window.UI = (function () {
     b.style.animationDuration = 2.4 * Engine.speed + "s";             // 观战加速时一起变快
     $("#fx").appendChild(b); setTimeout(() => b.remove(), 2400 * Engine.speed + 100);
   }
+  function rage(on) { const b = document.getElementById("bg"); if (b) b.classList.toggle("rage", !!on); }   // v42 吵上头：背景转暖
   function banner(text) { const b = el("div", "banner", text); $("#fx").appendChild(b); setTimeout(() => b.remove(), 950); }
 
   // ---------------------------------------------------------------- 玩家：出牌阶段
@@ -1295,7 +1296,7 @@ window.UI = (function () {
     else done = false;
     if (done) e.preventDefault();
   }
-  function detach() {
+  function detach() { rage(false);
     clearInterval(blinkTimer);
     if (drag) { if (drag.ghost) drag.ghost.remove(); stopDrag(); }
     clearTimeout(autoT); clearTimeout(nudgeT); g = null; mode = null; playResolve = null; respondResolve = null; discardResolve = null; hoverId = null; hidePrompt();
@@ -1303,6 +1304,6 @@ window.UI = (function () {
     const tip = $("#ctip"); if (tip) tip.className = "hidden";
   }
 
-  return { skinKey, attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, clash, lean, skillNote, band, banner, news, phase, toast,
+  return { skinKey, attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, clash, lean, skillNote, band, banner, rage, news, phase, toast,
     humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr, throwProp, asset: A };
 })();
