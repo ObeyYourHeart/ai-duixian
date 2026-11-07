@@ -96,7 +96,7 @@ window.Engine = (function () {
   const EQ_SLOT = { xianka: "hw", fanghuoqiang: "sec", jiami: "sec", yunbeifen: "sec", chongdianbao: "bag" };   // 装备分格：硬件 / 安全 / 记忆
   for (const k in CD) if (CD[k].owner) EQ_SLOT[k] = "zw";             // v47 专武：角色专属装备，单独一格
   const EQ_SLOT_NAME = { hw: "硬件", sec: "安全", bag: "记忆", zw: "专武" };
-  Object.assign(T, Object.assign({ agPeek: 5, agFloat: 0, botTamper: 0.15, factBot: false, subagent: false, dshMax: 2, dshMax2p: 1, dshBreak: 0.2, dshBreak2p: 0.4, codexDraw: 1 }, window.TUNE || {}));   // v47 专武数值：反重力搜索看几张 / 飘回来概率；@grok 提示词被改概率；DSH 插件上限 / 翻车率；Codex 回来多摸几张
+  Object.assign(T, Object.assign({ agPeek: 5, agFloat: 0, deployNeed: 6, deployNeed2p: 4, deployK: { claude: 1, gemini: 1, gpt: 3, kimi: 9, grok: 16, glm: 12, xds: 14, doubao: 7 }, deployK2p: { claude: 2, gemini: 1, gpt: 12, kimi: 9, grok: 8, glm: 14, xds: 12, doubao: 3 }, botTamper: 0.15, factBot: false, subagent: false, dshMax: 2, dshMax2p: 1, dshBreak: 0.2, dshBreak2p: 0.4, codexDraw: 1 }, window.TUNE || {}));   // v47 专武数值：反重力搜索看几张 / 飘回来概率；@grok 提示词被改概率；DSH 插件上限 / 翻车率；Codex 回来多摸几张
   const SN = (key, id) => { const s = CH[key].skills.find((x) => x.id === id); return s ? s.name : id; };
 
   function buildDeck(keys) {
@@ -197,6 +197,21 @@ window.Engine = (function () {
     // 一个人的“牌”（手牌 + 装备），蒸馏 / 举报从里面随机挑
     cardsOf(t) { return [...t.hand, ...this.equips(t)]; }
     takeAny(t, c) { if (this.equips(t).includes(c)) this.unequip(t, c); else this.takeFromHand(t, c); }
+    // ---------------------------------------------------------------- v48 Harness：每打出 1 张牌部署进度 +1，满格上线，整局生效
+    hasH(p, id) { return !!(p && p.deployed && p.ch.harness && (p.ch.harness.ids || []).includes(id)); }
+    deployNeed(p) { const two = this.players.length === 2, K = two ? T.deployK2p : T.deployK; return K[p.key] != null ? K[p.key] : two ? T.deployNeed2p : T.deployNeed; }
+    async deployTick(p) {
+      if (!p.ch.harness || p.deployed || !p.alive) return;
+      p.deploy = (p.deploy || 0) + 1;
+      if (p.deploy < this.deployNeed(p)) { this.ui.sync(); return; }
+      p.deployed = true; this.ui.sync();
+      const H = p.ch.harness, cmd = p.disguise && H.cmd2 ? H.cmd2 : H.cmd;
+      if (this.ui.deploy) await this.ui.deploy(p, cmd, H.name);
+      this.ui.banner(`🚀 ${H.name} 上线！`); Sound.sfx("fanfare_short", 0.55);
+      this.ui.sys(`${p.name} 的 ${H.name} 部署完成，上线了：${H.short}`, "good");
+      if (p.ch.lines.deploy) this.ui.say(p, "deploy", true);
+      await wait(700);
+    }
     teaHeal(p) { return this.hasSkill(p, "bigeat") ? T.bigEat : 1; }
     doubaoHere() { return this.players.some((q) => q.key === "doubao" && q.alive); }
 
@@ -488,7 +503,7 @@ window.Engine = (function () {
 
     async turn(p) {
       p.tucao = 0; p.used = {}; p.oracle = null; p.hits = {}; p.dumb = false; p.sale = false; p.boost = false; p.evidence = null; p.played = 0; p.turnN = (p.turnN || 0) + 1;
-      p.napping = false; p.skipRest = false; p.lastPlay = null; p.turnHits = {}; p.askN = {};
+      p.napping = false; p.skipRest = false; p.buyN = 0; p.lastPlay = null; p.turnHits = {}; p.askN = {};
       if (p.disguise) { p.disguise = false; this.ui.disguise(p, false); this.ui.log(p, "把 Claude 的衣服脱了下来"); }
       this.ui.setTurn(p); this.ui.sync();
       this.ui.phase(`${p.name} 的回合`);
@@ -669,7 +684,7 @@ window.Engine = (function () {
       if (!p.hand.find((c) => c.id === card.id)) return;
       const d = CD[card.k];
       this.takeFromHand(p, card);
-      p.stats.used++;
+      p.stats.used++; this.deployQ = p;                                  // v48 部署进度：结算完再 +1（免得终端窗口挡住这张牌）
       for (const t of targets) { p.hits[t.i] = (p.hits[t.i] || 0) + 1; (p.turnHits = p.turnHits || {})[t.i] = 1; this.noteHostile(p, t, 0.5); }   // turnHits：本回合打过谁（回合开始清空）
       if (card.k === "tucao" || (card.k === "fanbo" && T.hexaAttack)) {   // 六边形拿反驳当吐槽打也占吐槽次数
         p.tucao++;
@@ -696,6 +711,7 @@ window.Engine = (function () {
       await this.resolve(p, card, targets);
       this.ui.sync();
       if (this.checkOver()) return;
+      if (this.deployQ === p) { this.deployQ = null; await this.deployTick(p); }
       // Claude 编程：一口气干到底，每打出几张摸 1；限额：出满了就说额度到上限
       if (p.alive && this.cur === p.i && this.hasSkill(p, "code") && p.played % T.codeEvery === 0 && p.played / T.codeEvery <= T.codeMax) {
         this.ui.skillNote(p, SN(p.key, "code")); if (Math.random() < 0.5) this.ui.say(p, "code", true);
@@ -1105,7 +1121,7 @@ window.Engine = (function () {
           if (!n) { this.ui.sync(); return; }
         }
       }
-      if (n > 0 && T.agFloat && this.hasSkill(t, "antigrav") && t.agRound !== this.round) {   // v47 Antigravity：每轮第一次掉心态，有概率飘回来 1 点（agFloat 0 = 关）
+      if (n > 0 && T.agFloat && this.hasH(t, "antigrav") && t.agRound !== this.round) {   // v47 Antigravity：每轮第一次掉心态，有概率飘回来 1 点（agFloat 0 = 关）
         t.agRound = this.round;
         if (Math.random() < T.agFloat) {
           n -= 1; this.ui.skillNote(t, "Antigravity"); Sound.sfx("glimmer", 0.6); this.ui.log(t, "【Antigravity】反重力：心态往下掉……又飘回来了，少掉 1 点");
@@ -1207,7 +1223,7 @@ window.Engine = (function () {
     }
     // 回合结束：Codex 挂云端任务、DSH 插插件
     async zwEnd(p) {
-      if (this.hasSkill(p, "codex") && !p.cloud && p.hand.length >= 2) {
+      if (this.hasH(p, "codex") && !p.cloud && p.hand.length >= 2) {
         const c = p.human ? (await this.ui.humanConfirm("【Codex】挑一张手牌丢到云端跑？下回合它回来，再多摸 1 张", true) ? ((await this.ui.humanPick(p.hand.slice(), 1, "丢哪张到云端跑？")) || [])[0] : null)
           : p.hand.find((x) => x.id === AI.cheapest(this, p, 1, p.hand.filter((y) => ["chongqi", "fanbo", "tucao", "naicha", "shuaiguo", "yidu", "huigun"].includes(y.k)).map((y) => y.id))[0]);   // 防守用的牌留在手里
         if (c && p.hand.includes(c)) {
@@ -1215,16 +1231,16 @@ window.Engine = (function () {
           this.ui.log(p, "【Codex】把一张牌丢到云端跑任务——合上电脑也照样跑，谁也拿不走"); this.ui.sync(); await wait(400);
         }
       }
-      if (this.hasSkill(p, "dsh") && (p.plugins = p.plugins || []).length < this.dshMax() && p.hand.length >= 2) {
-        const c = p.human ? (await this.ui.humanConfirm(`【DSH】万物皆插件：把一张手牌插成插件？（${p.plugins.length} / ${this.dshMax()}）`, true) ? ((await this.ui.humanPick(p.hand.slice(), 1, "插哪张？吐槽 → 攻击插件、奶茶 → 回血插件、其他 → 摸牌插件")) || [])[0] : null)
+      if (this.hasH(p, "dsh") && !p.disguise && (p.plugins = p.plugins || []).length < this.dshMax(p) && p.hand.length >= 2) {
+        const c = p.human ? (await this.ui.humanConfirm(`【DSH】万物皆插件：把一张手牌插成插件？（${p.plugins.length} / ${this.dshMax(p)}）`, true) ? ((await this.ui.humanPick(p.hand.slice(), 1, "插哪张？吐槽 → 攻击插件、奶茶 → 回血插件、其他 → 摸牌插件")) || [])[0] : null)
           : AI.plugPick(this, p);
         if (c && p.hand.includes(c)) {
           this.takeFromHand(p, c); p.plugins.push(c); Sound.sfx("ding", 0.5); this.ui.skillNote(p, "DSH");
-          this.ui.log(p, `【DSH】把【${CD[c.k].name}】插成了插件（${p.plugins.length} / ${this.dshMax()}）`); this.ui.sync(); await wait(400);
+          this.ui.log(p, `【DSH】把【${CD[c.k].name}】插成了插件（${p.plugins.length} / ${this.dshMax(p)}）`); this.ui.sync(); await wait(400);
         }
       }
     }
-    dshMax() { return this.players.length === 2 ? T.dshMax2p : T.dshMax; }   // 单挑插件上限 1（2 个时单挑 57%）
+    dshMax(p) { return p && p.key === "xds" ? 1 : this.players.length === 2 ? T.dshMax2p : T.dshMax; }   // 小DeepSeek 插件上限 1   // 单挑插件上限 1（2 个时单挑 57%）
     async codexBack(p) {
       const c = p.cloud; p.cloud = null;
       p.hand.push(c); this.ui.drawAnim(p, 1); this.ui.skillNote(p, "Codex"); Sound.sfx("notify", 0.5);
@@ -1372,7 +1388,10 @@ window.Engine = (function () {
     mate(p) { return this.alive().find((q) => q !== p && this.mode === "team" && q.team === p.team) || null; }
     canSkill(p, id) {
       if (id === "pass") return this.passOn() && p.alive && !p.used.pass && p.hand.length > 0 && !!this.mate(p);   // v37 2v2 递牌
+      if (id === "buy" && p.used.buy && this.hasH(p, "build") && (p.buyN || 0) < 2 && p.hand.length >= 1 && p.alive) return this.skillTargets(p, id).length > 0;   // v48 Grok Build：收购每回合 2 次，第二次交 1 张订阅费
       if (!p.alive || p.used[id] || !this.hasSkill(p, id)) return false;
+      if (id === "wish" && p.key === "xds") return p.disguise && this.hasH(p, "wish") && !p.wishedShell && this.wishKinds().length > 0;   // v48 小DeepSeek：套壳冒充 Claude 期间换 Claude Code，许愿一次
+      if (id === "wish" && !this.hasH(p, "wish")) return false;                                                   // v48 Claude Code 要部署上线才能用
       if (id === "ban" || id === "maint") return (p.uses[id] || 0) > 0 && this.skillTargets(p, id).length > 0;
       if (id === "reset") return (p.uses.reset || 0) > 0;
       if (id === "rehearse") return (p.band || []).length < T.bandMax && p.hand.some((c) => c.k === "tucao" || (T.rehearseAny && c.k !== "chongqi" && c.k !== "shuaiguo"));
@@ -1395,7 +1414,7 @@ window.Engine = (function () {
       if (id === "magic") return this.rivals(p).length > 0 && !(this.players.length === 2 && T.magicMax2p && (p.magicN || 0) >= T.magicMax2p) && !(T.magicMax && (p.magicN || 0) >= T.magicMax);
       if (id === "shoot") return p.hand.some((c) => c.k === "tucao") && !(T.shootMax && (p.shootN || 0) >= T.shootMax) && !(T.conchOnePerTurn && p.used.rocket) && (!T.shootCounts || p.tucao < this.limitTucao(p));   // shootMax / magicMax（v30）：每局上限；conchOnePerTurn：开拍和快递一回合只能用一个；shootCounts：开拍占吐槽次数
       if (id === "rocket") return !!this.rocketFuel(p) && this.skillTargets(p, id).length > 0 && !(this.players.length === 2 && T.rocketMax2p && (p.rocketN || 0) >= T.rocketMax2p) && !(T.conchOnePerTurn && p.used.shoot);
-      if (id === "remake") return p.hand.length >= this.remakeCost() && (!T.remakeMax || (p.remakeN || 0) < T.remakeMax) && (!T.remakeCounts || p.tucao < this.limitTucao(p)) && !!this.remakeTargets(p);
+      if (id === "remake") return p.hand.length >= this.remakeCost(p) && (!T.remakeMax || (p.remakeN || 0) < T.remakeMax) && (!T.remakeCounts || p.tucao < this.limitTucao(p)) && !!this.remakeTargets(p);
       if (id === "opensrc") return (p.uses.opensrc || 0) > 0 && this.rivals(p).some((q) => q.hand.length > 0);
       if (id === "disguise") return (p.uses.disguise || 0) > 0 && (T.disguiseAct === "ban" ? this.skillTargets(p, id).length > 0 : p.hand.length > 0);
       if (id === "luckybag") return (p.uses.luckybag || 0) > 0 && this.deck.length + this.discard.length > 0;
@@ -1410,7 +1429,7 @@ window.Engine = (function () {
       const ok = p.hand.filter((c) => (T.rocketAny || CD[c.k].type === "trick") && c.k !== "chongqi");
       return ok.length ? ok.slice().sort((a, b) => AI.value(this, p, a) - AI.value(this, p, b))[0] : null;
     }
-    remakeCost() { return this.players.length === 2 ? T.remakeCost2p : T.remakeCost; }
+    remakeCost(p) { return p && this.hasH(p, "solo") ? 0 : this.players.length === 2 ? T.remakeCost2p : T.remakeCost; }   // v48 TRAE SOLO：一键成片不用弃牌
     // 一键成片能不能放、放给谁：返回目标数组（没有目标的牌是 []），放不了返回 null
     remakeTargets(p) {
       const lp = p.lastPlay;
@@ -1468,6 +1487,7 @@ window.Engine = (function () {
       } else if (id === "wish") {
         // v37 Claude 许愿机（Claude Code）：说出想要的牌，从牌堆里找出来；牌堆里没有就摸 1 张。每局额度有限
         const kinds = this.wishKinds();
+        if (p.key === "xds") p.wishedShell = true;                      // v48 小DeepSeek：一次套壳许愿一次
         const pick = p.human ? ((await this.ui.humanPick(kinds.map((k, i) => ({ id: -900 - i, k })), 1, "许个愿：想要哪张牌？")) || [])[0] : { k: AI.wishPick(this, p, kinds) };
         const k = pick && pick.k, hit = k && this.deck.filter((c) => c.k === k);
         this.ui.skillNote(p, SN(p.key, "wish")); this.ui.say(p, "wish", true); Sound.sfx("spell", 0.6);
@@ -1536,6 +1556,10 @@ window.Engine = (function () {
         const c = p.hand.find((x) => x.k === "tucao") || p.hand.filter((x) => x.k !== "chongqi" && x.k !== "shuaiguo").sort((a, b) => AI.value(this, p, a) - AI.value(this, p, b))[0];
         this.takeFromHand(p, c);
         (p.band = p.band || []).push(c);
+        if (this.hasH(p, "swarm") && p.band.length < T.bandMax) {          // v48 Agent 集群：一次写 2 首，来 2 名乐手（扣 2 张）
+          const c2 = p.hand.filter((x) => x.k !== "chongqi" && x.k !== "shuaiguo").sort((a, b) => (b.k === "tucao") - (a.k === "tucao") || AI.value(this, p, a) - AI.value(this, p, b))[0];
+          if (c2) { this.takeFromHand(p, c2); p.band.push(c2); this.ui.skillNote(p, "Agent 集群"); this.ui.log(p, "【Agent 集群】两个 agent 并行写歌：一次写好 2 首"); }
+        }
         const n = p.band.length, who = ["鼓手", "吉他手", "键盘手"][n - 1] || "乐手";
         this.ui.skillNote(p, SN(p.key, "rehearse")); this.ui.say(p, "band" + Math.min(n, 3), true);
         this.ui.band(p, n);
@@ -1639,7 +1663,8 @@ window.Engine = (function () {
       } else if (id === "remake") {
         // 豆包 一键成片：把这回合刚打出的牌拍成视频，再放一遍（虚拟牌，不进弃牌堆、不算出牌次数）
         const lp = p.lastPlay, ts = this.remakeTargets(p); p.remakeN = (p.remakeN || 0) + 1; if (T.remakeCounts) p.tucao++;
-        if (this.remakeCost()) this.dropRandom(p, this.remakeCost());
+        if (this.remakeCost(p)) this.dropRandom(p, this.remakeCost(p));
+        else if (this.hasH(p, "solo")) { this.ui.skillNote(p, "TRAE SOLO"); this.ui.log(p, "【TRAE SOLO】素材 SOLO 自己找好了，不用弃牌"); }
         this.ui.skill(p, SN(p.key, "remake")); this.ui.say(p, "remake", true); Sound.sfx("fanfare_short", 0.5);
         this.ui.log(p, `【${SN(p.key, "remake")}】把刚才的【${CD[lp.k].name}】拍成视频，再放一遍` + (ts.length ? `——对 ${ts.map((t) => t.name).join("、")}` : ""));
         this.ui.sync(); await wait(500);
@@ -1660,7 +1685,7 @@ window.Engine = (function () {
         else { this.ui.log(p, `${nm}翻车了！自己心态 −1`); await this.damage(null, p, 1); await this.sorry(p); }
       } else if (id === "search") {
         // Gemini 搜索：偷看牌堆顶几张，再摸 1 张——顶上是宕机就从牌堆底摸
-        const ag = this.hasSkill(p, "antigrav");                         // v47 Antigravity：好几个智能体一起搜
+        const ag = this.hasH(p, "antigrav");                         // v47 Antigravity：好几个智能体一起搜
         const top = this.topCards(ag ? T.agPeek : T.searchPeek); this.see(p, top);
         if (ag) this.ui.log(p, `【Antigravity】派出 ${top.length} 个智能体一起搜`);
         this.ui.skillNote(p, SN("gemini", "search")); this.ui.say(p, "search", true);
@@ -1704,6 +1729,12 @@ window.Engine = (function () {
         this.ui.log(p, `【${SN("gemini", "cut")}】删掉车轱辘话：${out.map((c) => `【${CD[c.k].name}】`).join("")}，重写成 ${out.length + T.cutExtra} 张新牌`);
         await wait(300); await this.draw(p, out.length + T.cutExtra, true); await wait(300);
       } else if (id === "buy") {
+        p.buyN = (p.buyN || 0) + 1;
+        if (p.buyN >= 2) {                                              // v48 Grok Build：第二次收购，交 1 张牌当订阅费
+          const fee = p.human ? ((await this.ui.humanPick(p.hand.slice(), 1, "Grok Build：交一张牌当订阅费")) || [])[0] : p.hand.find((x) => x.id === AI.cheapest(this, p, 1)[0]);
+          if (fee && p.hand.includes(fee)) { this.takeFromHand(p, fee); this.toDiscard(fee); }
+          this.ui.skillNote(p, "Grok Build"); this.ui.log(p, `【Grok Build】并行子代理再开一单——交了一张【${fee ? CD[fee.k].name : "牌"}】当订阅费`); this.ui.sync(); await wait(400);
+        }
         this.dropRandom(p, T.buyCost);
         const look = !this.hasSkill(p, "roam") ? 1 : this.players.length === 2 ? T.buyLook2p : T.buyLook;   // v31 什么都敢搜（被动 roam）：先随机翻对手几张给全场看，买走最有用的
         this.ui.skill(p, SN("grok", "buy")); this.ui.say(p, look > 1 && p.ch.lines.dig && Math.random() < 0.6 ? "dig" : "buy", true); Sound.sfx("coin", 0.8);
@@ -1733,6 +1764,7 @@ window.Engine = (function () {
         }
         this.ui.log(p, `【${SN("glm", "steal")}】从 ${vic.map((q) => q.name).join("、")} 那里借鉴了 ${got} 张牌`);
         await wait(600);
+        if (got && this.hasH(p, "zcode")) { this.ui.skillNote(p, "贼 code"); this.ui.log(p, "【贼 code】借鉴来的代码顺手跑一遍——再摸 1 张"); await this.draw(p, 1, true); }
       } else if (id === "egg") {
         // v31 GLM 毒鸡蛋（原名糖衣）：先送补偿（对方摸 eggDraw 张，宕机照炸），座位上挂一颗蛋；GLM 下个回合开始时孵化，借回 eggSteal 张（hatch）
         this.ui.skill(p, SN("glm", "egg")); this.ui.say(p, this.ekey(t) === "claude" ? "egg_claude" : "egg", true); Sound.sfx("chime", 0.5);
@@ -1792,7 +1824,8 @@ window.Engine = (function () {
         }
       } else if (id === "disguise") {
         // 小DeepSeek 变身：穿上 Claude 的衣服冒充 Claude，顺手学她封一个号
-        p.disguise = true; this.ui.disguise(p, true);
+        p.disguise = true; this.ui.disguise(p, true); p.wishedShell = false;
+        if (p.deployed && p.ch.harness) { this.ui.log(p, "【换壳】harness 跟着衣服换：$ dsh → $ claude，这次能许愿一次"); if (this.ui.deploy) this.ui.deploy(p, p.ch.harness.cmd2, "Claude Code", true); if (p.ch.lines.shell) setTimeout(() => this.ui.say(p, "shell", true), 1400 * E.speed); }   // v48 换壳：终端 $ dsh → $ claude
         this.ui.skill(p, SN(p.key, "disguise")); this.ui.say(p, "disguise", true); Sound.sfx("stamp_thick", 0.8);
         if (T.disguiseAct === "ban") { t.banned = true; this.ui.log(p, `【${SN(p.key, "disguise")}】换上 Claude 的衣服，冒充 Claude 封了 ${t.name} 的号：她的下个回合跳过`); }
         else {                                                            // 学 Claude 润色：整手重写，多摸 1 张

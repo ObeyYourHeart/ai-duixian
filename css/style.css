@@ -949,3 +949,19 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .rp-toast { position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%); padding: 10px 22px; border-radius: 99px; background: rgba(42, 36, 64, .85); color: #fff; font-size: 20px; z-index: 6; }
 #stage.portrait .rp-card { width: 92%; }
 #stage.portrait .rp-head .rp-w { width: 120px; height: 150px; }
+
+/* v48 Harness */
+.hero .status .hz { background: #8e8aa3; } .hero .status .hz.on { background: linear-gradient(90deg, #b8860b, #e0a52a); }
+.pchip.hzc { border-color: #e0a52a; color: #8a5a00; } .pchip.hzc.off { border-color: #c9c4d8; color: #8e8aa3; }
+#hinfo .hi-hz { margin: 8px 0 4px; padding: 8px 10px; border-radius: 10px; border: 2px dashed #c9c4d8; background: #faf8ff; }
+#hinfo .hi-hz.on { border: 2px solid #e0a52a; background: #fff8e6; }
+#hinfo .hi-hz em { font-style: normal; font-size: 12px; margin-left: 6px; color: #8a5a00; }
+.term { position: absolute; transform: translate(-50%, -100%); min-width: 240px; background: #fffdf8; border: 2px solid var(--c); border-radius: 10px; box-shadow: 0 6px 18px rgba(60, 40, 120, .18); z-index: 60; overflow: hidden; animation: termIn .18s ease-out; }
+.term .tm-bar { display: flex; gap: 5px; align-items: center; padding: 5px 8px; background: var(--c); }
+.term .tm-bar i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 255, 255, .75); }
+.term .tm-bar span { margin-left: 6px; color: #fff; font-size: 12px; font-weight: 700; }
+.term pre { margin: 0; padding: 8px 12px 10px; font: 600 15px/1.5 Consolas, "Cascadia Mono", monospace; color: #3a3456; white-space: pre; }
+.term pre b { color: #1f9d55; } .term pre u { display: inline-block; width: 8px; height: 15px; background: #3a3456; vertical-align: -2px; text-decoration: none; animation: termCur .8s steps(1) infinite; }
+.term.out { opacity: 0; transition: opacity .35s; }
+@keyframes termIn { from { opacity: 0; transform: translate(-50%, -90%); } }
+@keyframes termCur { 50% { opacity: 0; } }

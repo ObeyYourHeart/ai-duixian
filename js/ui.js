@@ -101,14 +101,15 @@ window.UI = (function () {
     for (const p of g.players) {
       const h = el("div", "hero" + (p.ch.skills.some((s) => s.id === "rehearse") ? " has-band" : ""));
       h.style.setProperty("--c", p.ch.color); h.style.setProperty("--l", p.ch.light);
-      const tags = p.ch.skills.map((s) => `<span class="${s.type}" title="${s.short || s.desc}">${s.name}</span>`).join("");
+      const vis = p.ch.skills.filter((s) => !s.harness);                  // v48 Harness 不算普通技能
+      const tags = vis.map((s) => `<span class="${s.type}" title="${s.short || s.desc}">${s.name}</span>`).join("");
       h.innerHTML = `<div class="por"><img src="${portrait(p.key, "base")}" alt=""></div><div class="flash"></div><div class="hp"></div>
-        <div class="cnt"><i></i><span>0</span></div><div class="status"></div><div class="stags${p.ch.skills.length > 3 ? " many" : ""}">${tags}</div>
+        <div class="cnt"><i></i><span>0</span></div><div class="status"></div><div class="stags${vis.length > 3 ? " many" : ""}">${tags}</div>
         <div class="plate"><b>${p.name}</b><small></small></div>${p.human ? '<div class="you">你</div>' : ""}${p.ch.skills.some((s) => s.id === "rehearse") ? '<div class="band"></div>' : ""}<div class="side"></div><div class="tnum"></div>`;
       // 点技能名直接打开详情卡；但她正被当作目标时，点哪里都算选她
       h.querySelectorAll(".stags span").forEach((sp, k) => sp.addEventListener("click", (ev) => {
         if (h.classList.contains("target")) return;
-        ev.stopPropagation(); showHeroInfo(p, p.ch.skills[k].id);
+        ev.stopPropagation(); showHeroInfo(p, vis[k].id);
       }));
       h.addEventListener("click", () => onHeroClick(p));
       seats.appendChild(h);
@@ -172,6 +173,7 @@ window.UI = (function () {
       if (p.eggBy) st += '<span class="bomb">🥚 领了鸡蛋</span>';
       if (g.players[g.cur] && g.players[g.cur].oracle === p) st += '<span class="bomb">🐚 被海螺点名</span>';
       if (g.bomb && g.bomb.holder === p) st += '<span class="bomb">💣 宕机预警</span>';
+      if (p.ch.harness && p.alive) st += p.deployed ? `<span class="hz on" title="${p.ch.harness.short}">🚀 ${p.ch.harness.name}</span>` : `<span class="hz" title="Harness 部署中：每打出 1 张牌 +1">⚙ ${p.deploy || 0}/${g.deployNeed(p)}</span>`;   // v48 Harness 部署进度
       for (const eq of g.equips(p)) st += `<span class="eq${CD[eq.k].owner ? " zw" : ""}">${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`;   // 分格后可能不止一件
       if (p.cloud) st += '<span class="eq zw">☁ 云端任务跑着</span>';                                       // v47 Codex
       if (p.plugins && p.plugins.length) st += `<span class="eq zw" title="${p.plugins.map((c) => CD[c.k].name).join("、")}">🔌 插件 ${p.plugins.length}</span>`;   // v47 DSH
@@ -288,7 +290,7 @@ window.UI = (function () {
     if (s.id === "saint") out.push(p.saintUsed ? "已经护法过" : "还没触发");
     if (s.id === "dumb" && p.dumb) out.push("现在降智中");
     if (s.id === "codex" && p.cloud) out.push(`云端在跑【${CD[p.cloud.k].name}】`);                       // v47 harness 技能
-    if (s.id === "dsh") out.push(`插件 ${(p.plugins || []).length} / ${g.dshMax ? g.dshMax() : 2}${(p.plugins || []).length ? "：" + p.plugins.map((c) => CD[c.k].name).join("、") : ""}`);
+    if (s.id === "dsh") out.push(`插件 ${(p.plugins || []).length} / ${g.dshMax ? g.dshMax(p) : 2}${(p.plugins || []).length ? "：" + p.plugins.map((c) => CD[c.k].name).join("、") : ""}`);
     if (s.id === "fact" && p.used && p.used.fact) out.push("这轮核实过");
     if (s.id === "fans" && p.used && p.used.fans) out.push("这轮刷过礼物");
     if (s.id === "disguise" && p.disguise) out.push("伪装中");
@@ -327,7 +329,9 @@ window.UI = (function () {
       ${rel ? `<div class="hi-rel ${rel}"><b>${REL_NAME[rel]}</b>${relRow}</div>` : ""}
       ${p !== me && window.Props ? `<div class="hi-props"><div class="hp-row">${Props.kindsFor(me).map((k) => `<button class="hp-b${Props.KINDS[k].owner ? " sig" : ""}" data-k="${k}" title="${Props.KINDS[k].name}${Props.KINDS[k].owner ? "（你的专属）" : ""}"><img src="${A(`assets/img/prop_${k}.webp`)}" alt=""><span>${Props.KINDS[k].name}</span></button>`).join("")}</div>
         <div class="hp-note">${Props.meaning(g, me, p)}</div></div>` : ""}
-      <div class="hi-skills">${p.ch.skills.map((s) => {
+      ${p.ch.harness ? `<div class="hi-hz${p.deployed ? " on" : ""}"><div class="hi-sk1"><b>Harness · ${p.ch.harness.name}</b><em>${p.deployed ? "已上线" : `部署 ${p.deploy || 0} / ${g.deployNeed(p)}`}</em></div>
+        <div class="hi-short">${p.ch.harness.short}</div><div class="hi-desc">${p.ch.harness.desc}<br><small>每打出 1 张牌部署进度 +1，满格上线，整局生效。</small></div></div>` : ""}
+      <div class="hi-skills">${p.ch.skills.filter((s) => !s.harness || !p.ch.harness).map((s) => {
         const ss = skillState(p, s);
         return `<div class="hi-sk${s.id === infoFocus ? " focus" : ""}"><div class="hi-sk1"><b>${s.name}</b><em class="${s.type}">${s.type === "active" ? "主动" : "被动"}</em>${ss.map((x) => `<i>${x}</i>`).join("")}</div>
           <div class="hi-short">${s.short || ""}</div><div class="hi-desc">${s.desc}</div></div>`;
@@ -457,7 +461,8 @@ window.UI = (function () {
     const acts = g.activeSkills(me).map((s) => ({ s, left: s.left != null ? `（${s.left}）` : "", ready: mode === "play" && !busy && s.can }));
     const pas = me.ch.skills.filter((x) => x.type !== "active").map((s) => ({ s, ss: skillState(me, s), off: (s.id === "saint" && me.saintUsed) || (s.id === "dumb" && me.dumb) }));
     const readyIds = acts.map((a) => (a.ready ? a.s.id : null));
-    const sig = JSON.stringify([SET().keys, skillMode, acts.map((a) => [a.s.id, a.left, a.ready]), pas.map((x) => [x.s.id, x.ss[0] || "", x.off])]);
+    const hz = me.ch.harness ? (me.deployed ? "on" : `${me.deploy || 0}/${g.deployNeed(me)}`) : "";
+    const sig = JSON.stringify([SET().keys, skillMode, acts.map((a) => [a.s.id, a.left, a.ready]), pas.map((x) => [x.s.id, x.ss[0] || "", x.off]), hz]);
     if (sig !== skillSig || !box.firstChild) {
       skillSig = sig;
       box.innerHTML = "";
@@ -470,6 +475,12 @@ window.UI = (function () {
         const w = el("span", "skw" + (ready && skillMode !== s.id ? " on" : ""), '<i class="skglow"></i>');
         w.appendChild(b); box.appendChild(w);
       });
+      if (me.ch.harness) {                                          // v48 Harness：单独一个金色小牌，没上线灰着显示进度
+        const H = me.ch.harness, ch = el("span", "pchip hzc" + (me.deployed ? "" : " off"), `Harness · ${H.name}<small>${me.deployed ? "已上线" : `部署 ${hz}`}</small>`);
+        ch.title = `【${H.name}】${H.short}（每打出 1 张牌部署 +1，满格上线）`;
+        ch.onclick = (ev) => { ev.stopPropagation(); showHeroInfo(me); };
+        box.appendChild(ch);
+      }
       for (const { s, ss, off } of pas) {
         const ch = el("span", "pchip" + (off ? " off" : ""), `${s.name}${ss.length ? `<small>${ss[0]}</small>` : ""}`);
         ch.title = `【${s.name}】${s.short || s.desc}（被动，自动生效）`;
@@ -478,7 +489,7 @@ window.UI = (function () {
       }
     }
     const tags = heroes[me.i] && heroes[me.i].querySelectorAll(".stags span");
-    if (tags) me.ch.skills.forEach((s, k) => { const on = readyIds.includes(s.id); if (tags[k] && tags[k].classList.contains("sk-ready") !== on) tags[k].classList.toggle("sk-ready", on); });
+    if (tags) me.ch.skills.filter((s) => !s.harness).forEach((s, k) => { const on = readyIds.includes(s.id); if (tags[k] && tags[k].classList.contains("sk-ready") !== on) tags[k].classList.toggle("sk-ready", on); });
   }
 
   // ---------------------------------------------------------------- 文字提示
@@ -834,6 +845,23 @@ window.UI = (function () {
     h.querySelector(".plate small").textContent = on ? "（其实是小DeepSeek）" : "";
     if (on) sparks(p, "#f0a050", 18);
     sync();
+  }
+  // v48 Harness 上线：角色旁弹一个终端小窗，逐字打 `$ xxx deploy… ✓`
+  function deploy(p, cmd, name, swap) {
+    const c = center(p), e = el("div", "term"); e.style.setProperty("--c", p.ch.color);
+    e.innerHTML = `<div class="tm-bar"><i></i><i></i><i></i><span>${p.name}</span></div><pre></pre>`;
+    e.style.left = c.x + "px"; e.style.top = c.y - 40 + "px";
+    $("#fx").appendChild(e);
+    const pre = e.querySelector("pre"), lines = swap ? [`$ ${cmd}`, `✓ 换壳：${name}`] : [`$ ${cmd} deploy`, "…", `✓ ${name} 上线`];
+    const txt = lines.join("\n"); let i = 0;
+    const sp = Math.max(0.3, Engine.speed || 0);
+    return new Promise((res) => {
+      if (!(Engine.speed > 0)) { pre.textContent = txt; setTimeout(() => { e.remove(); res(); }, 10); return; }
+      Sound.sfx("tick", 0.4);
+      const step = () => { if (i <= txt.length) { pre.innerHTML = txt.slice(0, i).replace(/✓[^\n]*/, (m) => `<b>${m}</b>`) + '<u></u>'; i++; setTimeout(step, 38 * sp); }
+        else { setTimeout(() => { e.classList.add("out"); setTimeout(() => e.remove(), 400 * sp); res(); }, 700 * sp); } };
+      step();
+    });
   }
   function skillNote(p, name) { Sound.sfx("chime", 0.5); skillPop(p, name); sync(); }
   function skillPop(p, name) {
@@ -1428,5 +1456,5 @@ window.UI = (function () {
   }
 
   return { skinKey, attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, clash, lean, skillNote, band, banner, rage, news, phase, toast,
-    humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr, throwProp, asset: A };
+    deploy, humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr, throwProp, asset: A };
 })();
