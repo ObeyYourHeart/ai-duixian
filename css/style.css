@@ -873,3 +873,6 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .lb-row:hover, .lb-row.on { border-color: var(--acc, #6a7bd8); background: #f3f6ff; }
 .lb-row em { font-style: normal; color: #6a7bd8; }
 #stage.portrait .lc-acts button { font-size: 20px; padding: 6px 12px; }
+/* v37 表情升级：换图淡入淡出的残影 */
+.hero .por img { position: relative; z-index: 1; }
+.hero .por img.ghost { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none; }

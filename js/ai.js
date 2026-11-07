@@ -55,6 +55,12 @@ window.AI = (function () {
   function foes(g, p, list) { return g && g.foesOf ? g.foesOf(p, list) : list; }
   const hostile = (g, p, q) => (g && g.hostility ? Math.max(0, g.hostility(p, q)) : 0);
   // 选目标：残血好收割，同一回合不反复集火同一个人，带点随机；身份局里越像敌人越优先
+  // v37 电脑性格：同样的局面，不同角色挑的目标不一样（打多了能认出谁是什么打法）
+  const PERSONA = {
+    grok: (g, p, q) => q.hand.length * 0.3,                                  // 有钱任性：专挑手牌多的
+    deepseek: (g, p, q) => (q.hp <= 2 ? 1.6 : 0) - (q.hp >= 4 ? 0.4 : 0),     // 量化：只做确定的买卖，专收残血
+    claude: (g, p, q) => ((p.grudge && p.grudge[q.i]) || 0) * 1.2,          // 守宪法：谁先违规（打过她）谁先挨
+  };
   function threat(g, p, q) {
     let s = q.hand.length * 0.35 + (q.hp <= 1 ? 3 : 0) + (q.hp <= 2 ? 0.8 : 0) + r() * 2.6;
     s -= ((p.hits && p.hits[q.i]) || 0) * 2.2;
@@ -62,6 +68,7 @@ window.AI = (function () {
     if (p.mark && p.mark.i === q.i && g.round <= p.mark.until) s += 5;   // 互动道具的暗号：队友叫我集火她
     if (q.band && q.band.length) s += q.band.length * Engine.T.bandThreat;   // Kimi 的乐队快到齐了：趁她开唱前先打她
     if (g.round <= 1 && q.human) s -= 1.5;
+    const P = PERSONA[p.key]; if (P) s += P(g, p, q);
     return s + hostile(g, p, q) * 1.2;
   }
   function pickTarget(g, p, list) {
@@ -188,6 +195,11 @@ window.AI = (function () {
     // Kimi：乐队到齐，先开演唱会；分档时（liveMin < bandMax）2 名就能唱，但没到齐只在局势催的时候唱（第 4 轮起、有人快出局、或者没牌再排练）
     if (g.canSkill(p, "live") && ((p.band || []).length >= Engine.T.bandMax || g.round >= 4 || foes(g, p, g.others(p)).some((q) => q.hp <= 1) || !g.canSkill(p, "rehearse"))) return { skill: "live" };
     if (g.canSkill(p, "polish") && !risky(p.hand.length + 1) && polishGain(g, p) > 0) return { skill: "polish" };
+    // v37 Claude Code：缺关键牌（反驳 / 奶茶 / 重启 / 吐槽）才许愿——额度有限
+    if (g.canSkill(p, "wish") && wishNeed(g, p)) return { skill: "wish" };
+    // v37 Artifacts：有张没用的牌、又缺一件好装备，就拿它生成
+    if (g.canSkill(p, "artifact")) { const k = artifactPick(g, p, g.artifactKinds(p)), c = p.hand.find((x) => x.id === cheapest(g, p, 1)[0]);
+      if (k && c && equipScore(g, p, { k }) - (equipScore(g, p, g.eqIn(p, k)) || 0) >= 0.8 && value(g, p, c) <= 4.5) return { skill: "artifact" }; }
     // 小DeepSeek 变身：冒充 Claude，顺手学她润色——手里的牌不好就变
     if (g.canSkill(p, "disguise") && g.round >= 2 && !risky(p.hand.length + 1) && polishGain(g, p) > 0) return { skill: "disguise" };
     if (g.canSkill(p, "search")) return { skill: "search" };
@@ -230,7 +242,7 @@ window.AI = (function () {
     const eqs = p.hand.filter((c) => Engine.CD[c.k].type === "equip").sort((a, b) => equipScore(g, p, b) - equipScore(g, p, a));
     for (const e of eqs) if (equipScore(g, p, e) > equipScore(g, p, g.eqIn(p, e.k)) + 0.3) return use(e);   // 分格后：每件和自己那一格现有的比
     // 2. 回血
-    if (p.hp < p.maxHp && H("naicha").length) return use(H("naicha")[0]);
+    if (p.hp < p.maxHp && H("naicha").length && (p.maxHp - p.hp >= g.teaHeal(p) || p.hp <= 1)) return use(H("naicha")[0]);   // v37 小DeepSeek 大胃一杯回 2：只差 1 点时先留着（见底会自动喝）
     if (p.hp < p.maxHp && H("tuanjian").length) return use(H("tuanjian")[0]);
     if (!enemies.length) return null;                             // 身份局开局还看不出谁是敌人：先不动手
     // 3. 风控封号：盯着手牌多或快赢的人
@@ -256,6 +268,18 @@ window.AI = (function () {
       if (t) return use(H("duanwang")[0], [t]);
     }
     if (H("dangji").length && !g.bomb && p.hp >= 2) return use(H("dangji")[0]);
+    // v37 提示词注入：让对手去打别人——被打的最好也是对手（2v2 里逼她打自己队友）
+    if (H("zhuru").length && g.canUse(p, H("zhuru")[0])) {
+      const t = enemies.filter((q) => { const v = g.injectVictim(p, q); return v && v !== p && foes(g, p, [v]).length; }).sort((a, b) => b.hand.length - a.hand.length)[0];
+      if (t) return use(H("zhuru")[0], [t]);
+    }
+    // v37 对齐：心态快见底时，跟最想打你的那个对齐
+    if (H("duiqi").length && p.hp <= 2) {
+      const t = enemies.filter((q) => q.alignedBy !== p && q.hand.length > 0).sort((a, b) => threat(g, a, p) - threat(g, b, p))[0];
+      if (t) return use(H("duiqi")[0], [t]);
+    }
+    // v37 2v2 递牌：队友快没牌了、自己牌多，递一张她最用得上的
+    if (g.canSkill(p, "pass")) { const m = g.mate(p); if (m && ((m.hand.length <= 2 && p.hand.length >= 4) || (!m.hand.some((c) => c.k === "fanbo") && H("fanbo").length >= 2) || (m.hp <= 2 && H("naicha").length && p.hp >= 3))) return { skill: "pass" }; }
     // 5. 群伤：会打到所有人，组队时对手不比自己人少才用
     const aoeOk = enemies.length * 2 >= others.length;
     if (aoeOk && H("resou").length) return use(H("resou")[0]);
@@ -264,7 +288,7 @@ window.AI = (function () {
     if (aoeOk && g.canSkill(p, "shoot") && (enemies.length >= 2 || H("tucao").length >= 2 || p.tucao >= g.limitTucao(p))) return { skill: "shoot" };
     // 6. 单挑：自己吐槽多 或 对方手牌少
     if (H("dantiao").length) {
-      const t = enemies.slice().sort((x, y) => (x.hand.length + (p.hits[x.i] || 0) * 2) - (y.hand.length + (p.hits[y.i] || 0) * 2))[0];
+      const t = enemies.filter((q) => g.canHit(p, q)).sort((x, y) => (x.hand.length + (p.hits[x.i] || 0) * 2) - (y.hand.length + (p.hits[y.i] || 0) * 2))[0];
       if (t && (H("tucao").length >= 2 || t.hand.length <= 1 || (t.hp <= 1 && H("tucao").length >= 1))) return use(H("dantiao")[0], [t]);
     }
     // 6a. 截图 + 加班：准备好再吐槽
@@ -291,11 +315,14 @@ window.AI = (function () {
     if (Engine.T.hexaAttack && g.hasSkill(p, "hexa") && !H("tucao").length && H("fanbo").length >= 2 && p.tucao < g.limitTucao(p)) {
       const t = pickTarget(g, p, others); if (t) return use(H("fanbo")[0], [t]);
     }
+    // v37 零日漏洞：有人心态见底、或者对面手里反驳多，先挖漏洞再吐槽
+    if (g.canSkill(p, "zeroday") && enemies.some((q) => g.canHit(p, q) && (q.hp <= 2 || q.hand.length >= 3))) return { skill: "zeroday" };
     // 7. 吐槽
     if (H("tucao").length && p.tucao < g.limitTucao(p)) {
       const ev = p.evidence && p.evidence.alive && g.rivals(p).includes(p.evidence) ? p.evidence : null;   // 截过图的那个先打
       const orc = p.oracle && p.oracle.alive && g.rivals(p).includes(p.oracle) ? p.oracle : null;   // 神奇海螺点的人挡不了吐槽，先打她
-      const t = ev || orc || pickTarget(g, p, others); if (t) return use(H("tucao")[0], [t]);
+      const ok = (q) => q && g.canHit(p, q);
+      const t = (ok(ev) && ev) || (ok(orc) && orc) || pickTarget(g, p, others.filter(ok)); if (t) return use(H("tucao")[0], [t]);
     }
     // MiniMax 兔子快递：能出的牌都出完了，把剩下用不上的锦囊当燃料发射火箭
     if (g.canSkill(p, "rocket") && value(g, p, g.rocketFuel(p)) < 7) {   // 只剩反驳这类保命牌时不烧
@@ -311,7 +338,12 @@ window.AI = (function () {
   }
 
   function respond(g, p, kind, ctx, cards) {
+    if (kind === "tucao" && ctx && ctx.inject) {                   // 被注入：要我打自己人？心态还够就宁可自己挨 1 点
+      const v = ctx.victim, own = v && (g.hostility ? g.hostility(p, v) < 0 : false);
+      return own && p.hp >= 2 ? null : cards.length ? { card: cards[0] } : null;
+    }
     if (kind === "fanbo" || kind === "tucao") return cards.length ? { card: cards[0] } : null;
+    if (kind === "huigun") return cards.length && (p.hp - (ctx.n || 1) <= 1 || cards.length >= 2) ? { card: cards[0] } : null;
     if (kind === "shuaiguo") {                                   // 甩锅：没反驳、或者快破防了，就甩给一个对手
       const outs = foes(g, p, ctx.outs || []);
       return outs.length && (!g.has(p, "fanbo").length || p.hp <= 1 || cards.length >= 2) ? { card: cards[0] } : null;
@@ -329,6 +361,28 @@ window.AI = (function () {
   }
 
   function discard(g, p, n) { return cheapest(g, p, n); }
+  // v37 Claude Code 许愿：缺什么要什么
+  function wishWant(g, p) {
+    const has = (k) => p.hand.some((c) => c.k === k);
+    if (g.bombsLeft && g.bombsLeft() && !has("chongqi") && g.knowsBomb(p, 3) >= 0) return "chongqi";
+    if (!has("fanbo")) return "fanbo";
+    if (p.hp <= 2 && !has("naicha") && p.hp < p.maxHp) return "naicha";
+    if (p.hand.filter((c) => c.k === "tucao").length < 2 && p.tucao < g.limitTucao(p)) return "tucao";
+    if (p.hand.length <= 3) return "hongbao";
+    return null;
+  }
+  function wishNeed(g, p) { const k = wishWant(g, p); return !!k && g.wishKinds().includes(k); }
+  function wishPick(g, p, kinds) { const k = wishWant(g, p); return kinds.includes(k) ? k : kinds.includes("hongbao") ? "hongbao" : kinds[0]; }
+  // v37 Artifacts：素材挑最没用的，装备挑加分最多的
+  function artifactCost(g, p) { return p.hand.find((c) => c.id === cheapest(g, p, 1)[0]); }
+  function artifactPick(g, p, kinds) { return kinds.slice().sort((a, b) => equipScore(g, p, { k: b }) - equipScore(g, p, { k: a }))[0] || null; }
+  // v37 2v2 递牌：队友没反驳给反驳，快不行了给奶茶，否则给她估值最高的一张
+  function passPick(g, p, m) {
+    const has = (q, k) => q.hand.some((c) => c.k === k), mine = (k) => p.hand.find((c) => c.k === k);
+    if (!has(m, "fanbo") && p.hand.filter((c) => c.k === "fanbo").length >= 2) return mine("fanbo");
+    if (m.hp <= 2 && mine("naicha")) return mine("naicha");
+    return p.hand.slice().sort((a, b) => value(g, m, b) - value(g, m, a))[0];
+  }
   // Claude 润色（整手重写）值不值：手里的平均价值低于一张新牌才写
   // v36 Gemini 香蕉魔法画哪张：快不行了画奶茶；妙笔还能用却没吐槽就画吐槽；没反驳画反驳；都不缺按心态
   function paintPick(g, p, opts) {
@@ -351,6 +405,6 @@ window.AI = (function () {
   // 豆包：吐槽被挡后要不要弃牌接着说；GPT：没反驳时要不要弃一张硬顶
   function wantLong(g, p, t) { return p.hand.length >= 2 || t.hp <= 1; }
   function wantZuiying(g, t, p) { return t.hp <= 2 || t.hand.length >= 4; }
-  return { paintPick, choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard, treatTarget, autoTargets,
+  return { wishPick, artifactCost, artifactPick, passPick, paintPick, choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard, treatTarget, autoTargets,
     drawOrder, placeBomb, bombChoice, wantMoyu, arrange };
 })();

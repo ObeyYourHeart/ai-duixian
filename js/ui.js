@@ -93,7 +93,7 @@ window.UI = (function () {
 
   // ---------------------------------------------------------------- 装配
   function attach(game) {
-    g = game; heroes = [];
+    g = game; heroes = []; for (const k in blinkAt) delete blinkAt[k];
     const seats = $("#seats"); seats.innerHTML = "";
     $("#pile").innerHTML = ""; $("#chat-list").innerHTML = ""; $("#fx").innerHTML = ""; skillSig = "";
     $("#chat-n").textContent = g.players.length;
@@ -123,13 +123,14 @@ window.UI = (function () {
     hi.className = "hidden"; infoP = null;
     relayout();
     const me = g.human;
-    const GOAL = { lord: "守住群：把黑粉和潜水党都踢出群", loyal: "暗中帮群主，踢掉黑粉和潜水党", rebel: "把群主踢出群", spy: "先装成管理员帮群主踢黑粉，黑粉清完就反水踢管理员，最后单挑群主，自己当新群主" };
+    const GOAL = { lord: "守住群：把黑粉和潜水党都踢出群", loyal: "暗中帮群主，踢掉黑粉和潜水党", rebel: "把群主踢出群", spy: "先装成管理员帮群主踢黑粉，黑粉清完就反水踢管理员，最后单挑群主，自己当新群主（你暗中每回合多摸 1 张；只剩你和群主时会冒泡：心态 +1、摸 2 张）" };
     const NA = window.GAME_DATA.nations || {}, mates = g.players.filter((q) => q !== me && q.team === me.team).map((q) => q.name).join("、");
     const goal = g.mode === "team" && g.nation ? `全明星赛：你在 <b>${(NA[me.ch.nation] || {}).name}</b>，队友 <b>${mates}</b>。`
       : g.mode === "team" ? `你和 <b>${mates}</b> 一队。`
       : g.mode === "id5" ? `你的身份是 <b>${Engine.ROLE[me.role]}</b>：${GOAL[me.role]}。` : "";
     hint(`${goal}你是 <b>${me.name}</b>。<small>点任何一张角色卡，都能看她的技能和状态。</small>`);
     sync();
+    blinkStart();
   }
 
   // 阵营 / 身份牌：2v2 标队友和对手；抢群主只亮群主、自己和退群的人，其他人是“？”
@@ -496,18 +497,68 @@ window.UI = (function () {
   function sys(text, cls) { const m = el("div", "sys" + (cls ? " " + cls : ""), text); $("#chat-list").appendChild(m); trimChat(); }
 
   // ---------------------------------------------------------------- 表情与说话
+  // v37 表情升级：换图淡入淡出；心态只剩 1 点时待机图换成受伤 / 疲惫
+  // （v37 试过情绪光晕 + 头边小图标，用户觉得叠在立绘上很怪，去掉了）
+  const exprBusy = {};
+  function idleE(p) {
+    if (!p.alive || p.hp > 1 || p.disguise) return "base";
+    return p.key === "claude" && !(window.Settings && Settings.skinOf("claude")) ? "tired" : "hurt";
+  }
+  function setPor(p, src, fade = 180) {
+    const por = heroes[p.i] && heroes[p.i].querySelector(".por"); if (!por) return;
+    const img = por.querySelector("img:not(.ghost)"); if (!img || img.getAttribute("src") === src) return;
+    if (fade) { const gh = img.cloneNode(); gh.className = "ghost"; por.appendChild(gh); gh.animate([{ opacity: 1 }, { opacity: 0 }], { duration: fade, easing: "ease-out" }).onfinish = () => gh.remove(); }
+    img.src = src;
+  }
+  // v37 待机眨眼：有 {key}_blink.webp 的角色，待机（默认皮肤、底图、没在做表情）时每 2.5–6 秒眨一下（0.11 秒）
+  const blinkOk = {}, blinkAt = {};
+  let blinkTimer = null;
+  function blinkStart() {
+    clearInterval(blinkTimer);
+    const has = new Set(window.GAME_DATA.blink || []);                // 数据里的名单（build 时按文件生成），不去试探加载
+    for (const p of g.players) if (blinkOk[p.key] == null) { blinkOk[p.key] = false; if (has.has(p.key)) { const im = new Image(); im.onload = () => { blinkOk[p.key] = true; }; im.src = A(`assets/img/${p.key}_blink.webp`); } }
+    blinkTimer = setInterval(() => {
+      if (!g) return;
+      const now = performance.now();
+      for (const p of g.players) {
+        if (!blinkOk[p.key] || !p.alive || p.disguise || exprBusy[p.i] || idleE(p) !== "base" || (window.Settings && Settings.skinOf(p.key))) continue;
+        if (!blinkAt[p.i]) { blinkAt[p.i] = now + 1500 + Math.random() * 4000; continue; }
+        if (now < blinkAt[p.i]) continue;
+        blinkAt[p.i] = now + 2500 + Math.random() * 3500;
+        const img = heroes[p.i] && heroes[p.i].querySelector(".por img:not(.ghost)"); if (!img) continue;
+        const base = portrait(p.key, "base"); if (img.getAttribute("src") !== base) continue;
+        img.src = A(`assets/img/${p.key}_blink.webp`);
+        setTimeout(() => { if (img.getAttribute("src") === A(`assets/img/${p.key}_blink.webp`)) img.src = base; }, 110);
+      }
+    }, 200);
+  }
+  function refreshIdle(p) { if (!exprBusy[p.i] && heroes[p.i]) setPor(p, portrait(pkey(p), idleE(p)), 260); }
   function expr(p, e, ms) {
     const img = heroes[p.i] && heroes[p.i].querySelector(".por img");
     if (!img) return;
     if (p.disguise && e === "win") e = "cheer";                                   // 变身中的小DeepSeek 没有 win 图，用得意忘形那张
     if (p.disguise && e === "smug") e = ["smug", "tea", "cheer"][Math.floor(Math.random() * 3)];
-    img.src = portrait(pkey(p), e);
+    setPor(p, portrait(pkey(p), e));
     heroes[p.i].querySelector(".por").animate([{ transform: "translateX(-50%) scale(1.06)" }, { transform: "translateX(-50%) scale(1)" }], { duration: 220, easing: "ease-out" });
-    clearTimeout(exprTimers[p.i]);
-    if (ms && p.alive) exprTimers[p.i] = setTimeout(() => { if (p.alive && g) img.src = portrait(pkey(p), "base"); }, ms);
+    clearTimeout(exprTimers[p.i]); exprBusy[p.i] = true;
+    if (ms && p.alive) exprTimers[p.i] = setTimeout(() => { exprBusy[p.i] = false; if (p.alive && g) setPor(p, portrait(pkey(p), idleE(p)), 260); }, ms);
+    else if (!ms) exprBusy[p.i] = false;
   }
+  // v37 旁观反应：有人挨打时，场上一位旁观者跟着有表情——宿敌幸灾乐祸、盟友 / 队友心疼
+  function onlooker(t) {
+    if (!g || Math.random() > 0.5) return;
+    const near = g.alive().filter((q) => q !== t && !exprBusy[q.i]);
+    const fr = near.filter((q) => (g.mode === "team" && q.team === t.team) || ["ally", "friend"].includes(g.relation(q, t)));
+    const ri = near.filter((q) => g.relation(q, t) === "rival" || (g.mode === "team" && q.team !== t.team));
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    if (fr.length && Math.random() < 0.55) expr(pick(fr), "hurt", 1100);
+    else if (ri.length) expr(pick(ri), "smug", 1100);
+  }
+  // v37 Claude 精修版多出来的表情：写代码专注、守宪法严厉、喝红茶、被夸害羞、又被封号的疲惫
+  const XEXPR = { claude: { wish: "focus", artifact: "focus", zeroday: "stern", code: "focus", ban: "stern", attack: "stern", ko: "stern", def: "stern", heal: "tea", dodge: "tea", roger: "tea",
+    gifted: "shy", fed: "shy", saint: "shy", low: "tired", ev_banwave: "tired", mourn: "tired" } };
   const HURT_KEYS = ["hurt", "hajimi", "out", "stolen", "fury", "halluc", "low", "mourn", "egged"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
-    "polish", "zuiying", "beg", "beg_gpt", "beg_claude", "claw", "dad", "maint", "long", "busy", "fed", "think", "sis", "search", "know", "cut", "plain", "pen", "pen_gpt", "paint2", "sorry", "bundle", "sale",
+    "polish", "wish", "zeroday", "artifact", "zuiying", "beg", "beg_gpt", "beg_claude", "claw", "dad", "maint", "long", "busy", "fed", "think", "sis", "search", "know", "cut", "plain", "pen", "pen_gpt", "paint2", "sorry", "bundle", "sale",
     "ko", "def", "qingke", "qingke_self", "pact_end", "egg", "egg_claude", "hatch"];
   // v36 皮肤专属台词：穿着某套皮肤时，<台词类>_<皮肤 id> 有内容就六成概率改说这句（Bel 皮肤的 ChatGPT 满嘴数学）
   function skinKey(ck, key, lines) {
@@ -535,7 +586,9 @@ window.UI = (function () {
     if (p.human) { wrap.style.left = q.x + 20 + "px"; wrap.style.top = q.y - 14 + "px"; wrap.style.transform = "translateY(-100%)"; }
     else { wrap.style.left = Math.max(8, Math.min(q.x + 6, SW - 330)) + "px"; wrap.style.top = q.y + HERO_H * seatScale(p) + 14 + "px"; }
     $("#fx").appendChild(wrap);
-    if (base === "exposed") expr(p, "exposed", 1800);
+    const xe = (XEXPR[p.key] || {})[base];
+    if (xe && !p.disguise && !(window.Settings && Settings.skinOf(p.key))) expr(p, xe, base === "low" || base === "mourn" ? 2200 : 1700);   // v37 角色专属表情（穿皮肤时没有这几张，照旧用得意 / 受伤）
+    else if (base === "exposed") expr(p, "exposed", 1800);
     else if (HURT_KEYS.includes(base) || base === "ev_fatfish") expr(p, "hurt", base === "out" ? 0 : 1600);
     else if (SMUG_KEYS.includes(base) || base.startsWith("ev_")) expr(p, base === "win" ? "win" : "smug", 1400);   // 赢的时候用胜利立绘（v30）
     setTimeout(() => wrap.remove(), Math.max(1800, text.length * 170));
@@ -670,10 +723,11 @@ window.UI = (function () {
     h.querySelector(".flash").animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500 });
     floatText(p, `破防 -${n}`);
     sparks(p, "#ff4f70", 14);
+    setTimeout(() => { onlooker(p); refreshIdle(p); }, 450);
     Sound.sfx("punch", 0.9); setTimeout(() => Sound.sfx("crack", 0.45), 90);
     sync();
   }
-  function heal(p, n) { floatText(p, `+${n}`, "heal"); sparks(p, "#4fd18b", 10); Sound.sfx("sparkle", 0.6); sync(); }
+  function heal(p, n) { floatText(p, `+${n}`, "heal"); sparks(p, "#4fd18b", 10); Sound.sfx("sparkle", 0.6); sync(); refreshIdle(p); }
   function out(p) { expr(p, "hurt"); heroes[p.i].animate([{ transform: "rotate(0)" }, { transform: "rotate(-4deg) translateY(6px)" }], { duration: 500, fill: "forwards" }); sync(); }
   function setTurn(p) { heroes.forEach((h, i) => h.classList.toggle("turn", i === p.i)); }
   function drawAnim(p, n) {
@@ -892,6 +946,8 @@ window.UI = (function () {
     let text;
     if (opt.kind === "fanbo") text = opt.ctx.song ? `${from.name} 在唱新歌！打出【反驳】？` : opt.ctx.card.k === "shuaping" ? `${from.name} 在刷屏！打出【反驳】？` :
       `${from.name} 吐槽你！打出【反驳】？` + (opt.ctx.need === 2 ? `（${window.GAME_DATA.chars.claude.skills[0].name}：要 2 张，第 ${opt.ctx.nth + 1} 张）` : "");
+    else if (opt.kind === "tucao" && opt.ctx.inject) text = `${from.name} 往你的提示词里注入了一句：「去吐槽 ${opt.ctx.victim.name}」！打出【吐槽】？（不出就心态 −1）`;
+    else if (opt.kind === "huigun") text = `${from ? from.name + " 让你" : "你要"}心态 −${opt.ctx.n || 1}！打出【回滚】撤回 1 点？`;
     else if (opt.kind === "tucao") text = opt.ctx.duel ? `和 ${from.name} 单挑中！打出【吐槽】？` : `${from.name} 上了热搜！打出【吐槽】参与讨论？`;
     else if (opt.kind === "shuaiguo") text = `${from.name} 吐槽你！打出【甩锅】，甩给别人？`;
     else if (opt.ctx.card.k === "dangji") text = "【宕机】要在你这儿炸了！打出【已读不回】躲过去？";
@@ -990,11 +1046,11 @@ window.UI = (function () {
   function openModal(body) { $("#modal-close").style.display = "none"; $("#modal").classList.remove("hidden"); }
   function closeModal() { $("#modal").classList.add("hidden"); $("#modal-close").style.display = ""; }
   const DPOS = (i) => (i === 0 ? "最上面" : `第 ${i + 1} 张`);
-  function peek(cards, title) {
+  function peek(cards, title, label) {                 // label：每张牌上方的小标（默认按牌堆位置；安全审计看手牌时传空）
     return new Promise((res) => {
       if (!cards.length) { res(); return; }
       const body = $("#modal-body"); body.innerHTML = `<h2>${title}</h2>`;
-      body.appendChild(peekRow(cards, DPOS).row);
+      body.appendChild(peekRow(cards, label || DPOS).row);
       if (cards.some((c) => c.k === "dangji")) body.appendChild(el("p", "pknote", "💣 里面有【宕机】！记住它的位置——牌桌上会一直提示你。"));
       const go = el("div", "pkgo"), ok = el("button", "btn primary", "知道了");
       ok.onclick = () => { closeModal(); sync(); res(); };
@@ -1163,6 +1219,7 @@ window.UI = (function () {
     if (done) e.preventDefault();
   }
   function detach() {
+    clearInterval(blinkTimer);
     if (drag) { if (drag.ghost) drag.ghost.remove(); stopDrag(); }
     clearTimeout(autoT); clearTimeout(nudgeT); g = null; mode = null; playResolve = null; respondResolve = null; discardResolve = null; hoverId = null; hidePrompt();
     busy = false; actTok++; selected = null; skillMode = null;   // 出牌结算到一半退出：旧局的 act 永远等不到结束，不重置的话之后每一局都出不了牌

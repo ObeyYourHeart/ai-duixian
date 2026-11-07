@@ -14,7 +14,7 @@ window.Engine = (function () {
     searchLook: 5, knowLook: 3, knowKeep: true, knowKeepOnce: true, knowKeep2p: false, searchPick: true,   // v36：搜索从看到的 3 张里挑 1 张；知识库翻 3 张、没查到也收 1 张（每轮 1 次、单挑不收——单挑收牌时 65%）。sim 乱斗 38 / 单挑 51 / 2v2 53 / 抢群主 41                           // Gemini 搜索：看几张；博闻：翻几张找反驳
     sorryDraw: 2, sorryDraw2p: 1, sorryBoom: true,   // （v24b：4 / 2 → 3 / 1；v29 删掉以假乱真后被挡的吐槽变多，3 → 2：乱斗 33 / 单挑 51 / 2v2 50）   // 豆包 嘻嘻抱歉：做错事摸几张；自己宕机了也算做错事
     grokStart: 3, grokFloor: 3, grokFloorTeam: 2,         // 千金：开局多拿；回合开始补到几张（v28 乱斗 / 单挑补到 3：乱斗 30 → 34、单挑 42 → 46；组队 / 抢群主仍 2——那边她本来就 50+）
-    thinkDraw: 1, thinkRate: 0.8, thinkRate2p: 0.6, thinkDefuse: 0.2,   // v37 单挑 0.6（0.8 时单挑 57%）
+    thinkDraw: 1, thinkRate: 0.8, thinkRate2p: 0.6, thinkRateTeam: 0.8, furyTeamOnce: true, thinkDefuse: 0.2,   // v37 单挑 0.6（0.8 时单挑 57%）
                           // 大 DeepSeek 深思：摸牌阶段多摸几张；摸到宕机时自己推理拆掉的概率
     searchPeek: 3, searchDraw: 1,                         // Gemini 搜索：偷看几张、再摸几张
     polishExtra: 1, polishExtra2p: 0,                                       // Claude 润色：整手重写时多摸几张
@@ -24,11 +24,11 @@ window.Engine = (function () {
     beautyDraw: 1, saintHeal: 1,                           // Claude：审美摸几张；圣女回几点
     openDrop: 1, bigEat: 2, openArb: 1, openArbMin: 2,     // DeepSeek 开源让对手弃几张；小DeepSeek 大胃奶茶回几点；v31 量化：开源让至少 openArbMin 名对手弃了牌时她摸 openArb 张（0 = 关；单挑只有 1 个对手，永远不触发）
     buyLook: 2, buyLook2p: 3,                              // v31 Grok 挥金·什么都敢搜：先随机翻对手几张给全场看，买走最有用的（1 = 原来的随手抽）
-    napHeal: 2, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 3, bagSelf2p: 2, disguiseAct: "polish", hajimiRate: 0.25, nationFirst: {}, nationDraw: { cn: 1 }, bandMax: 3, liveDmg: 1, liveCap: 2, liveDraw: 3, rehearseDraw: 0, bandThreat: 0.8,   // Kimi：乐队几名到齐开唱（= 几首新歌）、每首没反驳扣几点、每人一场最多扣几点、唱完摸几张；排练摸几张；对手看到乐队多想打她（不封顶时没反驳的人连掉 3 点，每场平均踢掉半个人）   // 全明星赛：中国队阵容大，第一回合每人多摸 1 张（sim：中美 51/49）                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
+    napHeal: 2, napShield: true, moonHeal: 1, bagMax: 1, bagSelf: 3, bagSelf2p: 2, disguiseAct: "polish", hajimiRate: 0.25, nationFirst: {}, nationDraw: { cn: 1 }, bandMax: 3, liveDmg: 1, liveCap: 2, liveDraw: 3, rehearseDraw: 0, rehearseFirst: 1, bandThreat: 0.8,   // Kimi：乐队几名到齐开唱（= 几首新歌）、每首没反驳扣几点、每人一场最多扣几点、唱完摸几张；排练摸几张；对手看到乐队多想打她（不封顶时没反驳的人连掉 3 点，每场平均踢掉半个人）   // 全明星赛：中国队阵容大，第一回合每人多摸 1 张（sim：中美 51/49）                   // GLM 补觉回几点；Kimi 月光回几点；千问 红包每人最多抢几张
     busyRate: 0.15, busyAt: 2, busyBounce: true,   // v29：单挑 8% → 15%（单挑 48 → 54；25% 是 60 太强）   // 小 DeepSeek 服务器繁忙：同一轮冲她来的第 busyAt 张吐槽必繁忙（v25：原来 8% 概率每局只触发 0.2 次；每轮第 1 张就挡 → 乱斗 53%，第 2 张 36%）；单挑仍按 busyRate 概率（第 2 张必挡时单挑 61%）
     begBonus: 0, begFondBest: true, begTeam: 1, petGuard: 1,   // v35 2v2：蹭饭后队友再给她带 1 张；第一次挨对手的打队友替她挡 1 点（团宠）。2v2 胜率 43 → 47（5000 局）                                        // 小 DeepSeek 蹭饭：从 GPT/Claude 那里额外摸
     halluc: [0.6, 0.33, 0.04, 0.03], hallucCost: 0,      // 豆包 幻觉：摸 2 / 随机对手 −1 / 全体摸 1 / 自己 −1；要弃几张
-    edgeBomb: 1, rocketDmg: 1, rocketMax2p: 0, rocketAny: true, rocketSteal: true, shootDraw: 1, magicMax2p: 2, oracleShoot: false,   // MiniMax：自托管被宕机炸到只掉几点；兔子快递打几点、单挑每局几次（0 = 不限）、任意牌当燃料、砸中取回 1 张；开拍打中摸几张；神奇海螺单挑每局几次、挡不了开拍（v27 削弱后 sim 乱斗 32 / 单挑 50 / 2v2 53）
+    edgeBomb: 1, rocketDmg: 1, rocketMax2p: 0, rocketAny: true, rocketSteal: true, shootDraw: 1, magicMax2p: 2, oracleShoot: true,   // MiniMax：自托管被宕机炸到只掉几点；兔子快递打几点、单挑每局几次（0 = 不限）、任意牌当燃料、砸中取回 1 张；开拍打中摸几张；神奇海螺单挑每局几次、挡不了开拍（v27 削弱后 sim 乱斗 32 / 单挑 50 / 2v2 53）
     errandLook: 5, errandLook2p: 4, errandPick: "best", errandPick2p: "first", haggleTake: 2, haggleGive: 1, confirmPaofen: false, confirmOthers: true,   // v29：新卡（跑分、钓鱼、加密）让囤牌的 Muse 乱斗掉到 28，补两条：多人局代办挑翻到的最好的锦囊（单挑仍第一张）、确认卡也拦热搜 / 刷屏 → 乱斗 36 / 单挑 48 / 2v2 52；砍价不还牌 42 / 69、心态 5 是 46 / 63，都太猛   // Muse：代办最多往下翻几张找能用的锦囊（v28 单挑只翻 3：57% → 53%；v29 新卡让囤牌的她成了跑分榜一，单挑回到翻 4 补一点）、挑第一张还是挑最好的（"best" 单挑 65 太强）；砍价拿几张、还 1 张
     remakeCost: 1, remakeCost2p: 2, remakeTucao2p: false, remakeMax: 0, fakeRate: 0, fakeRate2p: 0,   // v29：以假乱真删掉（技能表里也去掉了；它和嘻嘻抱歉互相拆台，一局只触发 0.3 次）   // 豆包 Seedance：一键成片随机弃几张；以假乱真让反驳失效的概率（单挑：弃 2 张、不能重放吐槽——不然单挑 58–61%，现在 53%；乱斗 35）
     remakeKinds: ["tucao"],                               // 一键成片只重放吐槽（能复制锦囊太强；重放奶茶回两次血也太肉：乱斗 37 → 34）；单挑不能用（remakeTucao2p false，允许时单挑 60%）
@@ -38,16 +38,18 @@ window.Engine = (function () {
     fansN: 1, fansLow: 2, fans: { doubao: [1, 1] }, fansOnce: true, paintKinds: ["naicha", "tucao", "fanbo"],       // 豆包 应援：[摸, 只剩 1 点心态时摸]
     longCost: 1,                                          // 豆包 长篇大论
     recallKinds: ["tucao", "fanbo", "naicha"], recallRate: 1,   // Kimi 过目：捡哪几种牌；每次翻到的概率
+    seatDraw: { ffa: [-1, 0, 2], duel: [-1, 2] },                                         // v37 先手补偿：第一轮摸牌增减（先手只摸 1、最后一位摸 4）。不补时单挑先手 61% / 乱斗 40-34-26；补后 50.5 / 34-33-33
+    teamHp: 2, teamPass: true, usesTeam: { ban: 2, wish: 5 }, shootDrawTeam: 0, haggleTakeTeam: 2, handTeam: {},   // v37 2v2 专用：技能次数、开拍摸牌、砍价拿几张、手牌上限加成
     teamFirstDraw: 3,                                     // 2v2：先手第一回合摸几张
     rageRound: 3,                                         // 从第几轮起每回合能吐槽两次
     bombs: 0, bombsId5: -2, bombDmg: 2, boomBack: true,                 // 宕机：埋几张（人数 − 1 + bombs）、炸到扣几点、炸完是否随机塞回牌堆
     bombsNation: -2, noSelfRedraw: true,                   // v28：全明星赛少埋 2 张（5 张时一半淘汰是宕机）；自己刚塞回去的那张同一回合摸不到（原来塞回的宕机 20% 炸到自己，一半是同回合润色 / 编程翻回来的）
-    skillBombSafe: false, polishKeep: false,               // 试验开关（sim_dangji.js 对比用，默认关）：技能 / 锦囊摸到的宕机不炸只塞回（开了 Claude 乱斗 68%——宕机其实是她的刹车）；润色不扔【重启】【甩锅】
+    skillBombSafe: false, polishKeep: false, polishKeepId5: true, openNoEv: true,               // 试验开关（sim_dangji.js 对比用，默认关）：技能 / 锦囊摸到的宕机不炸只塞回（开了 Claude 乱斗 68%——宕机其实是她的刹车）；润色不扔【重启】【甩锅】
     rehearseAny: true, grokCatch: 0, mathSee: 3, resetHeal: 1, tuanjianDraw: 1,   // v29：Kimi 排练任意牌都能写成歌（一鸣惊人 0.47 → 1.06 次/局）；GPT 演算常看牌堆顶 3 张（信息，sim 不变）、重置回 1（配 resetDraw 5：乱斗 35 / 单挑 45 / 2v2 49）；团建打出者摸 1。grokCatch（千金追赶）试过比补到 3 差，关着
     bombsLight: 0, lightDmg: 1, lootReveal: true,           // v29：拿走的牌全场可见。限流轻炸弹（扣几点、不能拆、炸完塞回）先不埋，可选
     liveMin: 2, liveTier: true,                             // v29：Kimi 2 名乐手就能开唱；分档——每人最多扣（歌数 − 1）、唱完摸（歌数）张（乱斗 32 / 单挑 55 / 2v2 49）
     equipSlots: true, jailbreakSkills: ["ban", "maint", "steal", "buy", "beg", "haggle", "rocket"], jailbreakDraw: 0, shootMax: 0, magicMax: 0, conchOnePerTurn: false, shootCounts: true, rocketFresh: false, remakeCounts: false, askCap: 0, dumbNoRepeat: false, dumbDraw: 0, hexaAttack: false,   // v30 定：开拍占吐槽次数 + 打中摸 1（shootDraw）：MiniMax 单回合逼一人 ≥3 张反驳的回合 8% → 4–7%，乱斗 34 / 单挑 45 / 2v2 50；快递不砸已吐槽的人单挑会废（24）、全局 askCap 会废掉 Kimi 演唱会（24），都不用   // shootCounts：开拍占一次吐槽次数；rocketFresh：快递不砸本回合已经吐槽过的人；remakeCounts：一键成片占吐槽次数；askCap：同一回合同一人逼你反驳最多几次（0 = 不限）   // v30：装备按类型分格可同时装；越狱改成"针对你的技能无效"（原来只挡风控 / 维护日，场上没 Claude / GLM 就是死牌）、打出后摸几张；MiniMax 开拍 / 神奇海螺每局上限（0 = 不限）
-    rebelHide: 2, rebelHideHp: 2, blindAttack: 0, spyPeek: false, leanLord: 2,   // v30 抢群主：黑粉头 2 轮潜伏不碰群主（群主心态 ≤ 2 时不再忍）——原来 88% 的局第 1 轮就有黑粉打群主、第 2 轮开始 98% 的黑粉已被看穿，身份牌等于明牌；潜伏后第 2 轮 20%、第 4 轮 86%，群主方 48 → 57 / 黑粉 35 → 30 / 潜水党 17 → 13。潜水党判断"黑粉还在不在"改成看场上表现（不偷看真实身份）。blindAttack（没证据也试探着打）试过群主方 68%，关着；群主心态 +1 是 43 / 42 / 15（黑粉太强）
+    allyHost: 0.3, spyHp: 0, spyDraw: 1, spyRise: true, spyRiseHeal: 1, spyRiseDraw: 2, rebelHide: 2, rebelHideHp: 2, blindAttack: 0, spyPeek: false, leanLord: 2,   // v30 抢群主：黑粉头 2 轮潜伏不碰群主（群主心态 ≤ 2 时不再忍）——原来 88% 的局第 1 轮就有黑粉打群主、第 2 轮开始 98% 的黑粉已被看穿，身份牌等于明牌；潜伏后第 2 轮 20%、第 4 轮 86%，群主方 48 → 57 / 黑粉 35 → 30 / 潜水党 17 → 13。潜水党判断"黑粉还在不在"改成看场上表现（不偷看真实身份）。blindAttack（没证据也试探着打）试过群主方 68%，关着；群主心态 +1 是 43 / 42 / 15（黑粉太强）
     rebootStart: 1, lordReboot: 0, lordDraw: 0, lordHp: 2, peekN: 3,                             // 开局每人发几张【重启】；剧透 / 插队看几张
     firewallRate: 0.3, powerbank: 2,
     qingkeCost: 1, qingkeDraw: 2,                         // 千问·请客：弃几张、送给别人时摸几张
@@ -112,15 +114,17 @@ window.Engine = (function () {
         equip: null, boost: false, offline: false, evidence: null, grudge: {}, saidLow: false, seen: new Set(), lastSeq: 0,
         stats: { dmg: 0, taken: 0, used: 0 },
       }));
-      for (const p of this.players) for (const s of p.ch.skills) if (s.uses) p.uses[s.id] = keys.length === 2 && s.uses2p != null ? s.uses2p : s.uses;
+      for (const p of this.players) for (const s of p.ch.skills) if (s.uses) p.uses[s.id] = keys.length === 2 && s.uses2p != null ? s.uses2p : this.mode === "team" && !opts.nation && T.usesTeam[s.id] != null ? T.usesTeam[s.id] : s.uses;   // v37 usesTeam：2v2 专用次数
       for (const p of this.players) { p.game = this; p.lean = 0; p.turnN = 0; p.played = 0; p.equips = {}; }
-      if (this.mode === "team") { const T2 = opts.teams || [0, 1, 1, 0]; for (const p of this.players) p.team = T2[p.i]; }   // 默认座位：你-敌-敌-友
+      if (this.mode === "team") { const T2 = opts.teams || [0, 1, 1, 0]; for (const p of this.players) p.team = T2[p.i]; }
+      if (this.mode === "team" && !opts.nation && T.teamHp) for (const p of this.players) { p.hp += T.teamHp; p.maxHp += T.teamHp; }   // v37 2v2 多几点心态：原来平均 3.5 轮就打完，还没配合起来   // 默认座位：你-敌-敌-友
       this.nation = !!opts.nation;                                     // 全明星赛：中美 3v3，座位中美交替
       if (this.mode === "id5") {
         const roles = opts.roles || shuffle(["lord", "loyal", "rebel", "rebel", "spy"]);
         this.players.forEach((p, i) => { p.role = roles[i]; });
         const lord = this.players.find((p) => p.role === "lord");
         lord.hp += T.lordHp; lord.maxHp += T.lordHp; lord.lean = 10;   // 群主多几点心态，身份公开
+        for (const sp of this.players.filter((q) => q.role === "spy")) { sp.hp += T.spyHp; sp.maxHp += T.spyHp; }   // v37 潜水党多几点心态（夹在两边中间最容易先倒）
       }
       this.deck = buildDeck(); this.discard = []; this.bomb = null;
       this.vid = 0;                                                        // 一键成片拍出来的虚拟牌编号
@@ -136,12 +140,13 @@ window.Engine = (function () {
       if (this.mode !== "id5") {
         // 乱斗 / 单挑：盟友在还有别人时不互相出手；宿敌优先，交好的下手轻一点
         const r = this.relation(p, q);
-        if (r === "ally") return this.alive().some((x) => x !== p && x !== q && this.relation(p, x) !== "ally") ? -1 : 1;
+        if (r === "ally") return this.alive().some((x) => x !== p && x !== q && this.relation(p, x) !== "ally") ? T.allyHost : 1;   // v37 原来 −1（场上有第三人就绝不互打 → 乱斗 2v1，第三人只赢 0–4%）
         return (r === "rival" ? 1.6 : r === "friend" || r === "mentor" ? 0.5 : 1) + (p.grudge[q.i] || 0);
       }
       const lean = (r) => r.role === "lord" ? 10 : r.revealed ? ROLE_LEAN[r.role] : r.lean;
       const neutral = (v) => Math.abs(v) <= 0.3;                      // 还看不出是哪边的人
-      if (p.role === "lord" || p.role === "loyal") { if (q.role === "lord") return -99; const l = lean(q); return neutral(l) && T.blindAttack ? T.blindAttack : -l; }   // blindAttack：没证据时也会试探着打一个
+      if (p.role === "lord" || p.role === "loyal") { if (q.role === "lord") return -99; if (q.revealed && q.role === "spy") return 2; const l = lean(q);   // v37：亮了身份的潜水党就是敌人（原来按 lean 0 当中立，最后单挑群主不还手）
+        return neutral(l) && T.blindAttack ? T.blindAttack : -l; }   // blindAttack：没证据时也会试探着打一个
       if (p.role === "rebel") {
         // 黑粉潜伏（rebelHide）：头几轮不碰群主、装成普通人打别人，等群主掉血或自己已经暴露再动手
         const lordP = this.players.find((r) => r.role === "lord");
@@ -165,6 +170,7 @@ window.Engine = (function () {
     friendsOf(t) { return this.players.filter((q) => q !== t && ["ally", "friend", "mentor"].includes(this.relation(q, t))).sort((a, b) => (this.relation(b, t) === "ally") - (this.relation(a, t) === "ally")); }
     // 抢群主：谁对群主这边下手，就更像黑粉；打黑粉的更像管理员
     noteHostile(a, b, w) {
+      if (this.noEv) return;                                          // v37 群伤 / 随机伤害（热搜、刷屏、开拍、妙笔、演唱会、重置、幻觉）不算站队证据
       if (this.mode !== "id5" || !a || !b || a === b || a.role === "lord" || a.revealed) return;
       const lb = b.role === "lord" ? 10 : b.revealed ? ROLE_LEAN[b.role] : b.lean;
       if (lb > 0.3) a.lean -= w * (b.role === "lord" ? T.leanLord : 1);
@@ -177,7 +183,7 @@ window.Engine = (function () {
     has(p, k) { return p.hand.filter((c) => c.k === k); }
     hasSkill(p, id) { return p.ch.skills.some((s) => s.id === id); }
     limitTucao(p) { const base = 1 + (this.round >= T.rageRound ? 1 : 0) + (this.hasEq(p, "xianka") ? 1 : 0) + 0; return p.dumb ? 0 : p.sale ? (T.saleExtra == null ? 99 : base + T.saleExtra) : base; }
-    handLimit(p) { const h2 = this.players.length === 2 && T.hand2p[p.key] != null ? T.hand2p[p.key] : T.hand[p.key]; return Math.max(0, p.hp) + (h2 || 0) + (this.hasEq(p, "chongdianbao") ? T.powerbank : 0); }
+    handLimit(p) { const h2 = this.players.length === 2 && T.hand2p[p.key] != null ? T.hand2p[p.key] : T.hand[p.key]; return Math.max(0, p.hp) + (h2 || 0) + (this.mode === "team" && !this.nation ? T.handTeam[p.key] || 0 : 0) + (this.hasEq(p, "chongdianbao") ? T.powerbank : 0); }
     // 装备栏（v30 equipSlots）：按类型分格——硬件（显卡）/ 安全（防火墙、加密、云备份）/ 外设（充电宝）各一格，可以同时装；关掉就是原来的一格
     equips(p) { return T.equipSlots ? Object.values(p.equips || {}) : p.equip ? [p.equip] : []; }
     hasEq(p, k) { return this.equips(p).some((c) => c.k === k); }
@@ -351,6 +357,8 @@ window.Engine = (function () {
       this.ui.sync();
       this.ui.sys("群聊已创建，开始对线！", "good");
       this.ui.sys(`牌堆里埋了 ${this.bombN} 张【宕机】💣 谁摸到谁炸（心态 −${T.bombDmg}）！每人先发 1 张【重启】拆弹。`, "bad");
+      { const sd = !this.nation && T.seatDraw[this.mode]; if (sd) { const n = this.players.length, at = (o) => this.players[(this.startIdx + o) % n].name;   // v37 先手补偿说明
+        this.ui.sys(`先手优势补偿：${at(0)} 第一回合只摸 ${2 + sd[0]} 张，${at(n - 1)} 第一回合摸 ${2 + sd[n - 1]} 张。`); } }
       if (this.mode === "ffa" || this.mode === "duel") {                // 乱斗里先说清楚谁和谁是盟友
         const has = (k) => this.players.some((q) => q.key === k);
         for (const [a, b, t, note] of (window.GAME_DATA.relations || [])) if (t === "ally" && has(a) && has(b)) this.ui.sys(`🤝 ${note}`, "good");
@@ -472,6 +480,8 @@ window.Engine = (function () {
         p.banned = false; this.ui.sync();
         this.ui.sys(`${p.name} 的账号被封，这回合跳过`, "bad"); this.ui.say(p, "hurt", true);
         await wait(1000);
+        await this.discardPhase(p);                          // v37 封号只跳过出牌，手牌超上限照样要弃
+        p.alignedBy = null;
         return;
       }
       // GPT：刚发布的新版本更强；过了这阵子就会降智
@@ -503,7 +513,7 @@ window.Engine = (function () {
       } else {
         // 摸鱼：知道顶上有雷、或者刚有人往牌堆里塞过宕机，可以改从牌堆底摸
         let bottom = false;
-        const think = this.hasSkill(p, "think") && Math.random() < (this.players.length === 2 ? T.thinkRate2p : T.thinkRate) ? T.thinkDraw : 0;   // 深思：这回合想得深不深看运气
+        const think = this.hasSkill(p, "think") && Math.random() < (this.players.length === 2 ? T.thinkRate2p : this.mode === "team" && !this.nation ? T.thinkRateTeam : T.thinkRate) ? T.thinkDraw : 0;   // 深思：这回合想得深不深看运气
         const danger = this.knowsBomb(p, 2 + think) >= 0;
         if (this.has(p, "moyu").length && (danger || this.insertSeq > p.lastSeq)) {
           const go = p.human ? await this.ui.humanConfirm(danger ? "牌堆顶有【宕机】！打出【摸鱼】，这回合改从牌堆底摸牌？" : "刚有人往牌堆里塞了东西……打出【摸鱼】，这回合改从牌堆底摸牌？", danger) : AI.wantMoyu(this, p);
@@ -534,8 +544,9 @@ window.Engine = (function () {
         const first = this.mode === "team" && !this.nation && this.round === 1 && p.i === this.startIdx;   // 2v2 先手第一回合多摸 1 张（你-敌-敌-友 座位下两队五五开）
         const nfirst = this.nation && this.round === 1 ? (T.nationFirst[p.i] || 0) + (T.nationDraw[p.ch.nation] || 0) : 0;   // 全明星赛：第一回合补牌（按座位 / 按国家）
         if (think) { this.ui.skillNote(p, SN(p.key, "think")); if (Math.random() < 0.3) this.ui.say(p, "think"); }
-        const lordX = p.role === "lord" ? T.lordDraw : 0;                         // 抢群主：群主每回合多摸
-        await this.draw(p, Math.max(1, (first ? T.teamFirstDraw : 2) + nfirst + (T.extraDraw[p.key] || 0) + think + lordX), true, bottom, true);   // 回合开始的正常摸牌（只有这里摸到的宕机一定炸）
+        const sd = this.round === 1 && !this.nation ? ((T.seatDraw[this.mode] || [])[(p.i - this.startIdx + this.players.length) % this.players.length] || 0) : 0;   // v37 先手补偿：第一轮按出手顺序增减摸牌
+        const lordX = p.role === "lord" ? T.lordDraw : p.role === "spy" ? T.spyDraw : 0;   // v37 潜水党每回合多摸（暗中囤牌，不像加心态那样一眼看穿）                         // 抢群主：群主每回合多摸
+        await this.draw(p, Math.max(1, (first ? T.teamFirstDraw : 2) + nfirst + (T.extraDraw[p.key] || 0) + think + lordX + sd), true, bottom, true);   // 回合开始的正常摸牌（只有这里摸到的宕机一定炸）
       }
       if (!cut) this.ui.sys(`${p.name} 摸牌`);
       if (this.over || !p.alive) return;
@@ -557,14 +568,8 @@ window.Engine = (function () {
         this.ui.log(p, `【${SN("qwen", "sale")}】买买买之后——剁手，弃光了 ${n} 张手牌`); this.ui.sync(); await wait(500);
       }
       // 弃牌
-      const lim = this.handLimit(p);
-      if (p.hand.length > lim) {
-        const n = p.hand.length - lim;
-        const ids = p.human ? await this.ui.humanDiscard(p, n) : AI.discard(this, p, n);
-        for (const id of ids) { const c = p.hand.find((x) => x.id === id); if (c) { this.takeFromHand(p, c); this.toDiscard(c); } }
-        this.ui.sys(`${p.name} 弃了 ${ids.length} 张牌`);
-        this.ui.sync(); await wait(250);
-      }
+      await this.discardPhase(p);
+      p.alignedBy = null; p.zeroDay = false;                // 零日漏洞没用掉的，回合结束就过期
       // Claude 审美：手牌一张都不重样，摸 1 张
       if (this.hasSkill(p, "beauty") && p.alive && !this.over && p.hand.length && new Set(p.hand.map((c) => c.k)).size === p.hand.length) {
         this.ui.skillNote(p, SN(p.key, "beauty")); if (Math.random() < 0.4) this.ui.say(p, "beauty", true);
@@ -591,12 +596,30 @@ window.Engine = (function () {
 
     // ---------------------------------------------------------------- 能不能用
     // 能被点名的人：2v2 里不能对自己队友出手（单体牌和技能都是坑人的）
+    injectVictim(p, t) {
+      const pool = this.alive().filter((q) => q !== p && q !== t && !(t.alignedBy === q));
+      const mate = this.mode === "team" ? pool.find((q) => q.team === t.team) : null;
+      return mate || pool.sort((a, b) => a.hp - b.hp)[0] || null;
+    }
+    canHit(p, q) { return !(p.alignedBy && p.alignedBy === q && q.alive); }   // v37 对齐：被对齐的人不能吐槽对方
+    async discardPhase(p) {
+      const lim = this.handLimit(p);
+      if (p.hand.length > lim) {
+        const n = p.hand.length - lim;
+        const ids = p.human ? await this.ui.humanDiscard(p, n) : AI.discard(this, p, n);
+        for (const id of ids) { const c = p.hand.find((x) => x.id === id); if (c) { this.takeFromHand(p, c); this.toDiscard(c); } }
+        this.ui.sys(`${p.name} 弃了 ${ids.length} 张牌`);
+        this.ui.sync(); await wait(250);
+      }
+    }
     rivals(p) { return this.mode === "team" ? this.others(p).filter((q) => q.team !== p.team) : this.others(p); }
     canUse(p, c) {
       const d = CD[c.k];
       if (c.k === "fanbo") return !!(T.hexaAttack && this.hasSkill(p, "hexa") && !this.has(p, "tucao").length && p.tucao < this.limitTucao(p) && this.rivals(p).length > 0);   // hexaAttack（v30）：ChatGPT 六边形——没吐槽时反驳也能当吐槽打（她空转回合最多）
       if (d.target === "response") return false;
-      if (c.k === "tucao") return p.tucao < this.limitTucao(p) && this.rivals(p).length > 0;
+      if (c.k === "tucao") return p.tucao < this.limitTucao(p) && this.rivals(p).some((q) => this.canHit(p, q));
+      if (c.k === "zhuru") return this.alive().length >= 3 && this.rivals(p).length > 0;
+      if (c.k === "duiqi") return this.rivals(p).some((q) => q.alignedBy !== p);
       if (c.k === "naicha") return p.hp < p.maxHp;
       if (c.k === "baipiao" || c.k === "chehui") return this.rivals(p).some((q) => q.hand.length > 0 || this.equips(q).length);
       if (c.k === "jiaban") return !p.boost;
@@ -612,6 +635,8 @@ window.Engine = (function () {
     targetsFor(p, c) {
       if (c.k === "baipiao" || c.k === "chehui") return this.rivals(p).filter((q) => q.hand.length > 0 || this.equips(q).length);
       if (c.k === "tiaocao") return this.rivals(p).filter((q) => q.hand.length > 0);
+      if (c.k === "tucao" || c.k === "dantiao") return this.rivals(p).filter((q) => this.canHit(p, q));
+      if (c.k === "duiqi") return this.rivals(p).filter((q) => q.alignedBy !== p);
       return this.rivals(p);
     }
 
@@ -693,25 +718,49 @@ window.Engine = (function () {
           break;
         }
         case "resou": case "shuaping": {
+          this.noEv = (this.noEv || 0) + 1;
           const need = card.k === "resou" ? "tucao" : "fanbo";
           Sound.sfx(card.k === "resou" ? "whoosh_cartoon" : "notify");
           let j = p.i;
           for (let k = 0; k < this.players.length - 1 && !this.over; k++) {
             j = (j + 1) % this.players.length;
             const t = this.players[j];
-            if (!t.alive || t === p) continue;
+            if (!t.alive || t === p || !this.rivals(p).includes(t)) continue;   // v37 2v2：热搜 / 刷屏（含海螺开拍）不打队友
             if (await this.protect(t, p, card)) continue;
             const ok = await this.ask(t, need, { from: p, card });
             if (!ok) await this.damage(p, t, 1);
           }
+          this.noEv--;
           break;
         }
-        case "tuanjian":
+        case "tuanjian": {                                    // v37 团建只叫自己人：你 + 队友（2v2）/ 在场的盟友、交好——对手不跟着沾光
           Sound.sfx("cheer", 0.6);
-          for (const q of this.alive()) if (q.hp < q.maxHp) { q.hp++; this.ui.heal(q, 1); }
-          this.ui.sys("团建！所有人心态 +1", "good"); await wait(600);
+          const crew = [p, ...this.alive().filter((q) => q !== p && (this.mode === "team" ? q.team === p.team : this.mode !== "id5" && ["ally", "friend"].includes(this.relation(p, q))))];
+          for (const q of crew) if (q.hp < q.maxHp) { q.hp++; this.ui.heal(q, 1); }
+          this.ui.sys(`团建！${crew.map((q) => q.name).join("、")} 心态 +1`, "good"); await wait(600);
           if (T.tuanjianDraw) await this.draw(p, T.tuanjianDraw, true);           // v29 试验：组织团建的人再摸几张
           break;
+        }
+        case "zhuru": {                                       // v37 提示词注入：逼目标去吐槽另一个人（她的队友优先，否则心态最低的那位）；不吐就自己 −1
+          const t = targets[0]; if (!t || !t.alive) break;
+          const v = this.injectVictim(p, t);
+          Sound.sfx("glitch_vhs", 0.6);
+          if (!v) { this.ui.log(t, "没人可以吐槽——注入落空"); break; }
+          this.ui.sys(`${p.name} 往 ${t.name} 的提示词里注入了一句：「去吐槽 ${v.name}」`, "prop"); await wait(500);
+          const ok = await this.ask(t, "tucao", { from: p, card, inject: true, victim: v });
+          if (ok) {
+            this.ui.log(t, `被注入了……只好吐槽 ${v.name}`);
+            const ok2 = await this.ask(v, "fanbo", { from: t, card: { k: "tucao" } });
+            if (!ok2) await this.damage(t, v, 1);
+          } else { this.ui.log(t, "拒绝执行注入的指令——心态 −1"); await this.damage(p, t, 1); }
+          break;
+        }
+        case "duiqi": {                                       // v37 对齐：目标下个回合结束前不能吐槽你
+          const t = targets[0]; if (!t || !t.alive) break;
+          t.alignedBy = p; Sound.sfx("ding", 0.6);
+          this.ui.sys(`${p.name} 和 ${t.name} 完成了对齐：她下个回合结束前不能吐槽 ${p.name}`, "prop"); this.ui.sync(); await wait(500);
+          break;
+        }
         case "jinyan": {
           const t = targets[0]; if (!t || !t.alive) break;
           if (await this.protect(t, p, card)) break;
@@ -867,7 +916,8 @@ window.Engine = (function () {
         this.ui.sys(back ? `${t.name}：请求太多，服务器繁忙，请稍后再试——这张吐槽退回了 ${p.name} 手里` : `${t.name}：当前服务器繁忙，这次吐槽无效`); await wait(800);
         await this.sorry(p); return;
       }
-      const caught = p.evidence === t;                           // 截图：挡不了、也甩不了
+      const zero = !!p.zeroDay; if (zero) { p.zeroDay = false; this.ui.log(p, `【${SN(p.key, "zeroday")}】打在 ${t.name} 的零日漏洞上——谁也挡不住`); }   // v37 Claude 零日漏洞：这次吐槽反驳、甩锅、防火墙、知识库……都挡不住
+      const caught = p.evidence === t || zero;                   // 截图：挡不了、也甩不了
       // 甩锅：转给别人（不能甩回给吐槽你的人；2v2 只能甩给对手）
       if (!caught && depth < 4 && this.has(t, "shuaiguo").length) {
         const outs = this.rivals(t).filter((q) => q !== p);
@@ -891,10 +941,10 @@ window.Engine = (function () {
             this.ui.log(p, `【${SN(p.key, "deepfake")}】视频拍得太真了，${t.name} 的【反驳】没人信——照样心态 −1`); await wait(500);
           }
         }
-        if (!ok) ok = await this.know(t, p);
-        if (!ok) ok = await this.zuiying(t, p);
-        if (!ok && T.factTucao) ok = await this.factCheck(t, p, { k: "tucao" });
-        if (!ok) ok = await this.firewall(t, p);
+        if (!ok && !zero) ok = await this.know(t, p);
+        if (!ok && !zero) ok = await this.zuiying(t, p);
+        if (!ok && !zero && T.factTucao) ok = await this.factCheck(t, p, { k: "tucao" });
+        if (!ok && !zero) ok = await this.firewall(t, p);
         if (!ok) {
           await this.damage(p, t, 1 + (boost ? 1 : 0));
           if (this.hasSkill(p, "claw") && p.alive) await this.claw(p, t);
@@ -915,6 +965,7 @@ window.Engine = (function () {
     // Gemini 博闻：没有反驳时翻牌堆顶几张，有反驳就拿来挡
     async know(t, p) {
       if (!this.hasSkill(t, "know") || !t.alive) return false;
+      if (p && (p.evidence === t || (p.oracle === t && this.cur === p.i))) return false;   // v37 被截图 / 被海螺点名时本来就不能反驳，知识库翻出来的也不行
       // 翻开牌堆顶几张（大家都看见了），有【反驳】就拿走，其余原样放回
       const top = this.topCards(T.knowLook);
       const hit = top.find((c) => c.k === "fanbo");
@@ -1012,6 +1063,12 @@ window.Engine = (function () {
           if (!n) { this.ui.sync(); return; }
         }
       }
+      if (n > 0 && t.alive && this.has(t, "huigun").length && !this.over) {   // v37 回滚：心态要掉了，打出【回滚】撤回 1 点
+        if (await this.ask(t, "huigun", { from: src, n })) {
+          n -= 1; this.ui.log(t, `打出【回滚】：撤回到上一个版本，少掉 1 点心态`); Sound.sfx("glimmer", 0.6);
+          if (!n) { this.ui.sync(); return; }
+        }
+      }
       this.noteHostile(src, t, 1);
       t.hp -= n; t.stats.taken += n; if (src) src.stats.dmg += n;
       this.ui.damage(t, n);
@@ -1052,7 +1109,8 @@ window.Engine = (function () {
         await this.draw(t, t.hp <= 1 ? F[1] : F[0], true);
       }
       // 大 DeepSeek：气死本鱼——打她的人也得出反驳，不然一起破防
-      if (t.key === "deepseek" && src && src !== t && src.alive && !this.over) {
+      if (t.key === "deepseek" && src && src !== t && src.alive && !this.over && !(T.furyTeamOnce && this.mode === "team" && !this.nation && t.furyRound === this.round)) {   // v37 2v2 每轮最多锐评一次（2v2 多 2 点心态，挨打次数多，反弹也多）
+        t.furyRound = this.round;
         this.ui.skillNote(t, SN("deepseek", "fury")); this.ui.say(t, "fury", true);
         this.ui.log(t, `【${SN("deepseek", "fury")}】${src.name} 也别想好过`); await wait(500);
         const ok = await this.ask(src, "fanbo", { from: t, card: { k: "tucao" } });
@@ -1105,6 +1163,17 @@ window.Engine = (function () {
       if (this.mode === "id5") { t.revealed = true; this.ui.sys(`${t.name} 的身份是【${ROLE[t.role]}】`, t.role === "rebel" ? "good" : "bad"); this.ui.sync(); }
       if (this.checkOver()) return;
       if (t.human && (this.mode === "team" || this.mode === "id5")) { this.ui.sys("你退群了，加速观战到结束……", "bad"); E.speed = Math.min(E.speed, 0.3); }
+      if (this.mode === "id5" && !this.spyRose && T.spyRise) {   // v37 潜水党冒泡：只剩她和群主时亮身份，回心态 + 摸牌，最后单挑（原来潜水党只赢 14%）
+        const al = this.alive(), spy = al.find((q) => q.role === "spy");
+        if (spy && al.length === 2 && al.some((q) => q.role === "lord")) {
+          this.spyRose = true; spy.revealed = true;
+          this.ui.banner("潜水党冒泡了！"); Sound.sfx("drumroll", 0.6);
+          this.ui.sys(`${spy.name} 潜水多年终于冒泡：亮出【潜水党】身份，心态 +${T.spyRiseHeal}、摸 ${T.spyRiseDraw} 张，和群主最后单挑！`, "bad");
+          const n = Math.min(T.spyRiseHeal, spy.maxHp - spy.hp); if (n > 0) { spy.hp += n; this.ui.heal(spy, n); }
+          if (T.spyRiseDraw) await this.draw(spy, T.spyRiseDraw, true);
+          this.ui.sync(); await wait(600);
+        }
+      }
       if (!src || !src.alive || src === t) return;
       if (this.mode === "id5") {
         if (t.role === "rebel") { this.ui.sys(`${src.name} 踢出了一个黑粉：奖励摸 3 张`); await this.draw(src, 3, true); }
@@ -1155,7 +1224,9 @@ window.Engine = (function () {
     // ---------------------------------------------------------------- 主动技能
     // 返回 { id, name, desc, can, target: null | "opp" | "bigs" }
     activeSkills(p) {
-      return p.ch.skills.filter((s) => s.type === "active").map((s) => ({ ...s, can: this.canSkill(p, s.id), left: p.uses[s.id], target: this.skillTarget(s.id, p) }));
+      const list = p.ch.skills.filter((s) => s.type === "active").map((s) => ({ ...s, can: this.canSkill(p, s.id), left: p.uses[s.id], target: this.skillTarget(s.id, p) }));
+      if (this.passOn()) list.push({ id: "pass", name: "递牌", type: "active", short: "把 1 张手牌递给队友", desc: "2v2：每回合 1 次，把 1 张手牌递给队友。", can: this.canSkill(p, "pass"), target: null });
+      return list;
     }
     skillTarget(id, p) {
       if (id === "ban" || id === "buy" || id === "beg" || id === "maint" || id === "rocket" || id === "haggle" || id === "egg" || (id === "steal" && !T.stealAll) || (id === "disguise" && T.disguiseAct === "ban")) return "opp";
@@ -1174,15 +1245,24 @@ window.Engine = (function () {
       if (id === "egg") return this.rivals(p).filter((q) => !q.eggBy && !this.encrypted(q));                                   // 已经挂着蛋、装了【加密】的人领不到
       return [];
     }
+    keepSafe() { return T.polishKeep || (this.mode === "id5" && T.polishKeepId5); }   // v37 润色不扔【重启】【甩锅】：只在抢群主开（Claude 抢群主最常死于宕机）
+    wishKinds() { const order = ["fanbo", "tucao", "naicha", "chongqi", "huigun", "hongbao", "chehui", "baipiao", "jinyan", "shuaping"]; return order.filter((k) => this.deck.some((c) => c.k === k)); }   // 许愿机能许的牌（牌堆里还有的）
+    artifactKinds(p) { return Object.keys(EQ_SLOT).filter((k) => !this.equips(p).some((e) => e.k === k) && (this.deck.some((c) => c.k === k) || this.discard.some((c) => c.k === k))); }   // Artifacts 能生成的装备：自己没装着、牌堆或弃牌堆里有
+    passOn() { return T.teamPass && this.mode === "team"; }
+    mate(p) { return this.alive().find((q) => q !== p && this.mode === "team" && q.team === p.team) || null; }
     canSkill(p, id) {
+      if (id === "pass") return this.passOn() && p.alive && !p.used.pass && p.hand.length > 0 && !!this.mate(p);   // v37 2v2 递牌
       if (!p.alive || p.used[id] || !this.hasSkill(p, id)) return false;
       if (id === "ban" || id === "maint") return (p.uses[id] || 0) > 0 && this.skillTargets(p, id).length > 0;
       if (id === "reset") return (p.uses.reset || 0) > 0;
       if (id === "rehearse") return (p.band || []).length < T.bandMax && p.hand.some((c) => c.k === "tucao" || (T.rehearseAny && c.k !== "chongqi" && c.k !== "shuaiguo"));
       if (id === "live") return (p.band || []).length >= (T.liveMin || T.bandMax);   // liveMin（v29 试验）：几名乐手就能开唱（分档：人越多唱得越响）
       if (id === "steal" || id === "beg") return this.skillTargets(p, id).length > 0;
+      if (id === "wish") return (p.uses.wish || 0) > 0 && this.wishKinds().length > 0;
+      if (id === "zeroday") return (p.uses.zeroday || 0) > 0 && !p.zeroDay && this.has(p, "tucao").length > 0 && p.tucao < this.limitTucao(p);
+      if (id === "artifact") return p.hand.length > 0 && this.artifactKinds(p).length > 0;
       if (id === "buy") return p.hand.length >= T.buyCost && this.skillTargets(p, id).length > 0;
-      if (id === "polish") return p.hand.some((c) => !T.polishKeep || (c.k !== "chongqi" && c.k !== "shuaiguo"));
+      if (id === "polish") return p.hand.some((c) => !this.keepSafe() || (c.k !== "chongqi" && c.k !== "shuaiguo"));
       if (id === "search") return this.deck.length + this.discard.length > 0;
       if (id === "cut") return T.cutAlways || this.cutCards(p).length > 0;
       if (id === "pen") return (p.uses.pen || 0) > 0 && this.has(p, "tucao").length > 0 && this.rivals(p).length > 0;
@@ -1233,6 +1313,20 @@ window.Engine = (function () {
       return out;
     }
     async doSkill(p, id, act = {}) {
+      const aoe = ["reset", "live", "halluc", "shoot", "pen", T.openNoEv ? "opensrc" : ""].includes(id);   // v37 群伤 / 随机伤害技能：不算站队证据（抢群主管理员顺带扫到群主不该被当成黑粉）
+      if (aoe) this.noEv = (this.noEv || 0) + 1;
+      try { return await this.doSkill0(p, id, act); } finally { if (aoe) this.noEv--; }
+    }
+    async doSkill0(p, id, act = {}) {
+      if (id === "pass") {
+        const m = this.mate(p); if (!m || !p.hand.length) return;
+        p.used.pass = true;
+        const c = p.human ? ((await this.ui.humanPick(p.hand, 1, `递给 ${m.name} 哪一张？`)) || [])[0] : AI.passPick(this, p, m);
+        const card = c && p.hand.find((x) => x.id === c.id); if (!card) return;
+        this.takeFromHand(p, card); m.hand.push(card); this.ui.steal(p, m, card);
+        this.ui.log(p, `把一张牌递给了队友 ${m.name}`); Sound.sfx("pop_small", 0.6); this.ui.sync(); await wait(400);
+        return;
+      }
       if (!this.canSkill(p, id)) return;
       let t = act.target;
       if (t && !this.skillTargets(p, id).includes(t)) t = null;
@@ -1251,8 +1345,39 @@ window.Engine = (function () {
         this.ui.skill(p, SN("claude", "ban")); this.ui.say(p, "ban", true); Sound.sfx("stamp_thick", 0.9);
         this.ui.log(p, `【${SN("claude", "ban")}】封了 ${t.name} 的号：她的下个回合跳过`);
         await wait(900);
+      } else if (id === "wish") {
+        // v37 Claude 许愿机（Claude Code）：说出想要的牌，从牌堆里找出来；牌堆里没有就摸 1 张。每局额度有限
+        const kinds = this.wishKinds();
+        const pick = p.human ? ((await this.ui.humanPick(kinds.map((k, i) => ({ id: -900 - i, k })), 1, "许个愿：想要哪张牌？")) || [])[0] : { k: AI.wishPick(this, p, kinds) };
+        const k = pick && pick.k, hit = k && this.deck.filter((c) => c.k === k);
+        this.ui.skillNote(p, SN(p.key, "wish")); this.ui.say(p, "wish", true); Sound.sfx("spell", 0.6);
+        if (hit && hit.length) {
+          const c = hit[rnd(hit.length)]; this.deck.splice(this.deck.indexOf(c), 1); p.hand.push(c);
+          this.ui.log(p, `【${SN(p.key, "wish")}】许愿要一张【${CD[k].name}】——需求收到，已经实现`); this.ui.drawAnim && this.ui.sync();
+        } else { this.ui.log(p, `【${SN(p.key, "wish")}】牌堆里没有【${k ? CD[k].name : "这张牌"}】，先随手摸 1 张`); await this.draw(p, 1, true); }
+        if (!p.uses.wish && p.ch.lines.wish_out) { await wait(500); this.ui.say(p, "wish_out", true); this.ui.log(p, "额度用完了，这局不能再许愿"); }
+        this.ui.sync(); await wait(400);
+      } else if (id === "zeroday") {
+        // v37 Claude 零日漏洞：下一张吐槽谁也挡不住
+        p.zeroDay = true;
+        this.ui.skill(p, SN(p.key, "zeroday")); this.ui.say(p, "zeroday", true); Sound.sfx("glitch_vhs", 0.7);
+        this.ui.log(p, `【${SN(p.key, "zeroday")}】找到一个零日漏洞：她这回合的下一张【吐槽】谁也挡不住`); this.ui.sync(); await wait(500);
+      } else if (id === "artifact") {
+        // v37 Claude Artifacts：弃 1 张手牌，一句话生成一件装备直接装上（从牌堆 / 弃牌堆里找，没有就生成不了）
+        const kinds = this.artifactKinds(p);
+        const cost = p.human ? ((await this.ui.humanPick(p.hand, 1, "Artifacts：先弃一张手牌当素材")) || [])[0] : AI.artifactCost(this, p);
+        if (!cost || !p.hand.includes(cost) || !kinds.length) return;
+        const want = p.human ? ((await this.ui.humanPick(kinds.map((k, i) => ({ id: -950 - i, k })), 1, "一句话生成哪件装备？")) || [])[0] : { k: AI.artifactPick(this, p, kinds) };
+        const k = want && want.k, src = k && (this.deck.find((c) => c.k === k) || this.discard.find((c) => c.k === k));
+        if (!src) return;
+        this.takeFromHand(p, cost); this.toDiscard(cost);
+        if (this.deck.includes(src)) this.deck.splice(this.deck.indexOf(src), 1); else this.discard.splice(this.discard.indexOf(src), 1);
+        const old = this.eqIn(p, k); if (old) { this.unequip(p, old); this.toDiscard(old); }
+        if (T.equipSlots) (p.equips = p.equips || {})[EQ_SLOT[k] || k] = src; else p.equip = src;
+        this.ui.skill(p, SN(p.key, "artifact")); this.ui.say(p, "artifact", true); Sound.sfx("sparkle", 0.7);
+        this.ui.log(p, `【${SN(p.key, "artifact")}】把【${CD[cost.k].name}】改成一句需求——生成了【${CD[k].name}】，直接装上`); this.ui.sync(); await wait(500);
       } else if (id === "polish") {
-        const keep = T.polishKeep ? p.hand.filter((c) => c.k === "chongqi" || c.k === "shuaiguo") : [];   // 润色不扔保命的【重启】【甩锅】
+        const keep = this.keepSafe() ? p.hand.filter((c) => c.k === "chongqi" || c.k === "shuaiguo") : [];   // 润色不扔保命的【重启】【甩锅】
         const n = p.hand.length - keep.length;
         for (const c of p.hand.splice(0)) if (!keep.includes(c)) this.toDiscard(c);
         p.hand.push(...keep);
@@ -1297,6 +1422,7 @@ window.Engine = (function () {
         if (n >= T.bandMax) this.ui.sys(`🎤 ${p.name} 的乐队到齐了——新专辑随时会发布！`, "bad");
         await wait(500);
         if (T.rehearseDraw) await this.draw(p, T.rehearseDraw, true);
+        else if (T.rehearseFirst && n === 1 && this.players.length > 2) await this.draw(p, T.rehearseFirst, true);   // v37 多人局：组新乐队（第一首）时摸牌（单挑不摸，她单挑本来就 52%）
       } else if (id === "live") {
         // Kimi 一鸣惊人：乐队到齐开演唱会，新歌一首接一首，每首所有对手都要反驳
         const songs = p.band.splice(0), names = shuffle((p.ch.songs || []).slice());
@@ -1352,7 +1478,7 @@ window.Engine = (function () {
         // Muse 砍价：替你去谈——随机拿对手 1 张，再把你手里最没用的 1 张塞给她（不给重启）
         this.ui.skill(p, SN(p.key, "haggle")); this.ui.say(p, "haggle", true); await wait(500);
         const took = [];
-        for (let k = 0; k < T.haggleTake && t.hand.length; k++) { const c = t.hand[rnd(t.hand.length)]; if (await this.loot(t, p, c)) took.push(c); }
+        for (let k = 0; k < (this.mode === "team" && !this.nation ? T.haggleTakeTeam : T.haggleTake) && t.hand.length; k++) { const c = t.hand[rnd(t.hand.length)]; if (await this.loot(t, p, c)) took.push(c); }
         await wait(350);
         const give = T.haggleGive ? p.hand.filter((x) => !took.includes(x) && x.k !== "chongqi").sort((a, b) => AI.value(this, p, a) - AI.value(this, p, b))[0] : null;
         if (give) { this.takeFromHand(p, give); t.hand.push(give); this.ui.steal(p, t, give); }
@@ -1372,8 +1498,8 @@ window.Engine = (function () {
         if (!ok) {
           await this.damage(p, t, T.rocketDmg);
           if (T.rocketSteal && t.alive && t.hand.length && p.alive) {   // 快递签收：砸中了，顺手从她那儿取回 1 张
-            const c = t.hand[rnd(t.hand.length)]; this.takeFromHand(t, c); p.hand.push(c); this.ui.steal(t, p, c);
-            this.ui.log(p, `快递签收——顺手从 ${t.name} 那儿取回 1 张牌`); this.ui.sync(); await wait(300);
+            const c = t.hand[rnd(t.hand.length)];
+            if (await this.loot(t, p, c)) { this.ui.log(p, `快递签收——顺手从 ${t.name} 那儿取回 1 张牌`); this.ui.sync(); await wait(300); }   // v37 走 loot：装了【加密】的拿到只是乱码
           }
         }
       } else if (id === "shoot") {
@@ -1381,11 +1507,12 @@ window.Engine = (function () {
         const c = p.hand.find((x) => x.k === "tucao"); this.takeFromHand(p, c); this.toDiscard(c); p.shootN = (p.shootN || 0) + 1; if (T.shootCounts) p.tucao++;
         this.ui.skill(p, SN(p.key, "shoot")); this.ui.say(p, "attack", true); Sound.sfx("fanfare_short", 0.5);
         this.ui.log(p, `【${SN(p.key, "shoot")}】把一句【吐槽】拍成视频，当【刷屏】发到群里`); this.ui.sync(); await wait(500);
-        const v = { id: -(++this.vid), k: "shuaping", virtual: true }, ts = this.others(p), hp0 = ts.map((q) => q.hp);
+        const v = { id: -(++this.vid), k: "shuaping", virtual: true }, ts = this.rivals(p), hp0 = ts.map((q) => q.hp);
         await this.ui.showCard(p, v, ts);
         await this.resolve(p, v, ts);
-        if (T.shootDraw && p.alive && !this.over && ts.some((q, k) => q.hp < hp0[k])) {   // 视频爆了：至少打中一个人，播放量涨了，摸牌
-          this.ui.log(p, `视频爆了，播放量涨了——摸 ${T.shootDraw} 张`); await this.draw(p, T.shootDraw, true);
+        const sDraw = this.mode === "team" && !this.nation ? T.shootDrawTeam : T.shootDraw;   // v37 2v2 开拍不摸（2v2 开拍只打对手后 MiniMax 到 59%）
+        if (sDraw && p.alive && !this.over && ts.some((q, k) => q.hp < hp0[k])) {   // 视频爆了：至少打中一个人，播放量涨了，摸牌
+          this.ui.log(p, `视频爆了，播放量涨了——摸 ${sDraw} 张`); await this.draw(p, sDraw, true);
         }
         this.ui.sync();
       } else if (id === "remake") {
