@@ -53,7 +53,7 @@ window.Engine = (function () {
     rebootStart: 1, lordReboot: 0, lordDraw: 0, lordHp: 2, peekN: 3,                             // 开局每人发几张【重启】；剧透 / 插队看几张
     firewallRate: 0.3, powerbank: 2,
     qingkeCost: 1, qingkeDraw: 2,                         // 千问·请客：弃几张、送给别人时摸几张
-    banterRate: 0.35, chatterRate: 0.22, clashRival: 0.7, clashRate: 0.35, clashMax: 3,   /* v39 对线特写：宿敌 / 其他关系触发率、一局最多几段 */                  // 每轮开头随机斗嘴的概率；有人破防时路人在群里起哄的概率   // 宕机：每次检查爆的概率、伤害；防火墙拦截率；充电宝手牌上限
+    banterRate: 0.35, chatterRate: 0.22, clashRival: 0.7, clashRate: 0.35, clashMax: 3, guardRate: 0.85,   /* v39 对线特写：宿敌 / 其他关系触发率、一局最多几段 */                  // 每轮开头随机斗嘴的概率；有人破防时路人在群里起哄的概率   // 宕机：每次检查爆的概率、伤害；防火墙拦截率；充电宝手牌上限
     bundleLook: 3, bundleKeep: 2, bundleRival: false,     // 千问·全家桶：亮出几张、自己留几张、送牌是否只能送对手
     bundleRandom: true,                                   // 千问·全家桶：剩下那张随机送人（不用选目标）
     penCounts: true,                                       // v36 Gemini 妙笔：占一次吐槽次数（不占时乱斗 47 / 单挑 65）
@@ -1098,7 +1098,7 @@ window.Engine = (function () {
       }
       if (mute) { if (t.hp === 1) t.saidLow = true; }                 // 已经说过台词了（比如被宕机炸到）
       else if (t.disguise && t.ch.lines.exposed) this.ui.say(t, "exposed", true);   // 变身中挨打：被认出来了
-      else if (t.hp === 1 && !t.saidLow && t.ch.lines.low) { t.saidLow = true; this.ui.say(t, "low", true); }
+      else if (t.hp === 1 && !t.saidLow && t.ch.lines.low) { t.saidLow = true; const ms = +this.ui.say(t, "low", true) || 1600; this.guardLow(t, src, ms); }
       else if (t.key === "gemini" && t.ch.lines.hajimi && (!t.saidHajimi || Math.random() < T.hajimiRate)) { t.saidHajimi = true; this.ui.say(t, "hajimi", true); }   // Gemini：我才不是哈基米！（每局第一次挨打一定说；豆包的 hajimi 是开局斗嘴喊她的，不是挨打台词）
       else this.ui.say(t, "hurt", true);
       if (window.Props) Props.onHit(this, src, t);                     // 互动道具：旁人砸番茄 / 送咖啡
@@ -1136,6 +1136,21 @@ window.Engine = (function () {
       }
     }
 
+    // v40 护短：t 被打到只剩 1 点，她的盟友 / 交好 / 师徒（2v2 是队友）等她说完那句再站出来，朝出手的人探身说一句；每人一局一次，只是台词
+    guardLow(t, src, ms) {
+      if (!(E.speed > 0) || this.over || t.disguise) return;
+      const close = (q) => this.mode === "team" ? q.team === t.team : ["ally", "friend", "mentor"].includes(this.relation(q, t));   // 2v2 只护队友（师徒分在两队就不护）
+      const who = this.alive().filter((q) => q !== t && q !== src && !q.guardDone && !q.disguise && close(q) && (q.ch.lines["guard_" + t.key] || q.ch.lines.guard))
+        .sort((a, b) => !!b.ch.lines["guard_" + t.key] - !!a.ch.lines["guard_" + t.key]);
+      if (!who.length || Math.random() > T.guardRate) return;
+      const q = who[0]; q.guardDone = true;
+      setTimeout(() => {
+        if (this.over || !q.alive) return;
+        this.ui.say(q, q.ch.lines["guard_" + t.key] ? "guard_" + t.key : "guard", true);
+        if (src && src.alive && src !== q && this.ui.lean) this.ui.lean(q, src, 18);
+        this.ui.log(q, `站出来护着 ${t.name}`);
+      }, Math.min(ms, 2600) + 300);
+    }
     async dying(t, src) {
       while (t.hp <= 0) {
         const tea = this.has(t, "naicha")[0];
