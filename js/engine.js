@@ -190,7 +190,7 @@ window.Engine = (function () {
     hasEq(p, k) { return this.equips(p).some((c) => c.k === k); }
     eqIn(p, k) { return T.equipSlots ? (p.equips || {})[EQ_SLOT[k] || k] || null : p.equip; }    // 装 k 这张时会被换下来的那件
     unequip(p, c) { if (T.equipSlots) { for (const s in p.equips) if (p.equips[s] === c) delete p.equips[s]; } else if (p.equip === c) p.equip = null; }
-    // 一个人的“牌”（手牌 + 装备），白嫖 / 撤回从里面随机挑
+    // 一个人的“牌”（手牌 + 装备），蒸馏 / 撤回从里面随机挑
     cardsOf(t) { return [...t.hand, ...this.equips(t)]; }
     takeAny(t, c) { if (this.equips(t).includes(c)) this.unequip(t, c); else this.takeFromHand(t, c); }
     teaHeal(p) { return this.hasSkill(p, "bigeat") ? T.bigEat : 1; }
@@ -317,7 +317,7 @@ window.Engine = (function () {
       return card;
     }
     toDiscard(card) { this.discard.push(card); }
-    // 从别人手里拿牌（借鉴 / 挥金 / 砍价 / 蹭饭 / 白嫖）都走这里（v29 试验）：拿到【钓鱼】的人上钩 −1；对方装了【加密】拿到的只是乱码（弃掉）；lootReveal 时全场看见拿了什么
+    // 从别人手里拿牌（借鉴 / 挥金 / 砍价 / 蹭饭 / 蒸馏）都走这里（v29 试验）：拿到【钓鱼】的人上钩 −1；对方装了【加密】拿到的只是乱码（弃掉）；lootReveal 时全场看见拿了什么
     async loot(from, to, c, any) {
       if (any) this.takeAny(from, c); else this.takeFromHand(from, c);
       if (c.k === "diaoyu") {
@@ -716,7 +716,7 @@ window.Engine = (function () {
           if (await this.protect(t, p, card)) break;
           const pool = this.cardsOf(t), c = pool[rnd(pool.length)], eq = this.equips(t).includes(c);
           const got = await this.loot(t, p, c, true); Sound.sfx("paper");
-          if (got) this.ui.sys(eq ? `${p.name} 白嫖了 ${t.name} 的装备【${CD[c.k].name}】` : `${p.name} 白嫖了 ${t.name} 的一张牌`); await wait(450); break;
+          if (got) this.ui.sys(eq ? `${p.name} 从 ${t.name} 那里蒸馏走了装备【${CD[c.k].name}】` : `${p.name} 从 ${t.name} 那里蒸馏走了一张牌`); await wait(450); break;
         }
         case "chehui": {
           const t = targets[0]; if (!t || !t.alive || !this.cardsOf(t).length) break;
@@ -848,11 +848,11 @@ window.Engine = (function () {
           const mine = p.hand.splice(0), hers = t.hand.splice(0); p.hand.push(...hers); t.hand.push(...mine);
           Sound.sfx("whoosh_cartoon", 0.6); this.ui.sys(`${p.name} 和 ${t.name} 互相跳槽：手牌整个换了（${mine.length} ↔ ${hers.length}）`); this.ui.sync(); await wait(500); break;
         }
-        case "zhengliu": {   // v29 试验【蒸馏】：从弃牌堆里蒸馏出最上面那张锦囊
+        case "zhengliu": {   // v29 试验【捡漏】（v44 前叫蒸馏）：从弃牌堆里捡回最上面那张锦囊
           const i = this.discard.map((c) => CD[c.k].type === "trick" && !["chongqi", "shuaiguo", "yidu", "zhengliu"].includes(c.k)).lastIndexOf(true);
           if (i < 0) break;
           const c = this.discard.splice(i, 1)[0]; p.hand.push(c); Sound.sfx("glimmer", 0.6);
-          this.ui.sys(`${p.name} 蒸馏出了一张【${CD[c.k].name}】`); this.ui.sync(); await wait(450); break;
+          this.ui.sys(`${p.name} 从弃牌堆捡漏了一张【${CD[c.k].name}】`); this.ui.sync(); await wait(450); break;
         }
         case "paofen": {   // v29 试验【跑分】：全员亮手牌数，手牌最多的（刷分王）要打出反驳，否则 −1
           const top = Math.max(...this.alive().map((q) => q.hand.length));

@@ -214,7 +214,7 @@ window.AI = (function () {
     if (g.canSkill(p, "errand")) return { skill: "errand" };
     // MiniMax 神奇海螺：手里有吐槽就先问海螺，点到的人这回合挡不了吐槽
     if (g.canSkill(p, "magic") && H("tucao").length && p.tucao < g.limitTucao(p)) return { skill: "magic" };
-    // 豆包 一键成片：刚打出的是好牌（吐槽 / 红包 / 白嫖……），手里还有牌可弃，就拍成视频再放一遍
+    // 豆包 一键成片：刚打出的是好牌（吐槽 / 红包 / 蒸馏……），手里还有牌可弃，就拍成视频再放一遍
     if (g.canSkill(p, "remake") && p.hand.length >= 2 && p.lastPlay && p.lastPlay.k === "tucao") return { skill: "remake" };
     // Kimi 排练：吐槽够用、或者乐队差最后一名、或者这回合已经吐槽完了，就写一首新歌；只有 1 张又能把人踢出群时先留着打
     if (g.canSkill(p, "rehearse")) {
@@ -235,7 +235,7 @@ window.AI = (function () {
     if (g.canSkill(p, "reset") && !risky(Engine.T.resetDraw) && (p.dumb || p.hand.length <= 1 || (p.hp <= 1 && p.hand.length <= 2))) return { skill: "reset" };
     // 1. 摸牌
     if (H("hongbao").length && !risky(2)) return use(H("hongbao")[0]);
-    // v29 试验：越狱主动打出只为解降智（防封号 / 维护日是被动用的，留着）；蒸馏在手牌少时把弃牌堆里的锦囊捞回来
+    // v29 试验：越狱主动打出只为解降智（防封号 / 维护日是被动用的，留着）；捡漏在手牌少时把弃牌堆里的锦囊捞回来
     if (H("yueyu").length && p.dumb && !risky(1)) return use(H("yueyu")[0]);
     if (H("zhengliu").length && g.canUse(p, H("zhengliu")[0]) && p.hand.length <= 5) return use(H("zhengliu")[0]);
     // 1b. 装备：没装备就穿上，有更好的就换
