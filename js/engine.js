@@ -96,7 +96,7 @@ window.Engine = (function () {
   const EQ_SLOT = { xianka: "hw", fanghuoqiang: "sec", jiami: "sec", yunbeifen: "sec", chongdianbao: "bag" };   // 装备分格：硬件 / 安全 / 记忆
   for (const k in CD) if (CD[k].owner) EQ_SLOT[k] = "zw";             // v47 专武：角色专属装备，单独一格
   const EQ_SLOT_NAME = { hw: "硬件", sec: "安全", bag: "记忆", zw: "专武" };
-  Object.assign(T, Object.assign({ agPeek: 5, agFloat: 0, deployNeed: 6, deployNeed2p: 4, deployK: { claude: 1, gemini: 1, gpt: 3, kimi: 9, grok: 16, glm: 12, xds: 14, doubao: 7 }, deployK2p: { claude: 2, gemini: 1, gpt: 12, kimi: 9, grok: 8, glm: 14, xds: 12, doubao: 3 }, botTamper: 0.15, factBot: false, subagent: false, dshMax: 2, dshMax2p: 1, dshBreak: 0.2, dshBreak2p: 0.4, codexDraw: 1 }, window.TUNE || {}));   // v47 专武数值：反重力搜索看几张 / 飘回来概率；@grok 提示词被改概率；DSH 插件上限 / 翻车率；Codex 回来多摸几张
+  Object.assign(T, Object.assign({ agPeek: 5, agFloat: 0, deployNeed: 6, deployNeed2p: 4, deployK: { claude: 1, gemini: 1, gpt: 3, kimi: 9, grok: 16, glm: 12, xds: 14, doubao: 7, qwen: 12 }, deployK2p: { claude: 2, gemini: 1, gpt: 12, kimi: 9, grok: 8, glm: 14, xds: 12, doubao: 3, qwen: 12 }, botTamper: 0.15, factBot: false, subagent: false, dshMax: 2, dshMax2p: 1, dshBreak: 0.2, dshBreak2p: 0.4, codexDraw: 1 }, window.TUNE || {}));   // v47 专武数值：反重力搜索看几张 / 飘回来概率；@grok 提示词被改概率；DSH 插件上限 / 翻车率；Codex 回来多摸几张
   const SN = (key, id) => { const s = CH[key].skills.find((x) => x.id === id); return s ? s.name : id; };
 
   function buildDeck(keys) {
@@ -206,11 +206,11 @@ window.Engine = (function () {
       if (p.deploy < this.deployNeed(p)) { this.ui.sync(); return; }
       p.deployed = true; this.ui.sync();
       const H = p.ch.harness, cmd = p.disguise && H.cmd2 ? H.cmd2 : H.cmd;
-      if (this.ui.deploy) await this.ui.deploy(p, cmd, H.name);
-      this.ui.banner(`🚀 ${H.name} 上线！`); Sound.sfx("fanfare_short", 0.55);
+      if (this.ui.deploy) await this.ui.deploy(p, cmd, H.name);           // v48 上线演出：浅色薄纱 + 居中终端卡片 + 「上线！」章 + 头像光环 + 音效 / 短乐句
       this.ui.sys(`${p.name} 的 ${H.name} 部署完成，上线了：${H.short}`, "good");
       if (p.ch.lines.deploy) this.ui.say(p, "deploy", true);
-      await wait(700);
+      if (p.human && Sound.track) Sound.track("harness");                    // 玩家自己的 harness 上线：对局 BGM 换成 Harness 曲（吵上头的 rage 曲优先）
+      await wait(500);
     }
     teaHeal(p) { return this.hasSkill(p, "bigeat") ? T.bigEat : 1; }
     doubaoHere() { return this.players.some((q) => q.key === "doubao" && q.alive); }
@@ -1785,9 +1785,16 @@ window.Engine = (function () {
         for (let i = 0; i < T.bundleLook; i++) { const c = this.pull(); if (c) top.push(c); }
         this.ui.skill(p, SN("qwen", "bundle")); this.ui.say(p, "bundle", true);
         await wait(500);
-        const gift = top.length > 1 && t && t.alive ? top[rnd(top.length)] : null;
+        let gift = null, picked = false;
+        if (top.length > 1 && t && t.alive) {
+          if (this.hasH(p, "qoder") && !top.some((c) => c.k === "dangji")) {   // v48 Qoder：送哪张自己挑（亮出宕机时仍随机分）
+            gift = p.human ? ((await this.ui.humanPick(top.slice(), 1, `Qoder：挑一张送给 ${t.name}`)) || [])[0] : AI.giftCard(this, p, t, top);
+            picked = !!gift && top.includes(gift); if (!picked) gift = top[rnd(top.length)];
+          } else gift = top[rnd(top.length)];
+        }
         const keep = top.filter((c) => c !== gift);
-        this.ui.log(p, `【${SN("qwen", "bundle")}】亮出${top.map((c) => `【${CD[c.k].name}】`).join("")}，` + (gift ? `随机把【${CD[gift.k].name}】送给了 ${t.name}` : "全都自己收下"));
+        if (picked) this.ui.skillNote(p, "Qoder");
+        this.ui.log(p, `【${SN("qwen", "bundle")}】亮出${top.map((c) => `【${CD[c.k].name}】`).join("")}，` + (gift ? `${picked ? "按 Qoder 写好的需求挑了" : "随机把"}【${CD[gift.k].name}】送给了 ${t.name}` : "全都自己收下"));
         await this.give(p, keep);
         if (gift) await this.give(t, [gift]);
         await wait(400);

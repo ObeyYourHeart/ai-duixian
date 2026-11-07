@@ -848,6 +848,7 @@ window.UI = (function () {
   }
   // v48 Harness 上线：角色旁弹一个终端小窗，逐字打 `$ xxx deploy… ✓`
   function deploy(p, cmd, name, swap) {
+    if (!swap) return deployShow(p, cmd, name);
     const c = center(p), e = el("div", "term"); e.style.setProperty("--c", p.ch.color);
     e.innerHTML = `<div class="tm-bar"><i></i><i></i><i></i><span>${p.name}</span></div><pre></pre>`;
     e.style.left = c.x + "px"; e.style.top = c.y - 40 + "px";
@@ -860,6 +861,32 @@ window.UI = (function () {
       Sound.sfx("tick", 0.4);
       const step = () => { if (i <= txt.length) { pre.innerHTML = txt.slice(0, i).replace(/✓[^\n]*/, (m) => `<b>${m}</b>`) + '<u></u>'; i++; setTimeout(step, 38 * sp); }
         else { setTimeout(() => { e.classList.add("out"); setTimeout(() => e.remove(), 400 * sp); res(); }, 700 * sp); } };
+      step();
+    });
+  }
+  // v48 上线演出：全屏浅色薄纱 + 居中终端卡片（角色主题色）逐行打部署命令 → 盖「XX 上线！」章 + 头像光环。
+  //   不震屏、不用集中线；玩家自己上线完整版约 1.8 秒，电脑上线短版约 1 秒
+  function deployShow(p, cmd, name) {
+    const H = p.ch.harness || {}, full = !!p.human;
+    const lines = full ? [`$ ${cmd} deploy`, ...(H.wiki ? ["📖 生成「全家桶 Wiki」", ...H.wiki.map((w, i) => `  ${i === H.wiki.length - 1 ? "└" : "├"} ${w}.md`)] : [`  installing ${name} …`]), `✓ ${name} ready`]
+      : [`$ ${cmd} deploy`, ...(H.wiki ? [`📖 全家桶 Wiki（${H.wiki.length} 页）`] : []), `✓ ${name} ready`];
+    const txt = lines.join("\n"), sp = Math.max(0.3, Engine.speed || 0), per = (full ? 24 : 12) * sp;
+    const veil = el("div", "dveil"), card = el("div", "dcard" + (full ? "" : " short"));
+    card.style.setProperty("--c", p.ch.color); card.style.setProperty("--l", p.ch.light || "#fff");
+    card.innerHTML = `<div class="tm-bar"><i></i><i></i><i></i><span>${p.name} · ${name}</span></div><pre></pre><div class="dstamp">${name} 上线！</div>`;
+    $("#fx").append(veil, card);
+    const hero = heroes[p.i];
+    return new Promise((res) => {
+      const done = () => { veil.classList.add("out"); card.classList.add("out"); setTimeout(() => { veil.remove(); card.remove(); }, 380 * sp); res(); };
+      if (!(Engine.speed > 0)) { done(); return; }
+      Sound.sfx("type_keys", 0.35);
+      const pre = card.querySelector("pre"); let i = 0;
+      const step = () => {
+        if (i <= txt.length) { pre.innerHTML = txt.slice(0, i).replace(/✓[^\n]*/, (m) => `<b>${m}</b>`) + "<u></u>"; i += 1; setTimeout(step, per); return; }
+        card.classList.add("stamped"); Sound.sfx("deploy_ok", 0.8); Sound.sfx("harness_sting", 0.55);
+        if (hero) { hero.classList.add("halo"); setTimeout(() => hero.classList.remove("halo"), 2600 * sp); }
+        setTimeout(done, (full ? 650 : 380) * sp);
+      };
       step();
     });
   }

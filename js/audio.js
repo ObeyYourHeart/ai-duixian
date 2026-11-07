@@ -14,7 +14,7 @@ window.Sound = (function () {
   // 配乐：按场景换曲，切换时淡入淡出；对局曲每局随机一首
   const TRACKS = {
     menu: ["menu", "menu2", "menu3"],
-    battle: ["bgm", "battle2", "battle3", "battle4", "battle5", "battle6", "battle7", "battle8", "battle9"], rage: ["rage"], win: ["win"], lose: ["lose"],
+    battle: ["bgm", "battle2", "battle3", "battle4", "battle5", "battle6", "battle7", "battle8", "battle9"], rage: ["rage"], harness: ["harness"], win: ["win"], lose: ["lose"],
   };
   const level = () => S.musicVol * (duck ? 0.45 : 1);
   function fade(a, to, ms, done) {
@@ -29,6 +29,7 @@ window.Sound = (function () {
   }
   // 换到某个场景的曲子（同一场景不重复切）
   function track(next) {
+    if (next === "harness" && kind === "rage") return;              // v48 吵上头的 rage 曲优先，不被 Harness 曲换掉
     if (next === kind && bgm) { if (S.music && bgm.paused) bgm.play().catch(() => {}); return; }
     kind = next;
     const list = TRACKS[next] || TRACKS.battle;
