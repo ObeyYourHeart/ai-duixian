@@ -166,7 +166,7 @@ window.UI = (function () {
       if (p.muted) st += '<span>🔇 禁言中</span>';
       if (p.dumb) st += '<span class="dumb">❓ 降智中</span>';
       if (p.offline) st += '<span>📵 断网中</span>';
-      if (p.boost) st += '<span class="boost">🔥 加班中</span>';
+      if (p.boost) st += '<span class="boost">🧠 深度思考中</span>';
       if (p.napping) st += '<span>😴 补觉中</span>';
       if (p.disguise) st += '<span class="boost">🎭 冒充 Claude</span>';
       if (p.eggBy) st += '<span class="bomb">🥚 领了鸡蛋</span>';
@@ -305,7 +305,7 @@ window.UI = (function () {
     if (p.napping) st.push("😴 补觉中"); if (p.disguise) st.push("🎭 正在冒充 Claude");
     if (p.eggBy) st.push(`🥚 领了 ${p.eggBy.name} 的鸡蛋：她下回合开始会借走 ${Engine.T.eggSteal} 张（手里有【越狱】能砸碎）`);
     if (p.band && p.band.length) st.push(`🎸 乐队 ${p.band.length} / ${Engine.T.bandMax}${p.band.length >= Engine.T.bandMax ? "，随时开唱" : ""}`);
-    if (p.offline) st.push("📵 断网中"); if (p.boost) st.push("🔥 加班中");
+    if (p.offline) st.push("📵 断网中"); if (p.boost) st.push("🧠 深度思考中");
     return st;
   }
   function showHeroInfo(p, focus) {
@@ -969,7 +969,7 @@ window.UI = (function () {
     if (c.k === "naicha") return "心态是满的，先留着奶茶吧";
     if (c.k === "baipiao" || c.k === "chehui") return "对手都没有牌";
     if (c.k === "shuaiguo") return "【甩锅】要在被吐槽时才能打出";
-    if (c.k === "jiaban") return "已经在加班了";
+    if (c.k === "jiaban") return "已经在深度思考了";
     if (c.k === "dangji") return "场上已经有一张【宕机】了";
     return "现在不能用";
   }

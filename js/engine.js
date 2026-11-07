@@ -93,8 +93,8 @@ window.Engine = (function () {
     { id: "trend", who: "doubao", tone: "mix", title: "Seedance 视频上热搜", sub: () => `家人们都在用她剪视频` },
   ];
   const ROLE_LEAN = { lord: 10, loyal: 5, rebel: -5, spy: 0 };
-  const EQ_SLOT = { xianka: "hw", fanghuoqiang: "sec", jiami: "sec", yunbeifen: "sec", chongdianbao: "bag" };   // 装备分格：硬件 / 安全 / 外设
-  const EQ_SLOT_NAME = { hw: "硬件", sec: "安全", bag: "外设" };
+  const EQ_SLOT = { xianka: "hw", fanghuoqiang: "sec", jiami: "sec", yunbeifen: "sec", chongdianbao: "bag" };   // 装备分格：硬件 / 安全 / 记忆
+  const EQ_SLOT_NAME = { hw: "硬件", sec: "安全", bag: "记忆" };
   const SN = (key, id) => { const s = CH[key].skills.find((x) => x.id === id); return s ? s.name : id; };
 
   function buildDeck() {
@@ -185,12 +185,12 @@ window.Engine = (function () {
     hasSkill(p, id) { return p.ch.skills.some((s) => s.id === id); }
     limitTucao(p) { const base = 1 + (this.round >= T.rageRound ? 1 : 0) + (this.hasEq(p, "xianka") ? 1 : 0) + 0; return p.dumb ? 0 : p.sale ? (T.saleExtra == null ? 99 : base + T.saleExtra) : base; }
     handLimit(p) { const h2 = this.players.length === 2 && T.hand2p[p.key] != null ? T.hand2p[p.key] : T.hand[p.key]; return Math.max(0, p.hp) + (h2 || 0) + (this.mode === "team" && !this.nation ? T.handTeam[p.key] || 0 : 0) + (this.hasEq(p, "chongdianbao") ? T.powerbank : 0); }
-    // 装备栏（v30 equipSlots）：按类型分格——硬件（显卡）/ 安全（防火墙、加密、云备份）/ 外设（充电宝）各一格，可以同时装；关掉就是原来的一格
+    // 装备栏（v30 equipSlots）：按类型分格——硬件（显卡）/ 安全（防火墙、加密、云备份）/ 记忆（长上下文，v45 前叫外设 / 充电宝）各一格，可以同时装；关掉就是原来的一格
     equips(p) { return T.equipSlots ? Object.values(p.equips || {}) : p.equip ? [p.equip] : []; }
     hasEq(p, k) { return this.equips(p).some((c) => c.k === k); }
     eqIn(p, k) { return T.equipSlots ? (p.equips || {})[EQ_SLOT[k] || k] || null : p.equip; }    // 装 k 这张时会被换下来的那件
     unequip(p, c) { if (T.equipSlots) { for (const s in p.equips) if (p.equips[s] === c) delete p.equips[s]; } else if (p.equip === c) p.equip = null; }
-    // 一个人的“牌”（手牌 + 装备），蒸馏 / 撤回从里面随机挑
+    // 一个人的“牌”（手牌 + 装备），蒸馏 / 举报从里面随机挑
     cardsOf(t) { return [...t.hand, ...this.equips(t)]; }
     takeAny(t, c) { if (this.equips(t).includes(c)) this.unequip(t, c); else this.takeFromHand(t, c); }
     teaHeal(p) { return this.hasSkill(p, "bigeat") ? T.bigEat : 1; }
@@ -700,7 +700,7 @@ window.Engine = (function () {
           if (!T.hexaAttack) break;
           this.ui.skillNote(p, SN(p.key, "hexa")); this.ui.log(p, `【${SN(p.key, "hexa")}】什么都会——把【反驳】当【吐槽】打了出去`);
         case "tucao": {
-          const boost = p.boost; p.boost = false;                 // 加班只管下一张吐槽
+          const boost = p.boost; p.boost = false;                 // 深度思考（jiaban）只管下一张吐槽
           for (const t of targets) { if (this.over) break; if (t.alive) await this.tucao(p, t, boost); }
           break;
         }
@@ -722,7 +722,7 @@ window.Engine = (function () {
           const t = targets[0]; if (!t || !t.alive || !this.cardsOf(t).length) break;
           if (await this.protect(t, p, card)) break;
           const pool = this.cardsOf(t), c = pool[rnd(pool.length)]; this.takeAny(t, c); this.toDiscard(c);
-          Sound.sfx("whoosh_little"); this.ui.sys(`${t.name} 的【${CD[c.k].name}】被撤回了`); this.ui.sync(); await wait(450); break;
+          Sound.sfx("whoosh_little"); this.ui.sys(`${t.name} 的【${CD[c.k].name}】被举报下架了`); this.ui.sync(); await wait(450); break;
         }
         case "dantiao": {
           const t = targets[0]; if (!t || !t.alive) break;
@@ -787,7 +787,7 @@ window.Engine = (function () {
         }
         case "jiaban":
           p.boost = true; Sound.sfx("ding2", 0.6);
-          this.ui.sys(`${p.name} 开始加班：下一张【吐槽】打中心态多扣 1 点`); this.ui.sync(); await wait(400); break;
+          this.ui.sys(`${p.name} 开启了深度思考：下一张【吐槽】打中心态多扣 1 点`); this.ui.sync(); await wait(400); break;
         case "pindan": {
           // 拼单：亮出“每人一张”，从出牌的人开始轮流挑
           const pool = [];

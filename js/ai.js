@@ -291,7 +291,7 @@ window.AI = (function () {
       const t = enemies.filter((q) => g.canHit(p, q)).sort((x, y) => (x.hand.length + (p.hits[x.i] || 0) * 2) - (y.hand.length + (p.hits[y.i] || 0) * 2))[0];
       if (t && (H("tucao").length >= 2 || t.hand.length <= 1 || (t.hp <= 1 && H("tucao").length >= 1))) return use(H("dantiao")[0], [t]);
     }
-    // 6a. 截图 + 加班：准备好再吐槽
+    // 6a. 截图 + 深度思考：准备好再吐槽
     const canT = H("tucao").length && p.tucao < g.limitTucao(p);
     if (canT && H("jietu").length && !p.evidence) {
       const t = pickTarget(g, p, enemies.filter((q) => q.hand.length > 0)) || pickTarget(g, p, enemies);
