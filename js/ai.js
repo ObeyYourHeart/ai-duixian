@@ -38,6 +38,7 @@ window.AI = (function () {
       case "yunbeifen": return g.eqIn(p, c.k) ? 3.5 : (g.bombsLeft && g.bombsLeft() ? 6 : 4);
       case "jiami": return g.eqIn(p, c.k) ? 3.5 : 6;
     }
+    if (Engine.CD[c.k] && Engine.CD[c.k].owner) return Engine.CD[c.k].owner === p.key ? 9.5 : 0.5;   // v47 专武：本人当宝，别人手里是废牌
     return 5;
   }
   function cheapest(g, p, n, exclude = []) {
@@ -102,6 +103,7 @@ window.AI = (function () {
   // 装备打分：要不要换上这件
   function equipScore(g, p, c) {
     if (!c) return 0;
+    if (Engine.CD[c.k] && Engine.CD[c.k].owner) return Engine.CD[c.k].owner === p.key ? 9 : 0;   // v47 专武：本人一定装
     if (c.k === "xianka") return 2 + g.has(p, "tucao").length * 0.6;
     if (c.k === "fanghuoqiang") return 2.6 + (p.hp <= 2 ? 1 : 0);
     if (c.k === "chongdianbao") return 1.6 + (p.hand.length > p.hp ? 1 : 0);
@@ -372,6 +374,15 @@ window.AI = (function () {
     return null;
   }
   function wishNeed(g, p) { const k = wishWant(g, p); return !!k && g.wishKinds().includes(k); }
+  // v47 专武：子代理值不值得烧一张牌（手里有张不太值钱的就烧）；DSH 插哪张（多余的吐槽 > 奶茶（满血时）> 最没用的，不插重启 / 反驳）
+  function wantSubagent(g, p) { const c = p.hand.find((x) => x.id === cheapest(g, p, 1)[0]); return !!c && value(g, p, c) <= 5.5; }
+  function plugPick(g, p) {
+    const ok = p.hand.filter((c) => c.k !== "chongqi" && c.k !== "fanbo" && !(Engine.CD[c.k].owner === p.key));
+    const T2 = ok.filter((c) => c.k === "tucao");
+    if (T2.length >= 2) return T2[0];
+    const tea = ok.find((c) => c.k === "naicha"); if (tea && p.hp >= p.maxHp - 1) return tea;
+    const s = ok.sort((a, b) => value(g, p, a) - value(g, p, b)); return s[0] && value(g, p, s[0]) <= 5.5 ? s[0] : null;
+  }
   function wishPick(g, p, kinds) { const k = wishWant(g, p); return kinds.includes(k) ? k : kinds.includes("hongbao") ? "hongbao" : kinds[0]; }
   // v37 Artifacts：素材挑最没用的，装备挑加分最多的
   function artifactCost(g, p) { return p.hand.find((c) => c.id === cheapest(g, p, 1)[0]); }
@@ -405,6 +416,6 @@ window.AI = (function () {
   // 豆包：吐槽被挡后要不要弃牌接着说；GPT：没反驳时要不要弃一张硬顶
   function wantLong(g, p, t) { return p.hand.length >= 2 || t.hp <= 1; }
   function wantZuiying(g, t, p) { return t.hp <= 2 || t.hand.length >= 4; }
-  return { wishPick, artifactCost, artifactPick, passPick, paintPick, choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard, treatTarget, autoTargets,
+  return { wantSubagent, plugPick, wishPick, artifactCost, artifactPick, passPick, paintPick, choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard, treatTarget, autoTargets,
     drawOrder, placeBomb, bombChoice, wantMoyu, arrange };
 })();

@@ -14,7 +14,7 @@ window.UI = (function () {
     5: [{ x: 36, y: 568 }, { x: 940, y: 80 }, { x: 720, y: 80 }, { x: 500, y: 80 }, { x: 280, y: 80 }],
     6: [{ x: 36, y: 568 }, { x: 1002, y: 80 }, { x: 814, y: 80 }, { x: 626, y: 80 }, { x: 438, y: 80 }, { x: 250, y: 80 }] };   // 6 人：对手卡缩到 0.84 排一行
   let PILE = { x: 710, y: 480 }, DECK = { x: 420, y: 480 };
-  const EQ_ICON = { xianka: "🎮", fanghuoqiang: "🛡", chongdianbao: "🔋", yunbeifen: "☁️", jiami: "🔐" };
+  const EQ_ICON = { xianka: "🎮", fanghuoqiang: "🛡", chongdianbao: "🔋", yunbeifen: "☁️", jiami: "🔐", zw_claude: "⚔", zw_gpt: "⚔", zw_gemini: "⚔", zw_grok: "⚔", zw_dsh: "⚔" };   // v47 专武
   const HEART = '<svg class="heart%c" viewBox="0 0 24 22"><path d="M12 20.5C5 15 1.5 11.6 1.5 7.2 1.5 4 4 1.5 7.1 1.5c2 0 3.8 1 4.9 2.6C13.1 2.5 14.9 1.5 16.9 1.5 20 1.5 22.5 4 22.5 7.2c0 4.4-3.5 7.8-10.5 13.3z"/></svg>';
 
   let g = null, heroes = [], exprTimers = {}, lastSay = {};
@@ -85,7 +85,7 @@ window.UI = (function () {
   function cardEl(c, big) {
     const d = CD[c.k];
     const e = el("div", `card ${d.type}${big ? " big" : ""}${d.name.length > 3 ? " long" : ""}`);
-    e.innerHTML = `<div class="cn">${d.name}</div><img src="${A(`assets/img/card_${c.k}.webp`)}" alt="" draggable="false"><div class="ct">${{ basic: "基本", trick: "锦囊", equip: "装备", bomb: "炸弹" }[d.type]}</div><div class="cd">${d.short}</div>`;
+    e.innerHTML = `<div class="cn">${d.name}</div><img src="${A(`assets/img/card_${c.k}.webp`)}" alt="" draggable="false"><div class="ct">${d.owner ? `${window.GAME_DATA.chars[d.owner].name} 专武` : { basic: "基本", trick: "锦囊", equip: "装备", bomb: "炸弹" }[d.type]}</div><div class="cd">${d.short}</div>`;
     e.dataset.id = c.id;
     e.title = d.desc;
     return e;
@@ -172,7 +172,9 @@ window.UI = (function () {
       if (p.eggBy) st += '<span class="bomb">🥚 领了鸡蛋</span>';
       if (g.players[g.cur] && g.players[g.cur].oracle === p) st += '<span class="bomb">🐚 被海螺点名</span>';
       if (g.bomb && g.bomb.holder === p) st += '<span class="bomb">💣 宕机预警</span>';
-      for (const eq of g.equips(p)) st += `<span class="eq">${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`;   // 分格后可能不止一件
+      for (const eq of g.equips(p)) st += `<span class="eq${CD[eq.k].owner ? " zw" : ""}">${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`;   // 分格后可能不止一件
+      if (p.cloud) st += '<span class="eq zw">☁ 云端任务跑着</span>';                                       // v47 Codex
+      if (p.plugins && p.plugins.length) st += `<span class="eq zw" title="${p.plugins.map((c) => CD[c.k].name).join("、")}">🔌 插件 ${p.plugins.length}</span>`;   // v47 DSH
       h.querySelector(".status").innerHTML = st;
       const bd = h.querySelector(".band");
       if (bd) {                                                    // Kimi 的乐队：到了几名乐手，空位是虚线
@@ -318,7 +320,7 @@ window.UI = (function () {
     const st = heroStatus(p);
     box.style.setProperty("--c", p.ch.color); box.style.setProperty("--l", p.ch.light);
     box.innerHTML = `<div class="hi-head"><img src="${portrait(p.key, "avatar")}" alt=""><div class="hi-nm"><b>${p.name}</b></div><button class="hi-x" title="关闭">✕</button></div>
-      <div class="hi-stat"><span>❤ 心态 ${Math.max(0, p.hp)} / ${p.maxHp}</span><span>🂠 手牌 ${p.hand.length}（上限 ${g.handLimit(p)}）</span>${g.equips(p).map((eq) => `<span>${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`).join("")}${side ? `<span>${side}</span>` : ""}${p.alive ? "" : "<span>已退群</span>"}</div>
+      <div class="hi-stat"><span>❤ 心态 ${Math.max(0, p.hp)} / ${p.maxHp}</span><span>🂠 手牌 ${p.hand.length}（上限 ${g.handLimit(p)}）</span>${g.equips(p).map((eq) => `<span>${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`).join("")}${p.cloud ? "<span>☁ 云端任务跑着</span>" : ""}${p.plugins && p.plugins.length ? `<span>🔌 插件：${p.plugins.map((c) => CD[c.k].name).join("、")}</span>` : ""}${side ? `<span>${side}</span>` : ""}${p.alive ? "" : "<span>已退群</span>"}</div>
       ${st.length ? `<div class="hi-st">${st.join(" · ")}</div>` : ""}
       ${rel ? `<div class="hi-rel ${rel}"><b>${REL_NAME[rel]}</b>${relRow}</div>` : ""}
       ${p !== me && window.Props ? `<div class="hi-props"><div class="hp-row">${Props.kindsFor(me).map((k) => `<button class="hp-b${Props.KINDS[k].owner ? " sig" : ""}" data-k="${k}" title="${Props.KINDS[k].name}${Props.KINDS[k].owner ? "（你的专属）" : ""}"><img src="${A(`assets/img/prop_${k}.webp`)}" alt=""><span>${Props.KINDS[k].name}</span></button>`).join("")}</div>
