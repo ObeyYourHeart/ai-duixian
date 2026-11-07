@@ -1262,6 +1262,7 @@ window.UI = (function () {
     if (feud && feud.n < 2) feud = null;
     const gd = (game.guards || [])[0], guard = gd && { a: by(gd[0]), b: by(gd[1]) };
     const busy = P.slice().sort((a, b) => b.stats.used - a.stats.used)[0];
+    const poor = P.slice().sort((a, b) => b.stats.taken - a.stats.taken)[0];   // 最惨：被扣心态最多
     const ct = (game.clashTexts || []).filter((c) => c[0].text && c[1].text);
     let scene = null;
     if (ct.length) scene = ct[Math.floor(Math.random() * ct.length)].map((x) => ({ p: by(x.i), text: x.text }));
@@ -1270,7 +1271,7 @@ window.UI = (function () {
       const q = pool[Math.floor(Math.random() * pool.length)]; if (q) scene = [{ p: by(q.i), text: q.text }];
     }
     const MODE = { ffa: "群聊混战", team: game.nation ? "全明星赛" : "2v2 组队", id5: "身份局" };
-    return { w, title, round: game.round, mode: MODE[game.mode] || "对局", mvp: mvp && mvp.stats.dmg ? mvp : null, feud, guard, busy: busy && busy.stats.used ? busy : null, scene,
+    return { w, title, round: game.round, mode: MODE[game.mode] || "对局", mvp: mvp && mvp.stats.dmg ? mvp : null, feud, guard, busy: busy && busy.stats.used ? busy : null, poor: poor && poor.stats.taken >= 3 ? poor : null, scene,
       wimg: w.disguise ? portrait("xds_cl", "cheer") : portrait(w.key, "win") };
   }
   const rpAv = (p) => `<img src="${portrait(p.key, "avatar")}" alt="">`;
@@ -1282,6 +1283,7 @@ window.UI = (function () {
     if (d.mvp) rows += row("MVP", `${rpAv(d.mvp)}<b style="color:${d.mvp.ch.color}">${d.mvp.name}</b><span>让人破防 ${d.mvp.stats.dmg} 次</span>`);
     if (d.feud) rows += row("宿怨", `${rpAv(d.feud.a)}<b style="color:${d.feud.a.ch.color}">${d.feud.a.name}</b><span>${d.feud.back ? "和" : "怼了"}</span>${rpAv(d.feud.b)}<b style="color:${d.feud.b.ch.color}">${d.feud.b.name}</b><span>${d.feud.back ? `互怼 ${d.feud.n} : ${d.feud.back}` : `${d.feud.n} 次`}</span>`);
     if (d.guard) rows += row("护短", `${rpAv(d.guard.a)}<b style="color:${d.guard.a.ch.color}">${d.guard.a.name}</b><span>站出来护着</span>${rpAv(d.guard.b)}<b style="color:${d.guard.b.ch.color}">${d.guard.b.name}</b>`);
+    if (d.poor) rows += row("最惨", `${rpAv(d.poor)}<b style="color:${d.poor.ch.color}">${d.poor.name}</b><span>心态一共掉了 ${d.poor.stats.taken} 点</span>`);
     if (d.busy) rows += row("话痨", `${rpAv(d.busy)}<b style="color:${d.busy.ch.color}">${d.busy.name}</b><span>出了 ${d.busy.stats.used} 张牌</span>`);
     const scene = d.scene ? `<div class="rp-scene"><div class="rp-st">${d.scene.length > 1 ? "名场面" : "本局金句"}</div>${d.scene.map((x, i) =>
       `<div class="rp-q${i ? " r" : ""}" style="--c:${x.p.ch.color}">${rpAv(x.p)}<div><b>${x.p.name}</b><span>${x.text}</span></div></div>`).join("")}</div>` : "";
@@ -1305,7 +1307,7 @@ window.UI = (function () {
     const rr = (X, Y, w, h, r) => { x.beginPath(); x.roundRect(X, Y, w, h, r); };
     const bgG = x.createLinearGradient(0, 0, 0, 1440); bgG.addColorStop(0, d.w.ch.light || "#eaf2ff"); bgG.addColorStop(1, "#ffffff");
     x.fillStyle = bgG; x.fillRect(0, 0, W, H);
-    const people = [d.w, d.mvp, d.feud && d.feud.a, d.feud && d.feud.b, d.guard && d.guard.a, d.guard && d.guard.b, d.busy, ...(d.scene || []).map((s) => s.p)].filter(Boolean);
+    const people = [d.w, d.mvp, d.feud && d.feud.a, d.feud && d.feud.b, d.guard && d.guard.a, d.guard && d.guard.b, d.busy, d.poor, ...(d.scene || []).map((s) => s.p)].filter(Boolean);
     const av = {}; for (const p of people) if (!av[p.key]) av[p.key] = await loadImg(portrait(p.key, "avatar")).catch(() => null);
     const wim = await loadImg(d.wimg).catch(() => null);
     if (wim) { const h = 600, w = wim.width * h / wim.height; x.drawImage(wim, W - w + 40, 10, w, h); }
@@ -1328,6 +1330,7 @@ window.UI = (function () {
     if (d.mvp) row("MVP", [{ p: d.mvp }, `让人破防 ${d.mvp.stats.dmg} 次`]);
     if (d.feud) row("宿怨", d.feud.back ? [{ p: d.feud.a }, "和", { p: d.feud.b }, `互怼 ${d.feud.n} : ${d.feud.back}`] : [{ p: d.feud.a }, "怼了", { p: d.feud.b }, `${d.feud.n} 次`]);
     if (d.guard) row("护短", [{ p: d.guard.a }, "护着", { p: d.guard.b }]);
+    if (d.poor) row("最惨", [{ p: d.poor }, `心态一共掉了 ${d.poor.stats.taken} 点`]);
     if (d.busy) row("话痨", [{ p: d.busy }, `出了 ${d.busy.stats.used} 张牌`]);
     if (d.scene) {
       y += 6; x.fillStyle = "#2a2440"; x.font = F(40, "normal", "FangYuan"); x.fillText(d.scene.length > 1 ? "名场面" : "本局金句", 70, y); y += 30;
@@ -1347,6 +1350,11 @@ window.UI = (function () {
     const fx = fin.getContext("2d"); fx.drawImage(cv, 0, 0, W, FH, 0, 0, W, FH);
     fx.fillStyle = "#8a85a3"; fx.font = F(28, 500); fx.textAlign = "center"; fx.fillText("AI娘对线", W / 2, FH - 50);
     const blob = await new Promise((r, j) => { try { fin.toBlob((b) => b ? r(b) : j(), "image/png"); } catch (e) { j(e); } });
+    // 手机上能直接调起系统分享（发微信 / 存相册）；电脑或不支持的浏览器照常下载
+    const file = window.File && new File([blob], "AI娘对线战报.png", { type: "image/png" });
+    if (file && navigator.canShare && navigator.canShare({ files: [file] }) && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) {
+      try { await navigator.share({ files: [file], title: "AI娘对线战报" }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+    }
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "AI娘对线战报.png"; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     toast("战报已保存");
