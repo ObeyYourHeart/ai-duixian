@@ -520,6 +520,7 @@ window.Main = (function () {
       if (e.key !== "Escape") return;
       const done = () => { e.preventDefault(); e.stopImmediatePropagation(); };
       if (!$("#rules").classList.contains("hidden")) { closeRules(); done(); return; }
+      if ($("#report")) { $("#report .rp-x").click(); done(); return; }   // v43 战报卡：Esc 只关战报，回到结算框
       const md = $("#modal");
       if (!md.classList.contains("hidden")) {
         if ($("#modal-close").style.display !== "none") md.classList.add("hidden");

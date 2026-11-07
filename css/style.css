@@ -922,3 +922,29 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 /* v42 吵上头了（第 3 轮起）：背景慢慢罩上一层暖色，只调色、不加特效、不压暗 */
 #bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255, 150, 80, .42), rgba(255, 105, 135, .34)); opacity: 0; transition: opacity 1.6s ease; pointer-events: none; }
 #bg.rage::after { opacity: 1; }
+/* v43 本局战报卡 */
+#report { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: rgba(60, 40, 120, .25); }
+.rp-card { position: relative; width: 760px; max-height: 92%; overflow: auto; box-sizing: border-box; padding: 26px 32px 22px; border-radius: 28px; background: linear-gradient(180deg, var(--l, #eaf2ff), #fff 55%);
+  border: 4px solid var(--c); box-shadow: 0 18px 50px rgba(60, 40, 120, .25); }
+.rp-x { position: absolute; top: 12px; right: 14px; width: 40px; height: 40px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .85); font-size: 20px; color: #6b6585; cursor: pointer; }
+.rp-head { display: flex; align-items: center; gap: 18px; margin-bottom: 10px; }
+.rp-head .rp-w { width: 150px; height: 190px; object-fit: cover; object-position: top; border-radius: 20px; background: rgba(255, 255, 255, .7); }
+.rp-t { font-family: var(--title); font-size: 50px; color: #2a2440; line-height: 1.1; }
+.rp-sub { font-size: 20px; color: #6b6585; margin: 4px 0 6px; }
+.rp-win { font-size: 28px; font-weight: 900; color: var(--c); }
+.rp-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0; padding: 10px 14px; background: rgba(255, 255, 255, .92); border-radius: 18px; font-size: 22px; }
+.rp-row img { width: 44px; height: 44px; border-radius: 50%; }
+.rp-row span { color: #3a3456; }
+.rp-tag { min-width: 64px; text-align: center; padding: 4px 10px; border-radius: 99px; background: var(--c); color: #fff !important; font-weight: 700; font-size: 18px; }
+.rp-scene { margin-top: 14px; }
+.rp-st { font-family: var(--title); font-size: 28px; color: #2a2440; margin-bottom: 6px; }
+.rp-q { display: flex; align-items: flex-start; gap: 10px; margin: 8px 0; }
+.rp-q.r { flex-direction: row-reverse; }
+.rp-q img { width: 52px; height: 52px; border-radius: 50%; border: 3px solid var(--c); background: #fff; flex: none; }
+.rp-q div { max-width: 78%; padding: 8px 14px; background: #fff; border: 3px solid var(--c); border-radius: 18px; }
+.rp-q b { display: block; font-size: 16px; color: var(--c); }
+.rp-q span { font-size: 22px; font-weight: 700; color: #3a3456; }
+.rp-btns { display: flex; gap: 12px; justify-content: center; margin-top: 16px; }
+.rp-toast { position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%); padding: 10px 22px; border-radius: 99px; background: rgba(42, 36, 64, .85); color: #fff; font-size: 20px; z-index: 6; }
+#stage.portrait .rp-card { width: 92%; }
+#stage.portrait .rp-head .rp-w { width: 120px; height: 150px; }

@@ -131,6 +131,7 @@ window.Engine = (function () {
       this.bombN = 0; this.insertSeq = 0; this.insertBy = null;          // 宕机总数；有人往牌堆里塞过宕机 / 插过队的次数（摸鱼看它判断“牌堆刚被动过”）
       this.startIdx = this.mode === "id5" ? this.players.find((p) => p.role === "lord").i : 0;
       this.cur = this.startIdx; this.round = 1; this.over = false; this.outOrder = [];
+      this.hits = {}; this.guards = []; this.clashes = []; this.quotes = [];   // v43 战报：谁怼谁几次、谁护了谁、对线特写、说过的台词
     }
     // ---------------------------------------------------------------- 敌友
     // p 眼里 q 有多像敌人：> 0 才会对她出手。身份局里靠 lean（越正越像主公这边）猜
@@ -671,7 +672,7 @@ window.Engine = (function () {
       else this.ui.log(p, `使用了<b>【${d.name}】</b>`);
       if (card.k === "tucao") {
         const t = targets[0], pr = t && this.clashPair(p, t);
-        if (pr) await this.ui.clash(p, t, pr[1], pr[3]);              // v39 宿敌对线特写：一来一回各一句
+        if (pr) { this.clashes.push([p.i, t.i, pr[1], pr[3]]); await this.ui.clash(p, t, pr[1], pr[3]); }              // v39 宿敌对线特写：一来一回各一句
         else {
           const special = t && p.ch.lines[t.key] && this.relation(p, t) === "rival" && Math.random() < 0.5;
           this.ui.say(p, special ? t.key : "attack");
@@ -1089,6 +1090,7 @@ window.Engine = (function () {
       }
       this.noteHostile(src, t, 1);
       t.hp -= n; t.stats.taken += n; if (src) src.stats.dmg += n;
+      if (src && src !== t) this.hits[src.i + ">" + t.i] = (this.hits[src.i + ">" + t.i] || 0) + n;
       this.ui.damage(t, n);
       if (this.hasSkill(t, "saint") && !t.saintUsed && t.hp <= 1) {          // Claude 圣女：信徒护法
         t.saintUsed = true; t.hp += T.saintHeal;
@@ -1148,7 +1150,7 @@ window.Engine = (function () {
         if (this.over || !q.alive) return;
         this.ui.say(q, q.ch.lines["guard_" + t.key] ? "guard_" + t.key : "guard", true);
         if (src && src.alive && src !== q && this.ui.lean) this.ui.lean(q, src, 18);
-        this.ui.log(q, `站出来护着 ${t.name}`);
+        this.ui.log(q, `站出来护着 ${t.name}`); this.guards.push([q.i, t.i]);
       }, Math.min(ms, 2600) + 300);
     }
     async dying(t, src) {

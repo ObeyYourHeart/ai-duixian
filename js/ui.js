@@ -556,7 +556,9 @@ window.UI = (function () {
   }
   // v37 Claude 精修版多出来的表情：写代码专注、守宪法严厉、喝红茶、被夸害羞、又被封号的疲惫
   const XEXPR = { claude: { wish: "focus", artifact: "focus", zeroday: "stern", code: "focus", ban: "stern", attack: "stern", ko: "stern", def: "stern", heal: "tea", dodge: "tea", roger: "tea",
-    gifted: "shy", fed: "shy", saint: "shy", guard: "stern", guard_xds: "stern", low: "tired", ev_banwave: "tired", mourn: "tired" },
+    gifted: "shy", fed: "warm", saint: "warm", guard: "stern", guard_xds: "stern", low: "tired", ev_banwave: "tired", mourn: "tired",
+    stolen: "meh", egged: "meh", comp: "meh", pelted: "meh", gpt_ui: "meh", glm: "meh", dug: "meh", boom: "meh",   // v43 嫌弃无奈
+    ev_ipo: "warm", allstar: "warm", beauty: "warm", muse: "warm", fear: "warm" },                                 // v43 温柔认真
     // v41 其余角色各 2 张新表情（GAME_DATA.xexpr 里登记了、图真的有才换）
     deepseek: { think: "focus", quant: "focus", opensrc: "focus", sig: "focus", fury: "angry", def: "angry", guard: "angry", guard_xds: "angry", pelted: "angry", dug: "angry" },
     xds: { bigeat: "eat", fed: "eat", heal: "eat", gifted: "eat", beg: "plead", beg_gpt: "plead", beg_claude: "plead", busy: "plead" },
@@ -568,6 +570,7 @@ window.UI = (function () {
     qwen: { bundle: "cheer", luckybag: "cheer", qingke: "cheer", qingke_self: "cheer", heal: "cheer", guard: "stern", guard_xds: "stern", xds: "cheer" },
     minimax: { magic: "focus", edge: "focus", sig: "focus", guard: "stern", guard_glm: "stern", pelted: "stern" },
     muse: { errand: "focus", haggle: "focus", confirm: "focus", low: "shy", gifted: "shy" } };
+  const QUIET_Q = ["greet", "hurt", "low", "out", "win", "roger", "mourn"];
   const hasX = (k, e) => k === "claude" || ((window.GAME_DATA.xexpr || {})[k] || []).includes(e);
   const HURT_KEYS = ["hurt", "hajimi", "out", "stolen", "fury", "halluc", "low", "mourn", "egged"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
     "polish", "wish", "zeroday", "artifact", "zuiying", "beg", "beg_gpt", "beg_claude", "claw", "dad", "maint", "long", "busy", "fed", "think", "sis", "search", "know", "cut", "plain", "pen", "pen_gpt", "paint2", "sorry", "bundle", "sale",
@@ -589,6 +592,7 @@ window.UI = (function () {
     const idx = Math.floor(Math.random() * arr.length);
     const text = arr[idx];
     Sound.voice(p.key, key, idx);
+    if (g.quotes && !p.disguise && !QUIET_Q.includes(base)) g.quotes.push({ i: p.i, text, w: base.startsWith("guard") || ["ko", "sig", "def", "zeroday", "ban"].includes(base) ? 2 : 1 });   // v43 战报金句
     const q = pos(p);
     const old = document.querySelector(`.bubble[data-p="${p.i}"]`); if (old) old.parentElement.remove();
     const wrap = el("div"); wrap.style.position = "absolute"; wrap.style.zIndex = 40;
@@ -795,8 +799,9 @@ window.UI = (function () {
     box.onclick = clashSkip;
     Sound.sfx("whoosh_little", 0.5);
     await nap(380 * sp);
+    let s1 = null;
     if (!skipped && g && actTok === tok) {
-      const s1 = clashLine(a, ka), q1 = box.querySelector(".cl-sa");
+      s1 = clashLine(a, ka); const q1 = box.querySelector(".cl-sa");
       q1.textContent = s1.text; q1.classList.add("on");
       await nap(Math.min(3200, s1.ms) + 250);
     }
@@ -805,6 +810,7 @@ window.UI = (function () {
       box.querySelector(".cl-b").animate([{ transform: "scale(1.05)" }, { transform: "scale(1)" }], { duration: 220, easing: "ease-out" });
       const s2 = clashLine(b, kb), q2 = box.querySelector(".cl-sb");
       q2.textContent = s2.text; q2.classList.add("on");
+      (g.clashTexts = g.clashTexts || []).push([{ i: a.i, text: s1 ? s1.text : "" }, { i: b.i, text: s2.text }]);   // v43 战报名场面
       await nap(Math.min(3200, s2.ms) + 350);
     }
     clashSkip = null;
@@ -1224,7 +1230,7 @@ window.UI = (function () {
       <div class="rr"><div class="rt">${title}</div>
       <p>${sub}</p>
       <div class="rank">${rank}</div>
-      <div class="rbtn"><button class="btn primary" id="btn-again">再来一局</button><button class="btn" id="btn-change">换角色</button></div></div></div>`;
+      <div class="rbtn"><button class="btn primary" id="btn-again">再来一局</button><button class="btn" id="btn-change">换角色</button><button class="btn" id="btn-report">本局战报</button></div></div></div>`;
     $("#modal-close").style.display = "none";
     $("#modal").classList.remove("hidden");
     if (sore && !w.disguise) {
@@ -1238,8 +1244,112 @@ window.UI = (function () {
         Sound.voice(sore.q.key, pr[1], idx);
       }, winMs + 400);
     }
-    $("#btn-again").onclick = () => { $("#modal").classList.add("hidden"); $("#modal-close").style.display = ""; window.Main.again(); };
-    $("#btn-change").onclick = () => { $("#modal").classList.add("hidden"); $("#modal-close").style.display = ""; window.Main.toSelect(); };
+    $("#btn-report").onclick = () => { Sound.sfx("click", 0.5); openReport(game, title); };
+    $("#btn-again").onclick = () => { closeReport(); $("#modal").classList.add("hidden"); $("#modal-close").style.display = ""; window.Main.again(); };
+    $("#btn-change").onclick = () => { closeReport(); $("#modal").classList.add("hidden"); $("#modal-close").style.display = ""; window.Main.toSelect(); };
+  }
+
+  // ---------------------------------------------------------------- v43 本局战报卡
+  // 结算框里点「本局战报」：MVP、宿怨（谁怼谁最多）、护短、名场面（对线特写 / 金句），能存成图片分享
+  function reportData(game, title) {
+    const P = game.players, w = game.winner, by = (i) => P[i];
+    const mvp = P.slice().sort((a, b) => b.stats.dmg - a.stats.dmg || (b === w) - (a === w))[0];
+    let feud = null;
+    for (const [k, n] of Object.entries(game.hits || {})) {
+      const [a, b] = k.split(">").map(Number), back = (game.hits || {})[b + ">" + a] || 0;
+      if (!feud || n + back * 0.5 > feud.score) feud = { a: by(a), b: by(b), n, back, score: n + back * 0.5 };
+    }
+    if (feud && feud.n < 2) feud = null;
+    const gd = (game.guards || [])[0], guard = gd && { a: by(gd[0]), b: by(gd[1]) };
+    const busy = P.slice().sort((a, b) => b.stats.used - a.stats.used)[0];
+    const ct = (game.clashTexts || []).filter((c) => c[0].text && c[1].text);
+    let scene = null;
+    if (ct.length) scene = ct[Math.floor(Math.random() * ct.length)].map((x) => ({ p: by(x.i), text: x.text }));
+    else {
+      const qs = (game.quotes || []).filter((q) => q.text && q.text.length >= 6), top = Math.max(0, ...qs.map((q) => q.w)), pool = qs.filter((q) => q.w === top);
+      const q = pool[Math.floor(Math.random() * pool.length)]; if (q) scene = [{ p: by(q.i), text: q.text }];
+    }
+    const MODE = { ffa: "群聊混战", team: game.nation ? "全明星赛" : "2v2 组队", id5: "身份局" };
+    return { w, title, round: game.round, mode: MODE[game.mode] || "对局", mvp: mvp && mvp.stats.dmg ? mvp : null, feud, guard, busy: busy && busy.stats.used ? busy : null, scene,
+      wimg: w.disguise ? portrait("xds_cl", "cheer") : portrait(w.key, "win") };
+  }
+  const rpAv = (p) => `<img src="${portrait(p.key, "avatar")}" alt="">`;
+  function openReport(game, title) {
+    closeReport();
+    const d = reportData(game, title);
+    const row = (tag, html) => `<div class="rp-row"><span class="rp-tag">${tag}</span>${html}</div>`;
+    let rows = "";
+    if (d.mvp) rows += row("MVP", `${rpAv(d.mvp)}<b style="color:${d.mvp.ch.color}">${d.mvp.name}</b><span>让人破防 ${d.mvp.stats.dmg} 次</span>`);
+    if (d.feud) rows += row("宿怨", `${rpAv(d.feud.a)}<b style="color:${d.feud.a.ch.color}">${d.feud.a.name}</b><span>${d.feud.back ? "和" : "怼了"}</span>${rpAv(d.feud.b)}<b style="color:${d.feud.b.ch.color}">${d.feud.b.name}</b><span>${d.feud.back ? `互怼 ${d.feud.n} : ${d.feud.back}` : `${d.feud.n} 次`}</span>`);
+    if (d.guard) rows += row("护短", `${rpAv(d.guard.a)}<b style="color:${d.guard.a.ch.color}">${d.guard.a.name}</b><span>站出来护着</span>${rpAv(d.guard.b)}<b style="color:${d.guard.b.ch.color}">${d.guard.b.name}</b>`);
+    if (d.busy) rows += row("话痨", `${rpAv(d.busy)}<b style="color:${d.busy.ch.color}">${d.busy.name}</b><span>出了 ${d.busy.stats.used} 张牌</span>`);
+    const scene = d.scene ? `<div class="rp-scene"><div class="rp-st">${d.scene.length > 1 ? "名场面" : "本局金句"}</div>${d.scene.map((x, i) =>
+      `<div class="rp-q${i ? " r" : ""}" style="--c:${x.p.ch.color}">${rpAv(x.p)}<div><b>${x.p.name}</b><span>${x.text}</span></div></div>`).join("")}</div>` : "";
+    const box = el("div", ""); box.id = "report";
+    box.innerHTML = `<div class="rp-card" style="--c:${d.w.ch.color};--l:${d.w.ch.light}"><button class="rp-x" aria-label="关闭">✕</button>
+      <div class="rp-head"><img class="rp-w" src="${d.wimg}" alt=""><div><div class="rp-t">本局战报</div><div class="rp-sub">${d.mode} · 打了 ${d.round} 轮</div><div class="rp-win">${d.title}</div></div></div>
+      ${rows}${scene}
+      <div class="rp-btns"><button class="btn primary" id="rp-save">保存图片</button><button class="btn" id="rp-close">关闭</button></div></div>`;
+    $("#modal").appendChild(box);
+    box.onclick = (e) => { if (e.target === box) closeReport(); };
+    box.querySelector(".rp-x").onclick = closeReport; box.querySelector("#rp-close").onclick = closeReport;
+    box.querySelector("#rp-save").onclick = () => saveReport(d).catch(() => toast("这个浏览器存不了图，截个屏吧"));
+  }
+  function closeReport() { const r = $("#report"); if (r) r.remove(); }
+  function toast(t) { const e = el("div", "rp-toast", t); ($("#report") || $("#modal")).appendChild(e); setTimeout(() => e.remove(), 2200); }
+  // 存图：画在 1080×1440 的画布上（和卡片同样的内容，亮底）
+  function loadImg(src) { return new Promise((r, j) => { const im = new Image(); im.onload = () => r(im); im.onerror = j; im.src = src; }); }
+  async function saveReport(d) {
+    const W = 1080, H = 2600, cv = document.createElement("canvas"); cv.width = W; cv.height = H;   // 先画在长画布上，最后按内容高度裁（至少 3:4）
+    const x = cv.getContext("2d"), F = (sz, wt = 700, fam = "PuHui") => `${wt} ${sz}px ${fam}, "Microsoft YaHei", sans-serif`;
+    const rr = (X, Y, w, h, r) => { x.beginPath(); x.roundRect(X, Y, w, h, r); };
+    const bgG = x.createLinearGradient(0, 0, 0, 1440); bgG.addColorStop(0, d.w.ch.light || "#eaf2ff"); bgG.addColorStop(1, "#ffffff");
+    x.fillStyle = bgG; x.fillRect(0, 0, W, H);
+    const people = [d.w, d.mvp, d.feud && d.feud.a, d.feud && d.feud.b, d.guard && d.guard.a, d.guard && d.guard.b, d.busy, ...(d.scene || []).map((s) => s.p)].filter(Boolean);
+    const av = {}; for (const p of people) if (!av[p.key]) av[p.key] = await loadImg(portrait(p.key, "avatar")).catch(() => null);
+    const wim = await loadImg(d.wimg).catch(() => null);
+    if (wim) { const h = 600, w = wim.width * h / wim.height; x.drawImage(wim, W - w + 40, 10, w, h); }
+    x.fillStyle = "#2a2440"; x.font = F(92, "normal", "FangYuan"); x.fillText("本局战报", 70, 170);
+    x.fillStyle = "#6b6585"; x.font = F(36, 500); x.fillText(`${d.mode} · 打了 ${d.round} 轮`, 74, 236);
+    x.fillStyle = d.w.ch.color; x.font = F(50); x.fillText(d.title, 74, 320);
+    const circ = (im, cx, cy, r, col) => { x.save(); x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fillStyle = "#fff"; x.fill(); x.clip(); if (im) x.drawImage(im, cx - r, cy - r, r * 2, r * 2); x.restore();
+      x.beginPath(); x.arc(cx, cy, r, 0, 7); x.lineWidth = 5; x.strokeStyle = col; x.stroke(); };
+    let y = 660;
+    const row = (tag, parts) => {
+      rr(60, y - 58, W - 120, 116, 28); x.fillStyle = "rgba(255,255,255,.92)"; x.fill();
+      x.fillStyle = d.w.ch.color; rr(84, y - 26, 104, 52, 26); x.fill(); x.fillStyle = "#fff"; x.font = F(30); x.textAlign = "center"; x.fillText(tag, 136, y + 11); x.textAlign = "left";
+      let cx = 214;
+      for (const pt of parts) {
+        if (pt.p) { circ(av[pt.p.key], cx + 34, y, 34, pt.p.ch.color); cx += 80; x.fillStyle = pt.p.ch.color; x.font = F(36); x.fillText(pt.p.name, cx, y + 13); cx += x.measureText(pt.p.name).width + 16; }
+        else { x.fillStyle = "#3a3456"; x.font = F(32, 500); x.fillText(pt, cx, y + 12); cx += x.measureText(pt).width + 16; }
+      }
+      y += 136;
+    };
+    if (d.mvp) row("MVP", [{ p: d.mvp }, `让人破防 ${d.mvp.stats.dmg} 次`]);
+    if (d.feud) row("宿怨", d.feud.back ? [{ p: d.feud.a }, "和", { p: d.feud.b }, `互怼 ${d.feud.n} : ${d.feud.back}`] : [{ p: d.feud.a }, "怼了", { p: d.feud.b }, `${d.feud.n} 次`]);
+    if (d.guard) row("护短", [{ p: d.guard.a }, "护着", { p: d.guard.b }]);
+    if (d.busy) row("话痨", [{ p: d.busy }, `出了 ${d.busy.stats.used} 张牌`]);
+    if (d.scene) {
+      y += 6; x.fillStyle = "#2a2440"; x.font = F(40, "normal", "FangYuan"); x.fillText(d.scene.length > 1 ? "名场面" : "本局金句", 70, y); y += 30;
+      d.scene.forEach((s, i) => {
+        x.font = F(34); const lines = []; let cur = "";
+        for (const ch of s.text) { if (x.measureText(cur + ch).width > 700) { lines.push(cur); cur = ""; } cur += ch; } lines.push(cur);
+        const bh = 70 + lines.length * 46, bx = i ? 180 : 60, ax = i ? W - 110 : 110;
+        rr(bx + (i ? 0 : 100), y, 740, bh, 26); x.fillStyle = "#fff"; x.fill(); x.lineWidth = 4; x.strokeStyle = s.p.ch.color; x.stroke();
+        circ(av[s.p.key], ax, y + 46, 44, s.p.ch.color);
+        const tx = bx + (i ? 30 : 130);
+        x.fillStyle = s.p.ch.color; x.font = F(28); x.fillText(s.p.name, tx, y + 44);
+        x.fillStyle = "#3a3456"; x.font = F(34); lines.forEach((l, k) => x.fillText(l, tx, y + 92 + k * 46));
+        y += bh + 22;
+      });
+    }
+    const FH = Math.max(1440, Math.ceil(y + 110)), fin = document.createElement("canvas"); fin.width = W; fin.height = FH;
+    const fx = fin.getContext("2d"); fx.drawImage(cv, 0, 0, W, FH, 0, 0, W, FH);
+    fx.fillStyle = "#8a85a3"; fx.font = F(28, 500); fx.textAlign = "center"; fx.fillText("AI娘对线", W / 2, FH - 50);
+    const blob = await new Promise((r, j) => { try { fin.toBlob((b) => b ? r(b) : j(), "image/png"); } catch (e) { j(e); } });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "AI娘对线战报.png"; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast("战报已保存");
   }
 
   function bindButtons() {
@@ -1263,6 +1373,7 @@ window.UI = (function () {
       if (e.key === "Enter") { const b = $("#modal-body .pkgo .btn.primary"); if (b) b.click(); }
       return;
     }
+    if (e.key === "Escape" && $("#report")) { closeReport(); return; }
     if (e.key === "Escape" && clashSkip) { clashSkip(); return; }
     if (e.key === "Escape" && infoP) { hideHeroInfo(); return; }
     if (!SET().keys && e.key !== "Escape") return;
