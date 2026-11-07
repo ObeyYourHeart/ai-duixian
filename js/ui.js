@@ -869,46 +869,147 @@ window.UI = (function () {
   //   旁边全息小屏打部署命令，「XX 上线！」章在一侧。点一下 / Esc 跳过。电脑上线——只用第 2 帧，半屏切入约 1 秒（同技能切入）
   let deploySkip = null;
   function skipDeploy() { if (deploySkip) deploySkip(); }
-  const HZ_BLINK = ["gemini", "deepseek", "doubao", "kimi", "grok", "qwen", "xds", "xds_cl"];   // 有眨眼帧的（Claude / GPT / GLM 合成不自然，不眨）
+  const HZ_BLINK = ["claude", "glm", "kimi", "doubao", "grok", "qwen", "xds", "xds_cl"];   // 有眨眼帧的（GPT / DeepSeek / Gemini 合成成了单眼眨或对不上，不眨）
   function hzImg(p, f) { const k = p.key === "xds" && p.disguise ? "xds_cl" : p.key; return A(`assets/img/hz_${k}_${k === "xds_cl" && f === "a" ? "b" : f}.webp`); }
+  // v48 大招演出：玩家自己上线约 3 秒（时停 → 斜切眼部特写 → 纹章 + 爆发 → 技能名砸下 → 光点回座位），点一下 / Esc 跳过；
+  //   电脑上线简版约 1.5 秒（斜切 + 技能名）。不震屏、不用集中线；立绘不扭曲，只动镜头 / UI / 两帧；粒子用 canvas，CSS 只动 transform / opacity
+  const HZ_EYE = { claude: [335, 92], gpt: [327, 153], gemini: [401, 175], deepseek: [294, 140], glm: [173, 167], doubao: [342, 216], kimi: [347, 140],
+    grok: [382, 256], qwen: [405, 162], xds: [348, 352], xds_cl: [364, 374] };   // 发动帧（720×1080）两眼中点，斜切光带里的眼部特写用
+  const ULT = {                                                       // 专属纹章 / 粒子 / 音色
+    claude: { glyph: "flower", part: "petal", sfx: "ult_claude" }, gpt: { glyph: "cloud", part: "feather", sfx: "plop" },
+    gemini: { glyph: "star", part: "stardust", sfx: "ult_gemini" }, deepseek: { glyph: "whale", part: "bubble", sfx: "ult_deepseek" },
+    xds: { glyph: "whale", part: "bubble", sfx: "ult_deepseek" }, xds_cl: { glyph: "flower", part: "petal", sfx: "ult_claude" },
+    glm: { glyph: "code", part: "code", sfx: "ult_glm" }, doubao: { glyph: "film", part: "film", sfx: "ult_doubao" },
+    kimi: { glyph: "note", part: "note", sfx: "ult_kimi" }, grok: { glyph: "coin", part: "bill", sfx: "ult_grok" },
+    qwen: { glyph: "check", part: "check", sfx: "ult_qwen" },
+  };
+  function hzKey(p) { return p.key === "xds" && p.disguise ? "xds_cl" : p.key; }
+  // 纹章：画一次到离屏 canvas，演出时只转 CSS transform
+  function emblem(key, color, size) {
+    const c = document.createElement("canvas"); c.width = c.height = size; const x = c.getContext("2d"), r = size / 2, U = ULT[key] || ULT.claude;
+    x.translate(r, r); x.strokeStyle = color; x.fillStyle = color; x.lineCap = "round";
+    const ring = (rr, w, a = 1) => { x.globalAlpha = a; x.lineWidth = w; x.beginPath(); x.arc(0, 0, rr, 0, 7); x.stroke(); };
+    ring(r * 0.96, 4, .9); ring(r * 0.88, 2, .6); ring(r * 0.56, 3, .8); ring(r * 0.5, 1.5, .5);
+    x.globalAlpha = .8; for (let k = 0; k < 48; k++) { x.save(); x.rotate(k * Math.PI / 24); x.lineWidth = k % 4 ? 2 : 4; x.beginPath(); x.moveTo(r * 0.88, 0); x.lineTo(r * (k % 4 ? 0.92 : 0.96), 0); x.stroke(); x.restore(); }
+    const motif = (fn, n, rr, s) => { for (let k = 0; k < n; k++) { x.save(); x.rotate(k * 2 * Math.PI / n); x.translate(rr, 0); x.scale(s, s); fn(); x.restore(); } };
+    const flower = () => { for (let k = 0; k < 8; k++) { x.save(); x.rotate(k * Math.PI / 4); x.beginPath(); x.ellipse(10, 0, 10, 4, 0, 0, 7); x.fill(); x.restore(); } };
+    const star = () => { x.beginPath(); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, rr = k % 2 ? 4 : 14; x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } x.closePath(); x.fill(); };
+    const cloud = () => { x.beginPath(); x.arc(-8, 2, 8, 0, 7); x.arc(0, -4, 10, 0, 7); x.arc(9, 2, 8, 0, 7); x.fill(); };
+    const glyphText = (t) => () => { x.font = "700 22px Consolas, monospace"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(t, 0, 0); };
+    const film = () => { x.lineWidth = 3; x.strokeRect(-12, -9, 24, 18); for (let k = -1; k <= 1; k++) x.fillRect(k * 8 - 2, -14, 4, 3); };
+    const whale = () => { x.beginPath(); x.ellipse(0, 0, 14, 8, 0, 0, 7); x.fill(); x.beginPath(); x.moveTo(12, 0); x.lineTo(22, -8); x.lineTo(22, 8); x.closePath(); x.fill(); };
+    const coin = () => { x.lineWidth = 3; x.beginPath(); x.arc(0, 0, 11, 0, 7); x.stroke(); x.font = "700 14px sans-serif"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText("$", 0, 1); };
+    const G = { flower, star, cloud, film, whale, coin, code: glyphText("</>"), note: glyphText("♪"), check: glyphText("✓") }[U.glyph] || flower;
+    x.globalAlpha = .95; motif(G, 8, r * 0.72, 1.5 * size / 600); motif(G, 12, r * 0.34, 1 * size / 600);
+    x.globalAlpha = 1; x.scale(3 * size / 600, 3 * size / 600); G();
+    return c;
+  }
+  // 粒子：一个 canvas、一条 rAF；聚拢 / 爆开 / 飞回三种
+  function particles(cv, key, color) {
+    const x = cv.getContext("2d"), P = [], U = ULT[key] || ULT.claude, dpr = 1;   // 粒子小，1 倍分辨率够用（旧 iPad 上省一半以上）
+    cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr; x.scale(dpr, dpr);
+    let raf = 0, last = performance.now();
+    const draw = (q) => {
+      x.globalAlpha = Math.max(0, Math.min(1, q.life / q.max * 1.5)); x.save(); x.translate(q.x, q.y); x.rotate(q.r);
+      x.fillStyle = q.c; const s = q.s;
+      switch (U.part) {
+        case "petal": x.beginPath(); x.ellipse(0, 0, s, s * 0.45, 0, 0, 7); x.fill(); break;
+        case "feather": x.fillStyle = "#fff"; x.beginPath(); x.ellipse(0, 0, s * 1.4, s * 0.35, 0, 0, 7); x.fill(); x.strokeStyle = color; x.lineWidth = 1; x.beginPath(); x.moveTo(-s * 1.3, 0); x.lineTo(s * 1.3, 0); x.stroke(); break;
+        case "bubble": x.strokeStyle = q.c; x.lineWidth = 2; x.beginPath(); x.arc(0, 0, s * 0.7, 0, 7); x.stroke(); break;
+        case "film": x.fillRect(-s, -s * 0.7, s * 2, s * 1.4); x.fillStyle = "#fff"; x.fillRect(-s * 0.6, -s * 0.35, s * 1.2, s * 0.7); break;
+        case "bill": x.fillStyle = "#e9c46a"; x.fillRect(-s * 1.2, -s * 0.6, s * 2.4, s * 1.2); x.fillStyle = "#8a6d1f"; x.fillRect(-s * 0.3, -s * 0.3, s * 0.6, s * 0.6); break;
+        case "code": case "note": case "check": x.font = `700 ${Math.round(s * 2.2)}px Consolas, monospace`; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(q.t, 0, 0); break;
+        default: x.beginPath(); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, rr = k % 2 ? s * 0.3 : s; x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } x.closePath(); x.fill();
+      }
+      x.restore();
+    };
+    const TXT = { code: ["{ }", "</>", "( )", "=>", ";"], note: ["♪", "♫", "♬"], check: ["✓"] }[U.part] || [""];
+    const add = (o) => P.push(Object.assign({ r: Math.random() * 6, vr: (Math.random() - .5) * 4, s: 5 + Math.random() * 7, c: Math.random() < .3 ? "#fff" : color, t: TXT[Math.floor(Math.random() * TXT.length)], max: o.life }, o));
+    const tick = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      x.clearRect(0, 0, cv.width, cv.height);
+      for (let k = P.length - 1; k >= 0; k--) {
+        const q = P[k]; q.life -= dt; if (q.life <= 0) { P.splice(k, 1); continue; }
+        if (q.to) { const f = 1 - Math.pow(0.002, dt); q.x += (q.to[0] - q.x) * f * 2.2; q.y += (q.to[1] - q.y) * f * 2.2; }
+        else { q.x += q.vx * dt; q.y += q.vy * dt; q.vy += (q.g || 0) * dt; q.vx *= 0.985; q.vy *= 0.985; }
+        q.r += q.vr * dt; draw(q);
+      }
+      raf = P.length ? requestAnimationFrame(tick) : 0;
+    };
+    const go = () => { if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick); } };
+    const W = cv.clientWidth, H = cv.clientHeight;
+    return {
+      gather(cx, cy, n) { for (let k = 0; k < n; k++) { const a = Math.random() * 7, d = Math.max(W, H) * (0.45 + Math.random() * 0.3); add({ x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d, to: [cx, cy], life: 0.5 + Math.random() * 0.3 }); } go(); },
+      burst(cx, cy, n) {
+        const up = U.part === "stardust" ? -260 : U.part === "bill" ? 0 : 0, g = U.part === "bill" ? 520 : U.part === "stardust" ? -120 : U.part === "feather" ? 60 : 0;
+        for (let k = 0; k < n; k++) { const a = Math.random() * 7, v = 260 + Math.random() * 520; add({ x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v + up, g, life: 0.9 + Math.random() * 0.8 }); }
+        if (U.part === "bill") for (let k = 0; k < 26; k++) add({ x: Math.random() * W, y: -20 - Math.random() * 200, vx: (Math.random() - .5) * 60, vy: 120 + Math.random() * 140, g: 200, life: 1.6 });
+        go();
+      },
+      home(fx, fy, tx, ty, n) { for (let k = 0; k < n; k++) add({ x: fx + (Math.random() - .5) * 240, y: fy + (Math.random() - .5) * 320, to: [tx, ty], life: 0.45 + Math.random() * 0.2 }); go(); },
+      stop() { P.length = 0; if (raf) cancelAnimationFrame(raf); raf = 0; x.clearRect(0, 0, cv.width, cv.height); },
+    };
+  }
+  function ultSlash(box, p, key) {                                   // 斜切光带：主题色流光 + 眼部特写（从发动帧裁，不缩放变形）
+    const e = HZ_EYE[key] || [360, 220], band = el("div", "ult-band");
+    band.innerHTML = `<div class="ub-flow"></div><div class="ub-eye" style="background-image:url('${A(`assets/img/hz_${key}_b.webp`)}');background-position:${-(e[0] * 2.4 - 330)}px ${-(e[1] * 2.4 - 80)}px"></div>`;
+    box.appendChild(band); return band;
+  }
+  function ultName(box, name, ticks) {                               // 技能名逐字砸下 + HARNESS ONLINE
+    const t = el("div", "ult-name"), ch = [...name], step = Math.min(60, Math.round(380 / ch.length));   // 长名字也在 0.4 秒内落完
+    t.innerHTML = `<div class="un-big">${ch.map((c, k) => `<span style="animation-delay:${k * step / 1000}s">${c === " " ? "&nbsp;" : c}</span>`).join("")}</div><div class="un-sub">HARNESS ONLINE</div>`;
+    box.appendChild(t);
+    if (ticks) ch.forEach((c, k) => { if (c !== " ") setTimeout(() => Sound.sfx("ult_tick", k === ch.length - 1 ? 0.9 : 0.45), k * step + 90); });
+    return t;
+  }
   function deployShow(p, cmd, name) {
-    const H = p.ch.harness || {}, sp = Math.max(0.3, Engine.speed || 0), hero = heroes[p.i];
-    const halo = () => { if (hero) { hero.classList.add("halo"); setTimeout(() => hero.classList.remove("halo"), 2600 * sp); } };
     if (!(Engine.speed > 0)) return Promise.resolve(false);
-    if (!p.human) {                                                   // 电脑：半屏切入
-      const c = el("div", "cutin hzcut"); c.style.setProperty("--c", p.ch.color); c.style.setProperty("--l", p.ch.light);
-      c.innerHTML = `<img src="${hzImg(p, "b")}" alt=""><div class="ct2">${p.name} · Harness</div><div class="ct1">${name} 上线！</div><div class="ct3">${H.short || ""}</div>`;
-      $("#fx").appendChild(c); Sound.sfx("deploy_ok", 0.7); Sound.sfx("harness_sting", 0.5); halo();
-      return new Promise((res) => setTimeout(() => { c.remove(); res(false); }, 1100 * sp));
-    }
-    const lines = [`$ ${cmd} deploy`, ...(H.wiki ? ["📖 生成「全家桶 Wiki」", ...H.wiki.map((w, i) => ` ${i === H.wiki.length - 1 ? "└" : "├"} ${w}.md`)] : [` installing ${name} …`]), `✓ ${name} ready`];
-    const txt = lines.join("\n");
-    const box = el("div", "dshow"); box.style.setProperty("--c", p.ch.color); box.style.setProperty("--l", p.ch.light || "#fff");
-    box.innerHTML = `<div class="ds-veil"></div><div class="ds-cam"><div class="ds-pt"></div><img class="ds-a" src="${hzImg(p, "a")}" alt=""><img class="ds-b" src="${hzImg(p, "b")}" alt="">${HZ_BLINK.includes(p.key === "xds" && p.disguise ? "xds_cl" : p.key) ? `<img class="ds-bl" src="${hzImg(p, "b_blink")}" alt="">` : ""}</div>
-      <div class="ds-holo"><div class="tm-bar"><i></i><i></i><i></i><span>${name}</span></div><pre></pre></div><div class="ds-stamp">${name} 上线！</div><div class="ds-skip">点一下跳过</div>`;
-    $("#fx").appendChild(box);
-    const pre = box.querySelector("pre"), cam = box.querySelector(".ds-cam"), pt = box.querySelector(".ds-pt");
-    for (let k = 0; k < 26; k++) {                                     // 光点：从立绘身后往外散开（hit 时才动）
-      const d = el("i"), a = Math.random() * Math.PI * 2, r = 160 + Math.random() * 260;
-      d.style.setProperty("--dx", Math.cos(a) * r + "px"); d.style.setProperty("--dy", Math.sin(a) * r * 0.8 + "px");
-      d.style.setProperty("--s", (6 + Math.random() * 10).toFixed(1) + "px"); d.style.animationDelay = (Math.random() * 0.25).toFixed(2) + "s"; pt.appendChild(d);
-    }
+    const key = hzKey(p), sp = p.human ? 1 : Math.max(0.6, Engine.speed), hero = heroes[p.i];   // 玩家自己的大招固定时长，不跟加速
+    const box = el("div", "ult" + (p.human ? "" : " lite")); box.style.setProperty("--c", p.ch.color); box.style.setProperty("--l", p.ch.light || "#fff");
+    $("#fx").appendChild(box); document.body.classList.add("ult-on");   // 演出时把盖在上面的提示条（演算等）藏起来
     const timers = []; const at = (ms, f) => timers.push(setTimeout(f, ms * sp));
+    const seatOn = () => { if (hero) { hero.classList.add("hz-on", "halo"); setTimeout(() => hero.classList.remove("halo"), 2400 * sp); } };
+    if (!p.human) {                                                   // 电脑简版：斜切 + 技能名
+      Sound.sfx("ult_shimmer", 0.55); ultSlash(box, p, key);
+      at(500, () => { ultName(box, name, true); Sound.sfx("harness_sting", 0.5); });
+      return new Promise((res) => at(1500, () => { seatOn(); document.body.classList.remove("ult-on"); box.classList.add("out"); setTimeout(() => box.remove(), 300); res(false); }));
+    }
+    const fx = $("#fx").getBoundingClientRect(), hc = center(p), cx = fx.width / 2, cy = fx.height * 0.46;
+    box.innerHTML = `<div class="ult-veil"></div><canvas class="ult-pt"></canvas><div class="ult-stage"><div class="ult-emb"></div><div class="ult-ring"></div>
+      <img class="ult-a" src="${hzImg(p, "a")}" alt=""><img class="ult-b" src="${hzImg(p, "b")}" alt="">${HZ_BLINK.includes(key) ? `<img class="ult-bl" src="${hzImg(p, "b_blink")}" alt="">` : ""}</div>
+      <div class="ult-flash"></div><div class="ds-skip">点一下跳过</div>`;
+    const emb = emblem(key, p.ch.color, 640); box.querySelector(".ult-emb").appendChild(emb);
+    const pt = particles(box.querySelector(".ult-pt"), key, p.ch.color);
+    const others = heroes.filter((h, k) => h && k !== p.i);
     return new Promise((res) => {
       let over = false;
-      const done = () => { if (over) return; over = true; deploySkip = null; timers.forEach(clearTimeout); box.classList.add("out"); setTimeout(() => box.remove(), 350); res(true); };
+      const done = () => {
+        if (over) return; over = true; deploySkip = null; timers.forEach(clearTimeout); pt.stop();
+        others.forEach((h) => h.classList.remove("ult-grey")); seatOn(); Sound.hold(false); document.body.classList.remove("ult-on");
+        box.classList.add("out"); setTimeout(() => box.remove(), 350); res(true);
+      };
       deploySkip = done; box.onclick = (e) => { e.stopPropagation(); done(); };
-      requestAnimationFrame(() => cam.classList.add("push"));
-      Sound.sfx("type_keys", 0.35);
-      const per = 1000 / Math.max(1, txt.length);                      // 打字在 1 秒内打完
-      for (let i = 0; i <= txt.length; i++) at(i * per, () => { pre.innerHTML = txt.slice(0, i).replace(/✓[^\n]*/, (m) => `<b>${m}</b>`) + "<u></u>"; });
-      at(1050, () => {                                                  // 发动成功：切第 2 帧 + 光点 + 章 + 配音
-        box.classList.add("hit"); Sound.sfx("deploy_ok", 0.8); Sound.sfx("harness_sting", 0.55); halo();
-        if (p.ch.lines.deploy) say(p, "deploy", true);
+      // ① 时停 0.3 s
+      Sound.hold(true); Sound.sfx("ult_charge", 0.7); others.forEach((h) => h.classList.add("ult-grey"));
+      pt.gather(hc.x, hc.y, 45);
+      // ② 斜切 0.6 s
+      at(300, () => { box.classList.add("s2"); ultSlash(box, p, key); Sound.sfx("ult_shimmer", 0.6); });
+      // ③ 爆发 1.2 s：起手帧推入 + 纹章转 → 0.5 s 后切发动帧 + 白闪 + 冲击环 + 粒子 + 台词
+      at(900, () => box.classList.add("s3"));
+      at(1400, () => {
+        box.classList.add("hit"); Sound.sfx("ult_impact", 0.85); Sound.sfx((ULT[key] || ULT.claude).sfx, 0.7);
+        pt.burst(cx, cy, 80);
+        at(100, () => { if (p.ch.lines.deploy) say(p, "deploy", true); });
+        at(700, () => { box.classList.add("blink"); at(130, () => box.classList.remove("blink")); });
       });
-      const vm = (window.VOICES || {})[`${p.key}_deploy0`] || 1800;
-      at(1050 + Math.min(vm, 2600) * 0.55, () => { box.classList.add("blink"); at(140, () => box.classList.remove("blink")); });
-      at(1050 + Math.max(1500, Math.min(vm, 3000)) + 250, done);
+      // ④ 技能名砸下 0.5 s
+      at(2100, () => { box.classList.add("s4"); ultName(box, name, true); });
+      // ⑤ 收尾 0.4 s：光点飞回座位，徽章 + 流光环，Harness 曲强拍直接进
+      at(2600, () => {
+        box.classList.add("s5"); pt.home(cx, cy, hc.x, hc.y, 40);
+        at(380, () => { Sound.sfx("deploy_ok", 0.8); seatOn(); Sound.track("harness", true); });
+      });
+      at(3000, done);
     });
   }
   function skillNote(p, name) { Sound.sfx("chime", 0.5); skillPop(p, name); sync(); }
