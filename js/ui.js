@@ -556,7 +556,19 @@ window.UI = (function () {
   }
   // v37 Claude 精修版多出来的表情：写代码专注、守宪法严厉、喝红茶、被夸害羞、又被封号的疲惫
   const XEXPR = { claude: { wish: "focus", artifact: "focus", zeroday: "stern", code: "focus", ban: "stern", attack: "stern", ko: "stern", def: "stern", heal: "tea", dodge: "tea", roger: "tea",
-    gifted: "shy", fed: "shy", saint: "shy", guard: "stern", guard_xds: "stern", low: "tired", ev_banwave: "tired", mourn: "tired" } };
+    gifted: "shy", fed: "shy", saint: "shy", guard: "stern", guard_xds: "stern", low: "tired", ev_banwave: "tired", mourn: "tired" },
+    // v41 其余角色各 2 张新表情（GAME_DATA.xexpr 里登记了、图真的有才换）
+    deepseek: { think: "focus", quant: "focus", opensrc: "focus", sig: "focus", fury: "angry", def: "angry", guard: "angry", guard_xds: "angry", pelted: "angry", dug: "angry" },
+    xds: { bigeat: "eat", fed: "eat", heal: "eat", gifted: "eat", beg: "plead", beg_gpt: "plead", beg_claude: "plead", busy: "plead" },
+    gemini: { hajimi: "pout", dug: "pout", plain: "pout", pretrain: "pout", fish: "pout", guard: "pout", search: "focus", know: "focus", pen: "focus", paint: "focus", paint2: "focus" },
+    grok: { def: "angry", guard: "angry", guard_kimi: "angry", egged: "angry", pelted: "angry", dare: "angry", gifted: "shy", kimi: "shy", glm: "shy" },
+    glm: { nap: "sleepy", low: "sleepy", maint: "sleepy", boom: "sleepy", guard: "awake", guard_kimi: "awake", steal: "awake", zcode: "awake", hatch: "awake" },
+    doubao: { fans: "stream", sig: "stream", remake: "stream", seedance: "stream", vs_gemini: "pout", dug: "pout", pelted: "pout", guard: "pout" },
+    kimi: { recall: "focus", burst: "focus", band1: "focus", ad: "shy", caught: "shy", egged: "shy" },
+    qwen: { bundle: "cheer", luckybag: "cheer", qingke: "cheer", qingke_self: "cheer", heal: "cheer", guard: "stern", guard_xds: "stern", xds: "cheer" },
+    minimax: { magic: "focus", edge: "focus", sig: "focus", guard: "stern", guard_glm: "stern", pelted: "stern" },
+    muse: { errand: "focus", haggle: "focus", confirm: "focus", low: "shy", gifted: "shy" } };
+  const hasX = (k, e) => k === "claude" || ((window.GAME_DATA.xexpr || {})[k] || []).includes(e);
   const HURT_KEYS = ["hurt", "hajimi", "out", "stolen", "fury", "halluc", "low", "mourn", "egged"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
     "polish", "wish", "zeroday", "artifact", "zuiying", "beg", "beg_gpt", "beg_claude", "claw", "dad", "maint", "long", "busy", "fed", "think", "sis", "search", "know", "cut", "plain", "pen", "pen_gpt", "paint2", "sorry", "bundle", "sale",
     "ko", "def", "guard", "qingke", "qingke_self", "pact_end", "egg", "egg_claude", "hatch"];
@@ -587,7 +599,7 @@ window.UI = (function () {
     else { wrap.style.left = Math.max(8, Math.min(q.x + 6, SW - 330)) + "px"; wrap.style.top = q.y + HERO_H * seatScale(p) + 14 + "px"; }
     $("#fx").appendChild(wrap);
     const xe = (XEXPR[p.key] || {})[base];
-    if (xe && !p.disguise && !(window.Settings && Settings.skinOf(p.key))) expr(p, xe, base === "low" || base === "mourn" ? 2200 : 1700);   // v37 角色专属表情（穿皮肤时没有这几张，照旧用得意 / 受伤）
+    if (xe && hasX(p.key, xe) && !p.disguise && !(window.Settings && Settings.skinOf(p.key))) expr(p, xe, base === "low" || base === "mourn" ? 2200 : 1700);   // v37 角色专属表情（穿皮肤时没有这几张，照旧用得意 / 受伤）
     else if (base === "exposed") expr(p, "exposed", 1800);
     else if (HURT_KEYS.includes(base) || base === "ev_fatfish") expr(p, "hurt", base === "out" ? 0 : 1600);
     else if (SMUG_KEYS.includes(base) || base.startsWith("ev_") || base.startsWith("guard_")) expr(p, base === "win" ? "win" : "smug", 1400);   // 赢的时候用胜利立绘（v30）
