@@ -16,7 +16,7 @@ window.Sound = (function () {
     menu: ["menu", "menu2", "menu3"],
     battle: ["bgm", "battle2", "battle3", "battle4", "battle5", "battle6", "battle7", "battle8", "battle9"], rage: ["rage"], harness: ["harness"], win: ["win"], lose: ["lose"],
   };
-  const level = () => S.musicVol * (duck ? 0.45 : 1) * (held ? 0.2 : 1);
+  const level = () => S.musicVol * (duck ? 0.45 : 1);
   function fade(a, to, ms, done) {
     const from = a.volume, t0 = performance.now(), id = a._fade = (a._fade || 0) + 1;   // 同一台又开始新的渐变：旧的这条自己停下
     const step = () => {
@@ -28,11 +28,8 @@ window.Sound = (function () {
     step();
   }
   // 换到某个场景的曲子（同一场景不重复切）
-  let held = false;
-  // v48 大招：时停时 0.15 秒内把 BGM 压到约 −14 dB（×0.2），放开时恢复
-  function hold(on) { held = !!on; if (bgm) fade(bgm, level(), on ? 150 : 250); }
-  function track(next, hard) {
-    if (next === "harness" && kind === "rage") { if (held) hold(false); return; }              // v48 吵上头的 rage 曲优先，不被 Harness 曲换掉
+  function track(next) {
+    if (next === "harness" && kind === "rage") return;              // v48 吵上头的 rage 曲优先，不被 Harness 曲换掉
     if (next === kind && bgm) { if (S.music && bgm.paused) bgm.play().catch(() => {}); return; }
     kind = next;
     const list = TRACKS[next] || TRACKS.battle;
@@ -41,7 +38,6 @@ window.Sound = (function () {
     lastPick = pool[Math.floor(Math.random() * pool.length)];
     a.pause(); a.src = src(`assets/music/${lastPick}.mp3`);
     a.loop = true; a.volume = 0; bgm = a;
-    if (hard) { held = false; if (old) { old.pause(); old.volume = 0; } if (S.music) { a.volume = level(); a.play().catch(() => {}); } return; }   // v48 Harness 曲：在强拍上直接进，不淡入
     if (old) fade(old, 0, 700, () => { if (old !== bgm) old.pause(); });
     if (S.music) { a.play().catch(() => {}); fade(a, level(), 900); }
   }
@@ -82,5 +78,5 @@ window.Sound = (function () {
   // 设置面板拖音量条：音乐实时变，音效 / 配音下一声生效
   function setVol(k, v) { S[k] = Math.max(0, Math.min(1, v)); save(); if (k === "musicVol" && bgm && S.music) bgm.volume = level(); }
   function hush(charKey) { const a = voices[charKey]; if (a) a.pause(); }   // v39 跳过对线特写：掐掉那句配音
-  return { S, DEF, music, track, hold, sfx, voice, hush, toggleSfx, setVol };
+  return { S, DEF, music, track, sfx, voice, hush, toggleSfx, setVol };
 })();
