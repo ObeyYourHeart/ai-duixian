@@ -53,7 +53,7 @@ window.Engine = (function () {
     rebootStart: 1, lordReboot: 0, lordDraw: 0, lordHp: 2, peekN: 3,                             // 开局每人发几张【重启】；剧透 / 插队看几张
     firewallRate: 0.3, powerbank: 2,
     qingkeCost: 1, qingkeDraw: 2,                         // 千问·请客：弃几张、送给别人时摸几张
-    banterRate: 0.35, chatterRate: 0.22,                  // 每轮开头随机斗嘴的概率；有人破防时路人在群里起哄的概率   // 宕机：每次检查爆的概率、伤害；防火墙拦截率；充电宝手牌上限
+    banterRate: 0.35, chatterRate: 0.22, clashRival: 0.7, clashRate: 0.35, clashMax: 3,   /* v39 对线特写：宿敌 / 其他关系触发率、一局最多几段 */                  // 每轮开头随机斗嘴的概率；有人破防时路人在群里起哄的概率   // 宕机：每次检查爆的概率、伤害；防火墙拦截率；充电宝手牌上限
     bundleLook: 3, bundleKeep: 2, bundleRival: false,     // 千问·全家桶：亮出几张、自己留几张、送牌是否只能送对手
     bundleRandom: true,                                   // 千问·全家桶：剩下那张随机送人（不用选目标）
     penCounts: true,                                       // v36 Gemini 妙笔：占一次吐槽次数（不占时乱斗 47 / 单挑 65）
@@ -434,6 +434,20 @@ window.Engine = (function () {
       const stars = al.filter((p) => [].concat(ev.who).includes(p.key) && p.ch.lines["ev_" + ev.id]);
       for (const p of (ev.id === "bench" || ev.id === "fatfish") ? stars : stars.slice(0, 1)) await this.talk(p, "ev_" + ev.id, 3000);   // 双主角的（刷分王 / 大肥鱼）两人都接一句
     }
+    // v39 宿敌对线特写：p 吐槽 t 时，斗嘴配对里有「p 先说、t 回嘴」的一组（这局还没说过）就演一段；
+    //   宿敌 70%、其他关系 35%；同一对一局一次，一局最多 clashMax 段。模拟（speed 0）不演，也不耗随机数
+    clashPair(p, t) {
+      if (!(E.speed > 0) || !this.ui.clash || p.disguise || t.disguise || !t.alive) return null;
+      this.clashN = this.clashN || 0; this.clashDone = this.clashDone || new Set();
+      const duo = [p.key, t.key].sort().join("|");
+      if (this.clashN >= T.clashMax || this.clashDone.has(duo)) return null;
+      const used = this.banterUsed || new Set();
+      const ok = (window.GAME_DATA.pairs || []).filter((pr) => pr[0] === p.key && pr[2] === t.key && !used.has(pr[0] + pr[1]) && (!this.skinOk || this.skinOk(pr)) && p.ch.lines[pr[1]] && t.ch.lines[pr[3]]);
+      if (!ok.length || Math.random() > (this.relation(p, t) === "rival" ? T.clashRival : T.clashRate)) return null;
+      const pr = ok[rnd(ok.length)];
+      this.clashN++; this.clashDone.add(duo); used.add(pr[0] + pr[1]);
+      return pr;
+    }
     // 中途斗嘴：挑一组还都在群里、这局没说过的
     async banter() {
       const by = (k) => this.players.find((q) => q.key === k && q.alive);
@@ -656,8 +670,12 @@ window.Engine = (function () {
       if (d.target === "one") this.ui.log(p, `对 ${tnames} 使用了<b>【${d.name}】</b>`);
       else this.ui.log(p, `使用了<b>【${d.name}】</b>`);
       if (card.k === "tucao") {
-        const t = targets[0], special = t && p.ch.lines[t.key] && this.relation(p, t) === "rival" && Math.random() < 0.5;
-        this.ui.say(p, special ? t.key : "attack");
+        const t = targets[0], pr = t && this.clashPair(p, t);
+        if (pr) await this.ui.clash(p, t, pr[1], pr[3]);              // v39 宿敌对线特写：一来一回各一句
+        else {
+          const special = t && p.ch.lines[t.key] && this.relation(p, t) === "rival" && Math.random() < 0.5;
+          this.ui.say(p, special ? t.key : "attack");
+        }
       }
       else if (card.k === "naicha" || card.k === "tuanjian") this.ui.say(p, "heal");
       else if (Math.random() < 0.4) this.ui.say(p, "trick");

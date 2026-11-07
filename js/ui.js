@@ -616,6 +616,7 @@ window.UI = (function () {
     await flyEl(e, src, jitter, 330, 0.55, 1);
     if (!g) { e.remove(); return; }
     for (const t of targets) arrow(center(p), center(t));
+    if (targets.length === 1 && targets[0] !== p) { lean(p, targets[0], 18); lastHit = { from: p, to: targets[0], at: performance.now() }; }   // v39 出手的人朝目标探一下身
     if (targets.length) Sound.sfx("whoosh_little", 0.6);
     const pile = $("#pile");
     e.remove();
@@ -717,8 +718,16 @@ window.UI = (function () {
       if (K.zzz) shakeHero(p);
     }
   }
+  // v39 互动姿态：出手的人朝目标前倾一下，挨打的人往后仰（只用 translate，不和卡片自身的抖动 / 缩放打架；不晃整个画面）
+  let lastHit = null;
+  function lean(p, t, px) {
+    const h = heroes[p.i]; if (!h || !t) return;
+    const a = center(p), b = center(t), d = Math.hypot(b.x - a.x, b.y - a.y) || 1, dx = (b.x - a.x) / d * px, dy = (b.y - a.y) / d * px;
+    h.animate([{ translate: "0 0" }, { translate: `${dx}px ${dy}px`, offset: 0.4 }, { translate: "0 0" }], { duration: 420 * Math.max(0.6, Engine.speed), easing: "cubic-bezier(.3,.7,.4,1)" });
+  }
   function damage(p, n) {
     const h = heroes[p.i];
+    if (lastHit && lastHit.to === p && performance.now() - lastHit.at < 2500 && lastHit.from !== p) lean(p, lastHit.from, -14);   // 挨打：往后仰
     h.classList.remove("shake"); void h.offsetWidth; h.classList.add("shake");
     h.querySelector(".flash").animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500 });
     floatText(p, `破防 -${n}`);
@@ -749,6 +758,47 @@ window.UI = (function () {
     const sk = p.ch.skills.find((x) => x.name === name);
     c.innerHTML = `<img src="${p.disguise ? portrait("xds_cl", sk && sk.id === "disguise" ? "change" : "smug") : portrait(p.key, sk && sk.art ? sk.art : sk && sk.id === "live" ? "live" : "smug")}" alt=""><div class="ct2">${p.name} 发动技能</div><div class="ct1">${name}</div>${sk && sk.short ? `<div class="ct3">${sk.short}</div>` : ""}`;
     $("#fx").appendChild(c); setTimeout(() => c.remove(), 1300 * Engine.speed + 100);
+  }
+  // v39 宿敌对线特写：两人面对面的半屏特写，一来一回各说一句（斗嘴配对里的台词，配好了音）。点一下 / Esc 跳过
+  let clashSkip = null;
+  function clashLine(p, key) {
+    const arr = p.ch.lines[key] || []; if (!arr.length) return { text: "", ms: 0 };
+    const idx = Math.floor(Math.random() * arr.length);
+    Sound.voice(p.key, key, idx);
+    return { text: arr[idx], ms: (window.VOICES || {})[`${p.key}_${key}${idx}`] || arr[idx].length * 160 };
+  }
+  async function clash(a, b, ka, kb) {
+    if (!g || !heroes[a.i] || !heroes[b.i]) return;
+    const tok = actTok, sp = Math.max(0.6, Engine.speed);
+    const box = el("div", "clash" + (PORTRAIT ? " tall" : ""));
+    box.style.setProperty("--ca", a.ch.color); box.style.setProperty("--la", a.ch.light);
+    box.style.setProperty("--cb", b.ch.color); box.style.setProperty("--lb", b.ch.light);
+    box.innerHTML = `<div class="cl-band"></div><img class="cl-a" src="${portrait(pkey(a), "smug")}" alt=""><img class="cl-b" src="${portrait(pkey(b), "base")}" alt="">
+      <div class="cl-tag">对线</div><div class="cl-n cl-na">${a.name}</div><div class="cl-n cl-nb">${b.name}</div>
+      <div class="cl-say cl-sa"></div><div class="cl-say cl-sb"></div>`;
+    $("#fx").appendChild(box);
+    let skipped = false, wake = null;
+    const nap = (ms) => new Promise((r) => { wake = r; setTimeout(r, ms); });
+    clashSkip = () => { skipped = true; if (wake) wake(); };
+    box.onclick = clashSkip;
+    Sound.sfx("whoosh_little", 0.5);
+    await nap(380 * sp);
+    if (!skipped && g && actTok === tok) {
+      const s1 = clashLine(a, ka), q1 = box.querySelector(".cl-sa");
+      q1.textContent = s1.text; q1.classList.add("on");
+      await nap(Math.min(3200, s1.ms) + 250);
+    }
+    if (!skipped && g && actTok === tok) {
+      box.querySelector(".cl-b").src = portrait(pkey(b), "smug");
+      box.querySelector(".cl-b").animate([{ transform: "scale(1.05)" }, { transform: "scale(1)" }], { duration: 220, easing: "ease-out" });
+      const s2 = clashLine(b, kb), q2 = box.querySelector(".cl-sb");
+      q2.textContent = s2.text; q2.classList.add("on");
+      await nap(Math.min(3200, s2.ms) + 350);
+    }
+    clashSkip = null;
+    if (skipped && Sound.hush) { Sound.hush(a.key); Sound.hush(b.key); }
+    box.classList.add("bye"); setTimeout(() => box.remove(), 220);
+    lastSay.t = performance.now();
   }
   // 变身：换伪装立绘、名牌改成“Claude？”
   function disguise(p, on) {
@@ -1130,8 +1180,11 @@ window.UI = (function () {
     const me = game.human, w = game.winner;
     const winners = game.winners || [w];
     const won = winners.includes(me);
-    if (w) say(w, "win", true);
-    Sound.sfx(won ? "fanfare" : "sadtrumpet", 0.8);
+    const winMs = (w && say(w, "win", true)) || 1800;
+    // v39 结算补刀：赢家说完，输家里跟她有斗嘴台词的（宿敌优先）不服气地接一句，显示在结算框里
+    const pairs = (window.GAME_DATA.pairs || []).filter((pr) => w && pr[2] === w.key && pr[0] !== w.key && (!g.skinOk || g.skinOk(pr)));
+    const sore = game.players.filter((q) => q !== w && !winners.includes(q) && !q.disguise).map((q) => ({ q, prs: pairs.filter((pr) => pr[0] === q.key && (q.ch.lines[pr[1]] || []).length) })).filter((x) => x.prs.length)
+      .sort((x, y) => (game.relation(y.q, w) === "rival") - (game.relation(x.q, w) === "rival"))[0];
     Sound.track(won ? "win" : "lose");
     if (won) setTimeout(() => Sound.sfx("cheer", 0.6), 400);
     let title, sub, rank;
@@ -1161,6 +1214,17 @@ window.UI = (function () {
       <div class="rbtn"><button class="btn primary" id="btn-again">再来一局</button><button class="btn" id="btn-change">换角色</button></div></div></div>`;
     $("#modal-close").style.display = "none";
     $("#modal").classList.remove("hidden");
+    if (sore && !w.disguise) {
+      const pr = sore.prs[Math.floor(Math.random() * sore.prs.length)], arr = sore.q.ch.lines[pr[1]], idx = Math.floor(Math.random() * arr.length);
+      const tok = actTok;
+      setTimeout(() => {
+        const rr = document.querySelector("#modal .result .rr"); if (!rr || actTok !== tok || $("#modal").classList.contains("hidden")) return;
+        const e = el("div", "rq", `<img src="${portrait(sore.q.key, "avatar")}" alt=""><b>${sore.q.name}</b><span>${arr[idx]}</span>`);
+        e.style.setProperty("--c", sore.q.ch.color);
+        rr.insertBefore(e, rr.querySelector(".rank"));
+        Sound.voice(sore.q.key, pr[1], idx);
+      }, winMs + 400);
+    }
     $("#btn-again").onclick = () => { $("#modal").classList.add("hidden"); $("#modal-close").style.display = ""; window.Main.again(); };
     $("#btn-change").onclick = () => { $("#modal").classList.add("hidden"); $("#modal-close").style.display = ""; window.Main.toSelect(); };
   }
@@ -1186,6 +1250,7 @@ window.UI = (function () {
       if (e.key === "Enter") { const b = $("#modal-body .pkgo .btn.primary"); if (b) b.click(); }
       return;
     }
+    if (e.key === "Escape" && clashSkip) { clashSkip(); return; }
     if (e.key === "Escape" && infoP) { hideHeroInfo(); return; }
     if (!SET().keys && e.key !== "Escape") return;
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
@@ -1226,6 +1291,6 @@ window.UI = (function () {
     const tip = $("#ctip"); if (tip) tip.className = "hidden";
   }
 
-  return { skinKey, attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, skillNote, band, banner, news, phase, toast,
+  return { skinKey, attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, clash, skillNote, band, banner, news, phase, toast,
     humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr, throwProp, asset: A };
 })();

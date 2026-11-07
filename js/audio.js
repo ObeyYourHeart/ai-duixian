@@ -76,5 +76,6 @@ window.Sound = (function () {
   function toggleSfx() { S.sfx = !S.sfx; save(); return S.sfx; }
   // 设置面板拖音量条：音乐实时变，音效 / 配音下一声生效
   function setVol(k, v) { S[k] = Math.max(0, Math.min(1, v)); save(); if (k === "musicVol" && bgm && S.music) bgm.volume = level(); }
-  return { S, DEF, music, track, sfx, voice, toggleSfx, setVol };
+  function hush(charKey) { const a = voices[charKey]; if (a) a.pause(); }   // v39 跳过对线特写：掐掉那句配音
+  return { S, DEF, music, track, sfx, voice, hush, toggleSfx, setVol };
 })();
