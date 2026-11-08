@@ -1159,3 +1159,7 @@ body.ult-on #known, body.ult-on .skpop { visibility: hidden; }
 body.hinfo-on #fx .bubble { opacity: 0; transition: opacity .15s; }   /* v50 详情弹窗开着时，说话气泡先隐去 */
 #modal.rp-open > .modal-box { visibility: hidden; }   /* v50 战报盖住结算框时，结算框不用再画 */
 #modal.rp-open #report { background: none; }
+/* v50 手机显卡减负：对局里的玻璃按钮不再实时模糊背后（手机上牌飞过、大招全屏特效时每帧都要重算十几处模糊），底色调实一点，看起来差不多 */
+#stage.tiny #scr-game .btn, #stage.tiny #scr-game .icon, #stage.portrait #scr-game .btn, #stage.portrait #scr-game .icon,
+body.ult-on #scr-game .btn, body.ult-on #scr-game .icon { backdrop-filter: none; -webkit-backdrop-filter: none; }
+#stage.tiny #scr-game .btn, #stage.tiny #scr-game .icon, #stage.portrait #scr-game .btn, #stage.portrait #scr-game .icon { background-color: rgba(255, 255, 255, .8); }

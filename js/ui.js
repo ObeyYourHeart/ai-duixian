@@ -97,6 +97,7 @@ window.UI = (function () {
     const seats = $("#seats"); seats.innerHTML = "";
     $("#pile").innerHTML = ""; $("#chat-list").innerHTML = ""; $("#fx").innerHTML = ""; skillSig = "";
     $("#chat-n").textContent = g.players.length;
+    setTimeout(() => warmUlt(game), 2500);                          // v50 开局后趁空把大招文字先排一遍，第一次开大招不再卡一下
     $("#chat-name").textContent = g.nation ? "AI 全明星赛" : "AI娘 相亲相爱一家人";
     for (const p of g.players) {
       const h = el("div", "hero" + (p.ch.skills.some((s) => s.id === "rehearse") ? " has-band" : ""));
@@ -623,7 +624,7 @@ window.UI = (function () {
     if (p.human) { wrap.style.left = q.x + 20 + "px"; wrap.style.top = q.y - 14 + "px"; wrap.style.transform = "translateY(-100%)"; }
     else { wrap.style.left = Math.max(8, Math.min(q.x + 6, SW - 330)) + "px"; wrap.style.top = q.y + HERO_H * seatScale(p) + 14 + "px"; }
     $("#fx").appendChild(wrap);
-    { const w = wrap.offsetWidth, l = parseFloat(wrap.style.left); if (l + w > SW - 8) wrap.style.left = Math.max(8, SW - w - 8) + "px"; }   // v50 竖屏气泡更宽，按实际宽度收回屏内
+    if (!p.human) { const l = Math.min(parseFloat(wrap.style.left), SW - 180); wrap.style.left = l + "px"; wrap.style.maxWidth = SW - l - 8 + "px"; }   // v50 气泡别出屏：按剩余宽度限宽（不读 offsetWidth，读一次就要整页重排，说一句卡一下）
     const xe = (XEXPR[p.key] || {})[base];
     if (xe && hasX(p.key, xe) && !p.disguise && !(window.Settings && Settings.skinOf(p.key))) expr(p, xe, base === "low" || base === "mourn" ? 2200 : 1700);   // v37 角色专属表情（穿皮肤时没有这几张，照旧用得意 / 受伤）
     else if (base === "exposed") expr(p, "exposed", 1800);
@@ -637,10 +638,9 @@ window.UI = (function () {
   function flyEl(e, from, to, ms, scale0 = 0.6, scale1 = 1) {
     e.style.position = "absolute"; e.style.left = "0px"; e.style.top = "0px"; e.style.margin = "0";
     $("#fx").appendChild(e);
-    const w = e.offsetWidth || CARD_W, h = e.offsetHeight || CARD_H;
-    const anim = e.animate([
-      { transform: `translate(${from.x - w / 2}px, ${from.y - h / 2}px) scale(${scale0})`, opacity: 0.6 },
-      { transform: `translate(${to.x - w / 2}px, ${to.y - h / 2}px) scale(${scale1})`, opacity: 1 }],
+    const anim = e.animate([                                         // v50 不读 offsetWidth（读一次整页重排）：用 -50% 让元素自己居中
+      { transform: `translate(${from.x}px, ${from.y}px) translate(-50%, -50%) scale(${scale0})`, opacity: 0.6 },
+      { transform: `translate(${to.x}px, ${to.y}px) translate(-50%, -50%) scale(${scale1})`, opacity: 1 }],
       { duration: ms * Engine.speed, easing: "cubic-bezier(.2,.8,.3,1)", fill: "forwards" });
     // 动画万一没播完（画面卡顿、标签页在后台），最多多等 0.4 秒也继续，游戏不会卡住
     return Promise.race([anim.finished, new Promise((r) => setTimeout(r, ms * Engine.speed + 400))]).then(() => e, () => e);
@@ -917,9 +917,12 @@ window.UI = (function () {
     return c;
   }
   // 粒子：一个 canvas、一条 rAF；聚拢 / 爆开 / 飞回三种
+  // v50 画在不在页面里的离屏画布上、每帧整张贴到屏幕：页面里的画布每次写字（fillText）都要先把整页样式算一遍，大招时每帧几十次
+  function offCtx(cv) { const b = document.createElement("canvas"); b.width = cv.width; b.height = cv.height; const x = b.getContext("2d"), v = cv.getContext("2d");
+    x.flush = () => { v.clearRect(0, 0, cv.width, cv.height); v.drawImage(b, 0, 0); }; return x; }
   function particles(cv, key, color) {
-    const x = cv.getContext("2d"), P = [], U = ULT[key] || ULT.claude, dpr = 1;   // 粒子小，1 倍分辨率够用（旧 iPad 上省一半以上）
-    cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr; x.scale(dpr, dpr);
+    const P = [], U = ULT[key] || ULT.claude, dpr = 1;   // 粒子小，1 倍分辨率够用（旧 iPad 上省一半以上）
+    cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr; const x = offCtx(cv); x.scale(dpr, dpr);
     let raf = 0, last = performance.now();
     const draw = (q) => {
       x.globalAlpha = Math.max(0, Math.min(1, q.life / q.max * 1.5)); x.save(); x.translate(q.x, q.y); x.rotate(q.r);
@@ -946,6 +949,7 @@ window.UI = (function () {
         else { q.x += q.vx * dt; q.y += q.vy * dt; q.vy += (q.g || 0) * dt; q.vx *= 0.985; q.vy *= 0.985; }
         q.r += q.vr * dt; draw(q);
       }
+      x.flush();
       raf = P.length ? requestAnimationFrame(tick) : 0;
     };
     const go = () => { if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick); } };
@@ -959,7 +963,7 @@ window.UI = (function () {
         go();
       },
       home(fx, fy, tx, ty, n) { for (let k = 0; k < n; k++) add({ x: fx + (Math.random() - .5) * 240, y: fy + (Math.random() - .5) * 320, to: [tx, ty], life: 0.45 + Math.random() * 0.2 }); go(); },
-      stop() { P.length = 0; if (raf) cancelAnimationFrame(raf); raf = 0; x.clearRect(0, 0, cv.width, cv.height); },
+      stop() { P.length = 0; if (raf) cancelAnimationFrame(raf); raf = 0; x.clearRect(0, 0, cv.width, cv.height); x.flush(); },
     };
   }
   function ultSlash(box, p, key) {                                   // 斜切光带：主题色流光 + 眼部特写（从发动帧裁，不缩放变形）
@@ -992,11 +996,11 @@ window.UI = (function () {
     } else if (style === "B") {                                         // 终端接管：主题色接管 + 专属符号雨 + 四边 HUD 启动自检 → 整屏碎成光点
       add("ub-tint");
       const cv = document.createElement("canvas"); cv.className = "ub-rain"; box.appendChild(cv); cv.width = W; cv.height = H;
-      const x = cv.getContext("2d"), g = GLY[key] || "✦", cols = Math.ceil(W / 46), drops = Array.from({ length: cols }, () => -Math.random() * H * 0.8), sp = Array.from({ length: cols }, () => 600 + Math.random() * 700);
+      const x = offCtx(cv), g = GLY[key] || "✦", cols = Math.ceil(W / 46), drops = Array.from({ length: cols }, () => -Math.random() * H * 0.8), sp = Array.from({ length: cols }, () => 600 + Math.random() * 700);
       x.font = "700 34px Consolas, monospace"; x.textAlign = "center"; let last = performance.now(), live = true, t0 = last;
       const tick = (now) => { if (!live) return; const dt = Math.min(0.05, (now - last) / 1000); last = now; x.clearRect(0, 0, W, H);
         for (let c = 0; c < cols; c++) { drops[c] += sp[c] * dt; for (let k = 0; k < 6; k++) { const y = drops[c] - k * 42; if (y < -40 || y > H + 40) continue; x.globalAlpha = k ? (1 - k / 6) : 1; x.fillStyle = k ? tc.color : "#fff"; x.fillText(k % 3 === 2 ? "1" : g, c * 46 + 23, y); } }
-        if (now - t0 < 900) requestAnimationFrame(tick); };
+        x.flush(); if (now - t0 < 900) requestAnimationFrame(tick); };
       requestAnimationFrame(tick); at(1000, () => { live = false; cv.remove(); });
       add("ub-hud ub-top", `<b>HARNESS BOOT</b><span>${name}</span><i></i>`);
       add("ub-hud ub-left", ["load model", "mount tools", "link skills", "sync memory"].map((t, k) => `<p style="animation-delay:${0.12 + k * 0.1}s"><em>✓</em> ${t}</p>`).join(""));
@@ -1020,7 +1024,7 @@ window.UI = (function () {
     const W = fx.width, H = fx.height, cx = W / 2, cy = H * 0.46, C = tc.color, DUR = 1.05;
     add("ug-tint");
     const cv = document.createElement("canvas"); cv.className = "ug-cv"; box.appendChild(cv); cv.width = W; cv.height = H;
-    const x = cv.getContext("2d"), seats = g ? g.players.filter((q) => q !== p && q.alive).map(center) : [];
+    const x = offCtx(cv), seats = g ? g.players.filter((q) => q !== p && q.alive).map(center) : [];
     const ease = (v) => 1 - Math.pow(1 - Math.max(0, Math.min(1, v)), 3), clamp = (v) => Math.max(0, Math.min(1, v));
     const font = (px, w = 700, f = "'Cambria Math','Times New Roman',serif") => { x.font = `${w} ${px}px ${f}`; };
     const sup = (base, s, X, Y, px) => { font(px); x.fillText(base, X, Y); const bw = x.measureText(base).width; font(px * 0.58); x.fillText(s, X + bw + 2, Y - px * 0.42); font(px); };
@@ -1101,9 +1105,21 @@ window.UI = (function () {
       };
     }
     let live = true; const t0 = performance.now();
-    const tick = (now) => { if (!live) return; const t = (now - t0) / 1000; x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, W, H); x.globalAlpha = 1; draw(t); x.globalAlpha = 1; if (t < DUR) requestAnimationFrame(tick); };
+    const tick = (now) => { if (!live) return; const t = (now - t0) / 1000; x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, W, H); x.globalAlpha = 1; draw(t); x.globalAlpha = 1; x.flush(); if (t < DUR) requestAnimationFrame(tick); };
     requestAnimationFrame(tick);
     at(DUR * 1000 - 200, () => box.classList.add("ug-out")); at(DUR * 1000 + 150, () => { live = false; cv.remove(); });
+  }
+  // v50 预热：大招里的技能名大字 / HUD 文字 / canvas 字形第一次排版要现场整形（慢手机上卡一下），开局后隐藏地先排一遍
+  function warmUlt(game) {
+    if (game !== g || !$("#fx")) return;
+    const idle = window.requestIdleCallback ? (f) => requestIdleCallback(f, { timeout: 4000 }) : (f) => setTimeout(f, 200);
+    const host = el("div"); host.style.cssText = "position:absolute;left:0;top:0;width:10px;height:10px;overflow:hidden;visibility:hidden;pointer-events:none;contain:strict"; $("#fx").appendChild(host);
+    const steps = game.players.filter((p) => p.ch.harness).map((p) => () => { host.innerHTML = `<div class="un-big">${p.ch.harness.name}</div><div class="un-sub">HARNESS ONLINE</div>`; void host.offsetHeight; });
+    steps.push(() => { host.innerHTML = `<div class="ub-hud"><b>HARNESS BOOT</b><span>DEPLOY 100%</span><p><em>✓</em> load model mount tools link skills sync memory</p>0123456789abcdef ·</div>`; void host.offsetHeight; });
+    steps.push(() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+      for (const f of ["700 34px Consolas, monospace", "700 44px 'Cambria Math','Times New Roman',serif", "700 22px Consolas, monospace"]) { x.font = f; x.fillText(Object.values(GLY).join("") + "∫Σπ∞√∇∂e+1=0dx ACCESS GRANTED CVE-", 0, 30); } host.remove(); });
+    const run = () => { if (game !== g) { host.remove(); return; } const f = steps.shift(); if (f) { f(); if (steps.length) idle(run); } };
+    idle(run);
   }
   function deployShow(p, cmd, name) {
     if (!(Engine.speed > 0)) return Promise.resolve(false);
