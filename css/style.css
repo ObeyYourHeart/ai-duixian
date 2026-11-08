@@ -453,7 +453,8 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .rc { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; font-size: 14px; }
 .rc img { width: 120px; border-radius: 12px; }
 .rc b { font-family: var(--title); font-size: 22px; }
-.pickrow { display: flex; gap: 20px; justify-content: center; padding: 16px; }
+.pickrow { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; padding: 16px; }
+.pickrow .card { flex: none; }   /* v50 许愿一次 10 张：换行排两排，别把牌挤窄（图被裁、字被拆行） */
 .pickrow .card { position: relative; }
 .result { display: flex; gap: 30px; align-items: center; }
 .result img { width: 360px; }
@@ -571,7 +572,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #stage.portrait #known { font-size: 20px; top: auto; bottom: 20px; }
 
 /* v16 技能好懂一点：角色详情卡 */
-#hinfo { position: absolute; z-index: 40; width: 400px; max-height: 620px; overflow-y: auto; scrollbar-width: thin; background: #fff; border: 4px solid var(--c); border-radius: 22px;
+#hinfo { position: absolute; z-index: 42; width: 400px; max-height: 620px; overflow-y: auto; scrollbar-width: thin; background: #fff; border: 4px solid var(--c); border-radius: 22px;
   box-shadow: 0 10px 30px rgba(70, 50, 140, .25); padding: 14px 16px 12px; color: #3d3566; }
 #hinfo.hidden { display: none; }
 #hinfo .hi-head { display: flex; align-items: center; gap: 12px; }
@@ -607,6 +608,12 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
   border: 2px dashed #b9b2dc; border-radius: 14px; padding: 4px 12px; cursor: help; }
 #skillbox .pchip small { font-family: var(--body, inherit); font-size: 13px; font-weight: 800; color: #8b6cf0; }
 #skillbox .pchip.off { opacity: .55; }
+/* v50 技能多的角色（Claude 4 个主动 + Harness + 被动）：技能栏收紧一号，提示和【结束回合】不被挤出去 */
+#skillbox.dense { gap: 6px; }
+#skillbox.dense .btn { font-size: 18px; padding: 5px 11px; }
+#skillbox.dense .pchip { font-size: 15px; padding: 2px 9px; }
+#skillbox.dense .pchip small { font-size: 11px; }
+#skillbox.dense kbd { margin-left: 4px; }
 #stage.portrait #skillbox .pchip { font-size: 23px; }
 /* 技能触发：名字 + 一句话 */
 .skpop { position: absolute; z-index: 45; transform: translate(-50%, 0); white-space: nowrap; background: #fff; border: 3px solid var(--c); border-radius: 16px; padding: 4px 14px;
@@ -642,7 +649,9 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 #stage.tiny #hinfo .hi-short { font-size: 28px; } #stage.tiny #hinfo .hi-desc { font-size: 22px; }
 #stage.tiny #ctip { font-size: 28px; max-width: 700px; }
 #stage.tiny .skpop b { font-size: 38px; } #stage.tiny .skpop span { font-size: 24px; }
-#stage.tiny #skillbox .pchip { font-size: 24px; }
+#stage.tiny #skillbox .pchip { font-size: 18px; padding: 2px 9px; }   /* v50 手机横屏：被动标签原来 24px 一个占一行，把提示和【结束回合】挤没了 */
+#stage.tiny #skillbox .pchip.hzc { display: none; }   /* Harness 状态自己角色卡底部的部署条已经有了 */
+#stage.tiny #skillbox .pchip small { font-size: 13px; }
 
 /* v16b 选人界面：上面头像 + 基本信息，下面整宽技能列表，按钮在底 */
 /* v32 选人详情：左边一整列放完整立绘（不放大裁切），右边名字 / 简介 / 技能，按钮横在最下面 */
@@ -1133,11 +1142,18 @@ body.ult-on #known, body.ult-on .skpop { visibility: hidden; }
 .hero .hzbar b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; color: var(--c); }
 .hero .hzbar i { flex: 1; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--c) calc(var(--f) * 100%), #e4e0f0 0); }
 .hero .hzbar em { font-style: normal; color: #8a85a3; }
-.hero .hzbar.on { background: linear-gradient(90deg, #b8860b, #f0c040, #b8860b); background-size: 200% 100%; animation: hzFlow 2.5s linear infinite; color: #fff; justify-content: center; }
+.hero .hzbar.on { background: linear-gradient(90deg, #b8860b, #f0c040, #b8860b); color: #fff; justify-content: center; overflow: hidden; }
+/* v50 卡顿：原来动 background-position，每帧都要重画整张角色卡；改成一道光用 transform 扫过（只走合成，不重画） */
+.hero .hzbar.on::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .55), transparent); transform: translateX(-120%); animation: hzShine 2.5s linear infinite; will-change: transform; }
+.hero .hzbar.on b, .hero .hzbar.on em { position: relative; z-index: 1; }
+@keyframes hzShine { to { transform: translateX(260%); } }
 .hero .hzbar.on b { color: #fff; max-width: none; } .hero .hzbar.on em { color: #fff8dc; letter-spacing: 2px; }
-@keyframes hzFlow { to { background-position: -200% 0; } }
 .hero .status .hz { display: none; }
-.hero:has(.hzbar:not(.none)) .plate { padding-bottom: 22px; }                  /* 部署条放进名牌底部 */
+.hero.hzp .plate { padding-bottom: 22px; }                  /* 部署条放进名牌底部 */
 .hero .hzbar { font-size: 10px; background: rgba(255, 255, 255, .9); }
 .hero .hzbar.on em { font-size: 8px; letter-spacing: 1px; opacity: .9; }       /* ONLINE 比技能名小 */
 .hero .hzbar.on b { font-size: 11px; }
+#stage.portrait #skillbox.dense .btn, #stage.tiny #skillbox.dense .btn { font-size: 21px; padding: 6px 12px; }   /* v50 竖屏 / 小屏也收紧 */
+#stage.portrait #skillbox.dense .pchip { font-size: 18px; padding: 3px 10px; }
+body.hinfo-on #fx .bubble { opacity: 0; transition: opacity .15s; }   /* v50 详情弹窗开着时，说话气泡先隐去 */

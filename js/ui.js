@@ -176,7 +176,7 @@ window.UI = (function () {
       { const hb = h.querySelector(".hzbar");                                  // v48 Harness 部署条：名牌上方一条细进度条（不再挤在状态标签里）
         if (hb) { const H = p.ch.harness, n = g.deployNeed(p), d = Math.min(n, p.deploy || 0), nm = p.key === "xds" ? (p.disguise ? "Claude Code" : "DSH") : H && H.name;
           const sig = !H || !p.alive ? "" : p.deployed ? "on|" + nm : d + "/" + n + nm;
-          if (hb.dataset.s !== sig) { hb.dataset.s = sig; hb.className = "hzbar" + (!sig ? " none" : p.deployed ? " on" : "");
+          if (hb.dataset.s !== sig) { hb.dataset.s = sig; hb.className = "hzbar" + (!sig ? " none" : p.deployed ? " on" : ""); h.classList.toggle("hzp", !!sig);   // v50 不用 :has()（每次改 DOM 都要重算，平板上卡）
             hb.innerHTML = !sig ? "" : p.deployed ? `<b>${nm}</b><em>ONLINE</em>` : `<b>${nm}</b><i style="--f:${(d / n).toFixed(3)}"></i><em>${d}/${n}</em>`; hb.title = H ? H.short : ""; } } }
       for (const eq of g.equips(p)) st += `<span class="eq${CD[eq.k].owner ? " zw" : ""}">${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`;   // 分格后可能不止一件
       if (p.cloud) st += '<span class="eq zw">☁ 云端任务跑着</span>';                                       // v47 Codex
@@ -326,7 +326,7 @@ window.UI = (function () {
     const relRow = rel ? ((window.GAME_DATA.relations || []).find(([a, b]) => (a === p.key && b === me.key) || (a === me.key && b === p.key)) || [])[3] : "";
     const side = g.mode === "team" && p !== me ? (g.nation ? `${((window.GAME_DATA.nations || {})[p.ch.nation] || {}).name} · ` : "") + (p.team === me.team ? "队友" : "对手") : g.mode === "id5" ? (p.role === "lord" || p.human || p.revealed ? Engine.ROLE[p.role] : "身份未知") : "";
     const st = heroStatus(p);
-    box.style.setProperty("--c", p.ch.color); box.style.setProperty("--l", p.ch.light);
+    box.style.setProperty("--c", p.ch.color); box.style.setProperty("--l", p.ch.light); document.body.classList.add("hinfo-on");   // v50 详情开着时藏起说话气泡（气泡那层更高，会盖住技能说明）
     box.innerHTML = `<div class="hi-head"><img src="${portrait(p.key, "avatar")}" alt=""><div class="hi-nm"><b>${p.name}</b></div><button class="hi-x" title="关闭">✕</button></div>
       <div class="hi-stat"><span>❤ 心态 ${Math.max(0, p.hp)} / ${p.maxHp}</span><span>🂠 手牌 ${p.hand.length}（上限 ${g.handLimit(p)}）</span>${g.equips(p).map((eq) => `<span>${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`).join("")}${p.cloud ? "<span>☁ 云端任务跑着</span>" : ""}${p.plugins && p.plugins.length ? `<span>🔌 插件：${p.plugins.map((c) => CD[c.k].name).join("、")}</span>` : ""}${side ? `<span>${side}</span>` : ""}${p.alive ? "" : "<span>已退群</span>"}</div>
       ${st.length ? `<div class="hi-st">${st.join(" · ")}</div>` : ""}
@@ -352,7 +352,7 @@ window.UI = (function () {
     box.style.left = x + "px"; box.style.top = y + "px";
     const f = box.querySelector(".hi-sk.focus"); if (f) f.scrollIntoView({ block: "nearest" });
   }
-  function hideHeroInfo() { infoP = null; const b = $("#hinfo"); if (b) b.className = "hidden"; }
+  function hideHeroInfo() { infoP = null; document.body.classList.remove("hinfo-on"); const b = $("#hinfo"); if (b) b.className = "hidden"; }
 
   // v37 装备冲突：这张装备会把同一格里现有的那件换下来（旧的进弃牌堆）→ 手牌角标 + 浮窗提醒；一键出牌 / 双击时先选中、不直接换
   function swapOld(c) { return CD[c.k].type === "equip" && g.eqIn ? g.eqIn(g.human, c.k) : null; }
@@ -470,6 +470,7 @@ window.UI = (function () {
     if (sig !== skillSig || !box.firstChild) {
       skillSig = sig;
       box.innerHTML = "";
+      box.classList.toggle("dense", acts.length >= 4 || acts.length + pas.length + (me.ch.harness ? 1 : 0) >= 6);
       acts.forEach(({ s, left, ready }, ki) => {
         const b = el("button", "btn small" + (skillMode === s.id ? " primary" : ready ? " sk-ready" : ""), `${s.name}${left}` + (SET().keys && ki < 3 ? `<kbd>${"QWE"[ki]}</kbd>` : ""));
         b.title = `【${s.name}】${s.short || ""}——${s.desc}` + (ready ? "（现在能用）" : "");
@@ -480,7 +481,8 @@ window.UI = (function () {
         w.appendChild(b); box.appendChild(w);
       });
       if (me.ch.harness) {                                          // v48 Harness：单独一个金色小牌，没上线灰着显示进度
-        const H = me.ch.harness, ch = el("span", "pchip hzc" + (me.deployed ? "" : " off"), `Harness · ${H.name}<small>${me.deployed ? "已上线" : `部署 ${hz}`}</small>`);
+        const H = me.ch.harness, dup = acts.some((a) => H.ids.includes(a.s.id));   // Harness 本身就是上面的技能按钮（Claude Code）时只写 Harness，省一行
+        const ch = el("span", "pchip hzc" + (me.deployed ? "" : " off"), `${dup ? "Harness" : `Harness · ${H.name}`}<small>${me.deployed ? "已上线" : `部署 ${hz}`}</small>`);
         ch.title = `【${H.name}】${H.short}（每打出 1 张牌部署 +1，满格上线）`;
         ch.onclick = (ev) => { ev.stopPropagation(); showHeroInfo(me); };
         box.appendChild(ch);
@@ -621,6 +623,7 @@ window.UI = (function () {
     if (p.human) { wrap.style.left = q.x + 20 + "px"; wrap.style.top = q.y - 14 + "px"; wrap.style.transform = "translateY(-100%)"; }
     else { wrap.style.left = Math.max(8, Math.min(q.x + 6, SW - 330)) + "px"; wrap.style.top = q.y + HERO_H * seatScale(p) + 14 + "px"; }
     $("#fx").appendChild(wrap);
+    { const w = wrap.offsetWidth, l = parseFloat(wrap.style.left); if (l + w > SW - 8) wrap.style.left = Math.max(8, SW - w - 8) + "px"; }   // v50 竖屏气泡更宽，按实际宽度收回屏内
     const xe = (XEXPR[p.key] || {})[base];
     if (xe && hasX(p.key, xe) && !p.disguise && !(window.Settings && Settings.skinOf(p.key))) expr(p, xe, base === "low" || base === "mourn" ? 2200 : 1700);   // v37 角色专属表情（穿皮肤时没有这几张，照旧用得意 / 受伤）
     else if (base === "exposed") expr(p, "exposed", 1800);
