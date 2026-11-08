@@ -1571,6 +1571,9 @@ window.UI = (function () {
       }, winMs + 400);
     }
     $("#btn-report").onclick = () => { Sound.sfx("click", 0.5); openReport(game, title); };
+    { const w = game.winner, urls = [w.disguise ? portrait("xds_cl", "cheer") : portrait(w.key, "win"), ...game.players.map((q) => portrait(q.key, "avatar"))];   // v50 战报要用的图先在后台解码好，点开时不再卡一下
+      setTimeout(() => urls.forEach((u) => { const im = new Image(); im.src = u; if (im.decode) im.decode().catch(() => {}); rpWarm.push(im); }), 300); }
+    setTimeout(() => { if ($("#report") || !$("#btn-report")) return; openReport(game, title); const r = $("#report"); if (r) { r.style.visibility = "hidden"; void r.offsetHeight; } closeReport(); }, 900);   // 后台先排一遍战报（建好字形缓存），点开时不再卡一下
     $("#btn-again").onclick = () => { closeReport(); $("#modal").classList.add("hidden"); $("#modal-close").style.display = ""; window.Main.again(); };
     $("#btn-change").onclick = () => { closeReport(); $("#modal").classList.add("hidden"); $("#modal-close").style.display = ""; window.Main.toSelect(); };
   }
@@ -1600,6 +1603,7 @@ window.UI = (function () {
     return { w, title, round: game.round, mode: MODE[game.mode] || "对局", mvp: mvp && mvp.stats.dmg ? mvp : null, feud, guard, busy: busy && busy.stats.used ? busy : null, poor: poor && poor.stats.taken >= 3 ? poor : null, scene,
       wimg: w.disguise ? portrait("xds_cl", "cheer") : portrait(w.key, "win") };
   }
+  const rpWarm = [];                                                 // 预解码的图留个引用，免得被回收
   const rpAv = (p) => `<img src="${portrait(p.key, "avatar")}" alt="">`;
   function openReport(game, title) {
     closeReport();
@@ -1618,12 +1622,12 @@ window.UI = (function () {
       <div class="rp-head"><img class="rp-w" src="${d.wimg}" alt=""><div><div class="rp-t">本局战报</div><div class="rp-sub">${d.mode} · 打了 ${d.round} 轮</div><div class="rp-win">${d.title}</div></div></div>
       ${rows}${scene}
       <div class="rp-btns"><button class="btn primary" id="rp-save">保存图片</button><button class="btn" id="rp-close">关闭</button></div></div>`;
-    $("#modal").appendChild(box);
+    $("#modal").appendChild(box); $("#modal").classList.add("rp-open");   // v50 战报开着时把底下的结算框藏起来，少画一层全屏
     box.onclick = (e) => { if (e.target === box) closeReport(); };
     box.querySelector(".rp-x").onclick = closeReport; box.querySelector("#rp-close").onclick = closeReport;
     box.querySelector("#rp-save").onclick = () => saveReport(d).catch(() => toast("这个浏览器存不了图，截个屏吧"));
   }
-  function closeReport() { const r = $("#report"); if (r) r.remove(); }
+  function closeReport() { const r = $("#report"); if (r) r.remove(); const m = $("#modal"); if (m) m.classList.remove("rp-open"); }
   function toast(t) { const e = el("div", "rp-toast", t); ($("#report") || $("#modal")).appendChild(e); setTimeout(() => e.remove(), 2200); }
   // 存图：画在 1080×1440 的画布上（和卡片同样的内容，亮底）
   function loadImg(src) { return new Promise((r, j) => { const im = new Image(); im.onload = () => r(im); im.onerror = j; im.src = src; }); }

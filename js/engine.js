@@ -38,7 +38,7 @@ window.Engine = (function () {
     fansN: 1, fansLow: 2, fans: { doubao: [1, 1] }, fansOnce: true, paintKinds: ["naicha", "tucao", "fanbo"],       // 豆包 应援：[摸, 只剩 1 点心态时摸]
     longCost: 1,                                          // 豆包 长篇大论
     recallKinds: ["tucao", "fanbo", "naicha"], recallRate: 1,   // Kimi 过目：捡哪几种牌；每次翻到的概率
-    seatDraw: { ffa: [-1, 0, 2], duel: [-1, 2] },                                         // v37 先手补偿：第一轮摸牌增减（先手只摸 1、最后一位摸 4）。不补时单挑先手 61% / 乱斗 40-34-26；补后 50.5 / 34-33-33
+    seatDraw: { ffa: [-1, 0, 2], ffa4: [-1, 0, 1, 2], duel: [-1, 2] },   // v50 4 人乱斗原来只有 3 格：第 4 位不补、日志写成「摸 NaN 张」                                         // v37 先手补偿：第一轮摸牌增减（先手只摸 1、最后一位摸 4）。不补时单挑先手 61% / 乱斗 40-34-26；补后 50.5 / 34-33-33
     teamHp: 2, teamPass: true, usesTeam: { ban: 2, wish: 5 }, shootDrawTeam: 0, haggleTakeTeam: 2, handTeam: {},   // v37 2v2 专用：技能次数、开拍摸牌、砍价拿几张、手牌上限加成
     teamFirstDraw: 3,                                     // 2v2：先手第一回合摸几张
     rageRound: 3,                                         // 从第几轮起每回合能吐槽两次
@@ -199,6 +199,7 @@ window.Engine = (function () {
     takeAny(t, c) { if (this.equips(t).includes(c)) this.unequip(t, c); else this.takeFromHand(t, c); }
     // ---------------------------------------------------------------- v48 Harness：每打出 1 张牌部署进度 +1，满格上线，整局生效
     hasH(p, id) { return !!(p && p.deployed && p.ch.harness && (p.ch.harness.ids || []).includes(id)); }
+    seatDrawArr() { return (this.mode === "ffa" && this.players.length >= 4 && T.seatDraw.ffa4) || T.seatDraw[this.mode]; }   // v50
     deployNeed(p) { const two = this.players.length === 2, K = two ? T.deployK2p : T.deployK; return K[p.key] != null ? K[p.key] : two ? T.deployNeed2p : T.deployNeed; }
     async deployTick(p) {
       if (!p.ch.harness || p.deployed || !p.alive) return;
@@ -377,7 +378,7 @@ window.Engine = (function () {
       this.ui.sync();
       this.ui.sys("群聊已创建，开始对线！", "good");
       this.ui.sys(`牌堆里埋了 ${this.bombN} 张【宕机】💣 谁摸到谁炸（心态 −${T.bombDmg}）！每人先发 1 张【重启】拆弹。`, "bad");
-      { const sd = !this.nation && T.seatDraw[this.mode]; if (sd) { const n = this.players.length, at = (o) => this.players[(this.startIdx + o) % n].name;   // v37 先手补偿说明
+      { const sd = !this.nation && this.seatDrawArr(); if (sd) { const n = this.players.length, at = (o) => this.players[(this.startIdx + o) % n].name;   // v37 先手补偿说明
         this.ui.sys(`先手优势补偿：${at(0)} 第一回合只摸 ${2 + sd[0]} 张，${at(n - 1)} 第一回合摸 ${2 + sd[n - 1]} 张。`); } }
       if (this.mode === "ffa" || this.mode === "duel") {                // 乱斗里先说清楚谁和谁是盟友
         const has = (k) => this.players.some((q) => q.key === k);
@@ -581,7 +582,7 @@ window.Engine = (function () {
         const first = this.mode === "team" && !this.nation && this.round === 1 && p.i === this.startIdx;   // 2v2 先手第一回合多摸 1 张（你-敌-敌-友 座位下两队五五开）
         const nfirst = this.nation && this.round === 1 ? (T.nationFirst[p.i] || 0) + (T.nationDraw[p.ch.nation] || 0) : 0;   // 全明星赛：第一回合补牌（按座位 / 按国家）
         if (think) { this.ui.skillNote(p, SN(p.key, "think")); if (Math.random() < 0.3) this.ui.say(p, "think"); }
-        const sd = this.round === 1 && !this.nation ? ((T.seatDraw[this.mode] || [])[(p.i - this.startIdx + this.players.length) % this.players.length] || 0) : 0;   // v37 先手补偿：第一轮按出手顺序增减摸牌
+        const sd = this.round === 1 && !this.nation ? ((this.seatDrawArr() || [])[(p.i - this.startIdx + this.players.length) % this.players.length] || 0) : 0;   // v37 先手补偿：第一轮按出手顺序增减摸牌
         const lordX = p.role === "lord" ? T.lordDraw : p.role === "spy" ? T.spyDraw : 0;   // v37 潜水党每回合多摸（暗中囤牌，不像加心态那样一眼看穿）                         // 抢群主：群主每回合多摸
         await this.draw(p, Math.max(1, (first ? T.teamFirstDraw : 2) + nfirst + (T.extraDraw[p.key] || 0) + think + lordX + sd), true, bottom, true);   // 回合开始的正常摸牌（只有这里摸到的宕机一定炸）
       }

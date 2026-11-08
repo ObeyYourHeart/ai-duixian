@@ -935,7 +935,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 /* v43 本局战报卡 */
 #report { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: rgba(60, 40, 120, .25); }
 .rp-card { position: relative; width: 760px; max-height: 92%; overflow: auto; box-sizing: border-box; padding: 26px 32px 22px; border-radius: 28px; background: linear-gradient(180deg, var(--l, #eaf2ff), #fff 55%);
-  border: 4px solid var(--c); box-shadow: 0 18px 50px rgba(60, 40, 120, .25); }
+  border: 4px solid var(--c); box-shadow: 0 12px 28px rgba(60, 40, 120, .22); contain: layout paint; }   /* v50 阴影收小、隔离排版，打开时少画一点 */
 .rp-x { position: absolute; top: 12px; right: 14px; width: 40px; height: 40px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .85); font-size: 20px; color: #6b6585; cursor: pointer; }
 .rp-head { display: flex; align-items: center; gap: 18px; margin-bottom: 10px; }
 .rp-head .rp-w { width: 150px; height: 190px; object-fit: cover; object-position: top; border-radius: 20px; background: rgba(255, 255, 255, .7); }
@@ -1157,3 +1157,5 @@ body.ult-on #known, body.ult-on .skpop { visibility: hidden; }
 #stage.portrait #skillbox.dense .btn, #stage.tiny #skillbox.dense .btn { font-size: 21px; padding: 6px 12px; }   /* v50 竖屏 / 小屏也收紧 */
 #stage.portrait #skillbox.dense .pchip { font-size: 18px; padding: 3px 10px; }
 body.hinfo-on #fx .bubble { opacity: 0; transition: opacity .15s; }   /* v50 详情弹窗开着时，说话气泡先隐去 */
+#modal.rp-open > .modal-box { visibility: hidden; }   /* v50 战报盖住结算框时，结算框不用再画 */
+#modal.rp-open #report { background: none; }
