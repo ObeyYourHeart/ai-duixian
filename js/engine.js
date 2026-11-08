@@ -206,10 +206,10 @@ window.Engine = (function () {
       if (p.deploy < this.deployNeed(p)) { this.ui.sync(); return; }
       p.deployed = true; this.ui.sync();
       const H = p.ch.harness, cmd = p.disguise && H.cmd2 ? H.cmd2 : H.cmd;
-      if (this.ui.deploy) await this.ui.deploy(p, cmd, H.name);           // v48 上线演出：浅色薄纱 + 居中终端卡片 + 「上线！」章 + 头像光环 + 音效 / 短乐句
-      this.ui.sys(`${p.name} 的 ${H.name} 部署完成，上线了：${H.short}`, "good");
-      if (p.ch.lines.deploy && !p.human) this.ui.say(p, "deploy", true);   // 玩家自己上线：台词在演出里说
-      if (p.human && Sound.track) Sound.track("harness");                    // 玩家自己的 harness 上线：对局 BGM 换成 Harness 曲（吵上头的 rage 曲优先）
+      const hname = p.key === "xds" ? (p.disguise ? "Claude Code" : "DSH") : H.name;   // 小DeepSeek 两套衣服两种 harness：自己的衣服 DSH、Claude 的衣服 Claude Code，演出分开
+      if (this.ui.deploy) await this.ui.deploy(p, cmd, hname);           // v48 上线演出：浅色薄纱 + 居中终端卡片 + 「上线！」章 + 头像光环 + 音效 / 短乐句
+      this.ui.sys(`${p.name} 的 ${hname} 部署完成，上线了：${H.short}`, "good");
+      if (p.ch.lines.deploy && !(E.speed > 0)) this.ui.say(p, "deploy", true);   // 台词在大招演出里说
       await wait(500);
     }
     teaHeal(p) { return this.hasSkill(p, "bigeat") ? T.bigEat : 1; }
@@ -1558,7 +1558,7 @@ window.Engine = (function () {
         (p.band = p.band || []).push(c);
         if (this.hasH(p, "swarm") && p.band.length < T.bandMax) {          // v48 Agent 集群：一次写 2 首，来 2 名乐手（扣 2 张）
           const c2 = p.hand.filter((x) => x.k !== "chongqi" && x.k !== "shuaiguo").sort((a, b) => (b.k === "tucao") - (a.k === "tucao") || AI.value(this, p, a) - AI.value(this, p, b))[0];
-          if (c2) { this.takeFromHand(p, c2); p.band.push(c2); this.ui.skillNote(p, "Agent 集群"); this.ui.log(p, "【Agent 集群】两个 agent 并行写歌：一次写好 2 首"); }
+          if (c2) { this.takeFromHand(p, c2); p.band.push(c2); this.ui.skillNote(p, "Kimi Code"); this.ui.log(p, "【Kimi Code】两个子 agent 并行写歌：一次写好 2 首"); }
         }
         const n = p.band.length, who = ["鼓手", "吉他手", "键盘手"][n - 1] || "乐手";
         this.ui.skillNote(p, SN(p.key, "rehearse")); this.ui.say(p, "band" + Math.min(n, 3), true);
@@ -1764,7 +1764,7 @@ window.Engine = (function () {
         }
         this.ui.log(p, `【${SN("glm", "steal")}】从 ${vic.map((q) => q.name).join("、")} 那里借鉴了 ${got} 张牌`);
         await wait(600);
-        if (got && this.hasH(p, "zcode")) { this.ui.skillNote(p, "贼 code"); this.ui.log(p, "【贼 code】借鉴来的代码顺手跑一遍——再摸 1 张"); await this.draw(p, 1, true); }
+        if (got && this.hasH(p, "zcode")) { this.ui.skillNote(p, "ZCode"); this.ui.log(p, "【ZCode】借鉴来的代码顺手跑一遍——再摸 1 张"); await this.draw(p, 1, true); }
       } else if (id === "egg") {
         // v31 GLM 毒鸡蛋（原名糖衣）：先送补偿（对方摸 eggDraw 张，宕机照炸），座位上挂一颗蛋；GLM 下个回合开始时孵化，借回 eggSteal 张（hatch）
         this.ui.skill(p, SN("glm", "egg")); this.ui.say(p, this.ekey(t) === "claude" ? "egg_claude" : "egg", true); Sound.sfx("chime", 0.5);
@@ -1832,7 +1832,7 @@ window.Engine = (function () {
       } else if (id === "disguise") {
         // 小DeepSeek 变身：穿上 Claude 的衣服冒充 Claude，顺手学她封一个号
         p.disguise = true; this.ui.disguise(p, true); p.wishedShell = false;
-        if (p.deployed && p.ch.harness) { this.ui.log(p, "【换壳】harness 跟着衣服换：$ dsh → $ claude，这次能许愿一次"); if (this.ui.deploy) this.ui.deploy(p, p.ch.harness.cmd2, "Claude Code", true); if (p.ch.lines.shell) setTimeout(() => this.ui.say(p, "shell", true), 1400 * E.speed); }   // v48 换壳：终端 $ dsh → $ claude
+        if (p.deployed && p.ch.harness) { this.ui.log(p, "【换壳】harness 跟着衣服换：$ dsh → $ claude，这次能许愿一次"); if (this.ui.deploy) this.ui.deploy(p, p.ch.harness.cmd2, "Claude Code"); if (p.ch.lines.shell) setTimeout(() => this.ui.say(p, "shell", true), 1400 * E.speed); }   // v48 换上 Claude 的衣服：放 Claude Code 版大招（橙色法阵）
         this.ui.skill(p, SN(p.key, "disguise")); this.ui.say(p, "disguise", true); Sound.sfx("stamp_thick", 0.8);
         if (T.disguiseAct === "ban") { t.banned = true; this.ui.log(p, `【${SN(p.key, "disguise")}】换上 Claude 的衣服，冒充 Claude 封了 ${t.name} 的号：她的下个回合跳过`); }
         else {                                                            // 学 Claude 润色：整手重写，多摸 1 张
