@@ -1077,6 +1077,10 @@ body.ult-on #known, body.ult-on .skpop { visibility: hidden; }
 /* B 终端接管 */
 .ub-tint { position: absolute; inset: 0; z-index: 1; background: color-mix(in srgb, var(--c) 30%, rgba(255, 255, 255, .45)); animation: dvIn .15s; }
 .ult.ub-shatter .ub-tint { opacity: .2; transition: opacity .3s; }
+.ug-tint { position: absolute; inset: 0; z-index: 1; background: color-mix(in srgb, var(--c) 18%, rgba(255, 255, 255, .7)); animation: dvIn .15s; }   /* v50 神级皮肤专属开场 */
+.ug-cv { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+.ult.ug-out .ug-cv { opacity: 0; transform: scale(1.08); transition: opacity .3s, transform .3s; }
+.ult.ug-out .ug-tint { opacity: .25; transition: opacity .3s; }
 .ub-rain { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
 .ult.ub-shatter .ub-rain { opacity: 0; transform: scale(1.15); transition: opacity .35s, transform .35s; }
 .ub-hud { position: absolute; z-index: 3; color: var(--c); font: 700 22px/1.6 Consolas, "Cascadia Mono", monospace; background: rgba(255, 255, 255, .86); border: 2px solid var(--c); border-radius: 10px; padding: 8px 14px; }

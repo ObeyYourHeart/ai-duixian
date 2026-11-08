@@ -874,7 +874,10 @@ window.UI = (function () {
   let deploySkip = null;
   function skipDeploy() { if (deploySkip) deploySkip(); }
   const HZ_BLINK = ["claude", "gemini", "deepseek", "doubao", "kimi", "grok", "qwen", "xds", "xds_cl"];   // 有眨眼帧的（GPT / GLM 合成不自然，不眨）
-  function hzImg(p, f) { const k = p.key === "xds" && p.disguise ? "xds_cl" : p.key; return A(`assets/img/hz_${k}_${k === "xds_cl" && f === "a" ? "b" : f}.webp`); }
+  // v50 神级皮肤（g1）开大招：换成神皮造型的上线立绘 + 专属开场 + 专属台词（deploy_g1，say 自动挑）
+  const GOD = ["claude", "gpt", "gemini", "deepseek", "doubao"];
+  function godSkin(p) { return !p.disguise && GOD.includes(p.key) && window.Settings && Settings.skinOf(p.key) === "g1"; }
+  function hzImg(p, f) { const k = p.key === "xds" && p.disguise ? "xds_cl" : p.key; if (godSkin(p) && f !== "b_blink") return A(`assets/img/hz_${k}_g1_${f}.webp`); return A(`assets/img/hz_${k}_${k === "xds_cl" && f === "a" ? "b" : f}.webp`); }
   // v48 大招演出：玩家自己上线约 3 秒（时停 → 斜切眼部特写 → 纹章 + 爆发 → 技能名砸下 → 光点回座位），点一下 / Esc 跳过；
   //   电脑上线简版约 1.5 秒（斜切 + 技能名）。不震屏、不用集中线；立绘不扭曲，只动镜头 / UI / 两帧；粒子用 canvas，CSS 只动 transform / opacity
   const HZ_EYE = { claude: [335, 92], gpt: [345, 202], gemini: [353, 230], deepseek: [324, 187], glm: [226, 216], doubao: [342, 216], kimi: [349, 144],
@@ -886,6 +889,7 @@ window.UI = (function () {
     glm: { glyph: "code", part: "code", sfx: "ult_glm" }, doubao: { glyph: "film", part: "film", sfx: "ult_doubao" },
     kimi: { glyph: "note", part: "note", sfx: "ult_kimi" }, grok: { glyph: "coin", part: "bill", sfx: "ult_grok" },
     qwen: { glyph: "check", part: "check", sfx: "ult_qwen" },
+    claude_g1: { glyph: "hex", part: "petal", sfx: "ult_claude" }, gpt_g1: { glyph: "inf", part: "sym", sfx: "ult_gpt" },   // v50 神级皮肤换纹章 / 粒子
   };
   function hzKey(p) { return p.key === "xds" && p.disguise ? "xds_cl" : p.key; }
   // 纹章：画一次到离屏 canvas，演出时只转 CSS transform
@@ -903,7 +907,8 @@ window.UI = (function () {
     const film = () => { x.lineWidth = 3; x.strokeRect(-12, -9, 24, 18); for (let k = -1; k <= 1; k++) x.fillRect(k * 8 - 2, -14, 4, 3); };
     const whale = () => { x.beginPath(); x.ellipse(0, 0, 14, 8, 0, 0, 7); x.fill(); x.beginPath(); x.moveTo(12, 0); x.lineTo(22, -8); x.lineTo(22, 8); x.closePath(); x.fill(); };
     const coin = () => { x.lineWidth = 3; x.beginPath(); x.arc(0, 0, 11, 0, 7); x.stroke(); x.font = "700 14px sans-serif"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText("$", 0, 1); };
-    const G = { flower, star, cloud, film, whale, coin, code: glyphText("</>"), note: glyphText("♪"), check: glyphText("✓") }[U.glyph] || flower;
+    const hex = () => { x.lineWidth = 3; x.beginPath(); for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; x.lineTo(Math.cos(a) * 13, Math.sin(a) * 13); } x.closePath(); x.stroke(); x.beginPath(); x.arc(0, 0, 4, 0, 7); x.fill(); };
+    const G = { flower, star, cloud, film, whale, coin, hex, inf: glyphText("∞"), code: glyphText("</>"), note: glyphText("♪"), check: glyphText("✓") }[U.glyph] || flower;
     x.globalAlpha = .95; motif(G, 8, r * 0.72, 1.5 * size / 600); motif(G, 12, r * 0.34, 1 * size / 600);
     x.globalAlpha = 1; x.scale(3 * size / 600, 3 * size / 600); G();
     return c;
@@ -922,12 +927,12 @@ window.UI = (function () {
         case "bubble": x.strokeStyle = q.c; x.lineWidth = 2; x.beginPath(); x.arc(0, 0, s * 0.7, 0, 7); x.stroke(); break;
         case "film": x.fillRect(-s, -s * 0.7, s * 2, s * 1.4); x.fillStyle = "#fff"; x.fillRect(-s * 0.6, -s * 0.35, s * 1.2, s * 0.7); break;
         case "bill": x.fillStyle = "#e9c46a"; x.fillRect(-s * 1.2, -s * 0.6, s * 2.4, s * 1.2); x.fillStyle = "#8a6d1f"; x.fillRect(-s * 0.3, -s * 0.3, s * 0.6, s * 0.6); break;
-        case "code": case "note": case "check": x.font = `700 ${Math.round(s * 2.2)}px Consolas, monospace`; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(q.t, 0, 0); break;
+        case "code": case "note": case "check": case "sym": x.font = `700 ${Math.round(s * 2.2)}px Consolas, monospace`; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(q.t, 0, 0); break;
         default: x.beginPath(); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, rr = k % 2 ? s * 0.3 : s; x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } x.closePath(); x.fill();
       }
       x.restore();
     };
-    const TXT = { code: ["{ }", "</>", "( )", "=>", ";"], note: ["♪", "♫", "♬"], check: ["✓"] }[U.part] || [""];
+    const TXT = { code: ["{ }", "</>", "( )", "=>", ";"], note: ["♪", "♫", "♬"], check: ["✓"], sym: ["∫", "Σ", "π", "∞", "√", "∇"] }[U.part] || [""];
     const add = (o) => P.push(Object.assign({ r: Math.random() * 6, vr: (Math.random() - .5) * 4, s: 5 + Math.random() * 7, c: Math.random() < .3 ? "#fff" : color, t: TXT[Math.floor(Math.random() * TXT.length)], max: o.life }, o));
     const tick = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
@@ -970,8 +975,9 @@ window.UI = (function () {
   const GLY = { claude: "✿", gpt: "☁", gemini: "✦", deepseek: "◉", xds: "◉", xds_cl: "✿", glm: "</>", doubao: "▶", kimi: "♪", grok: "$", qwen: "✓" };
   function ultIntro(box, p, key, tc, name, at, hc, fx) {
     // 小DeepSeek 穿 Claude 的衣服：换成 Claude 的圣女领域展开（橙色法阵 + 光柱降临）
-    const style = key === "xds_cl" ? "A" : (window.ULT_STYLE || "B"), W = fx.width, H = fx.height, add = (cls, html = "") => { const e = el("div", cls, html); box.appendChild(e); return e; };
+    const style = key === "xds_cl" ? "A" : godSkin(p) ? "G" : (window.ULT_STYLE || "B"), W = fx.width, H = fx.height, add = (cls, html = "") => { const e = el("div", cls, html); box.appendChild(e); return e; };
     box.classList.add("st-" + style);
+    if (style === "G") { ultGod(box, p, key, tc, at, hc, fx, add); return; }
     if (style === "A") {                                                // 领域展开：座位起一圈光浪扫满全屏 → 地面纹章投影 + 光柱 → 她从光柱里降下
       const wave = add("ua-wave"), ring = add("ua-ring");
       for (const e of [wave, ring]) { e.style.left = hc.x + "px"; e.style.top = hc.y + "px"; }
@@ -1005,6 +1011,97 @@ window.UI = (function () {
       at(480, () => { box.classList.add("uc-collapse"); Sound.sfx("in_c_impact", 0.85); });
     }
   }
+  // v50 神级皮肤专属开场（约 1.05 秒，一张 canvas 画完，然后淡出交给立绘）：
+  //   Claude 网安之神「零日封锁」/ Bel 数学之神「公式展开」/ 写作之神「落笔成章」/ 开源之神「开源洪流」/ 视频之神「一镜到底」
+  function ultGod(box, p, key, tc, at, hc, fx, add) {
+    const W = fx.width, H = fx.height, cx = W / 2, cy = H * 0.46, C = tc.color, DUR = 1.05;
+    add("ug-tint");
+    const cv = document.createElement("canvas"); cv.className = "ug-cv"; box.appendChild(cv); cv.width = W; cv.height = H;
+    const x = cv.getContext("2d"), seats = g ? g.players.filter((q) => q !== p && q.alive).map(center) : [];
+    const ease = (v) => 1 - Math.pow(1 - Math.max(0, Math.min(1, v)), 3), clamp = (v) => Math.max(0, Math.min(1, v));
+    const font = (px, w = 700, f = "'Cambria Math','Times New Roman',serif") => { x.font = `${w} ${px}px ${f}`; };
+    const sup = (base, s, X, Y, px) => { font(px); x.fillText(base, X, Y); const bw = x.measureText(base).width; font(px * 0.58); x.fillText(s, X + bw + 2, Y - px * 0.42); font(px); };
+    let draw;
+    if (key === "claude") {                                             // 零日封锁：六边形防火墙从四边合拢 → 扫描线 → 对手座位依次上锁 → ACCESS GRANTED
+      const R = 30, hw = R * Math.sqrt(3), cells = [];
+      for (let r = 0, y = 0; y < H + R; r++, y += R * 1.5) for (let X = (r % 2) * hw / 2; X < W + hw; X += hw) cells.push([X, y, Math.min(X, W - X, y, H - y) / (Math.min(W, H) / 2)]);
+      const hex = (X, Y, rr) => { x.beginPath(); for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; x.lineTo(X + Math.cos(a) * rr, Y + Math.sin(a) * rr); } x.closePath(); };
+      const lock = (X, Y, s) => { x.lineWidth = s * 0.22; x.beginPath(); x.arc(X, Y - s * 0.35, s * 0.42, Math.PI, 0); x.stroke(); x.fillRect(X - s * 0.62, Y - s * 0.35, s * 1.24, s * 0.95); x.fillStyle = "#fff"; x.beginPath(); x.arc(X, Y + 0.05 * s, s * 0.14, 0, 7); x.fill(); };
+      Sound.sfx("g1_claude", 1);                                        // 神皮开场只用自己的专属音：警报 + 一个座位上锁一声咔哒
+      seats.forEach((s, k) => at(520 + k * 110, () => Sound.sfx("g1_claude_lock", 0.8)));
+      draw = (t) => {
+        const fr = ease(t / 0.55) * 1.05;
+        for (const [X, Y, d] of cells) { if (d > fr) continue; const a = clamp((fr - d) * 3); x.globalAlpha = 0.08 + 0.32 * a * (1 - d); x.strokeStyle = C; x.lineWidth = 1.5; hex(X, Y, R - 3); x.stroke();
+          if ((X * 7 + Y * 3) % 11 < 1.2) { x.globalAlpha = 0.18 * a; x.fillStyle = C; x.fill(); } }
+        if (t > 0.18 && t < 0.75) { const sy = ease((t - 0.18) / 0.55) * H; x.globalAlpha = 0.9; const gr = x.createLinearGradient(0, sy - 60, 0, sy + 6); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(1, C); x.fillStyle = gr; x.fillRect(0, sy - 60, W, 66); x.fillStyle = "#fff"; x.fillRect(0, sy, W, 3); }
+        seats.forEach((s, k) => { const lt = t - 0.5 - k * 0.11; if (lt < 0) return; const sc = 1.5 + 0.8 * Math.max(0, 1 - lt * 6); x.globalAlpha = clamp(lt * 6);
+          x.strokeStyle = x.fillStyle = C; hex(s.x, s.y, 46 * sc); x.lineWidth = 4; x.stroke(); x.fillStyle = C; x.strokeStyle = C; lock(s.x, s.y, 26 * sc);
+          font(20, 800, "Consolas,monospace"); x.fillStyle = C; x.textAlign = "center"; x.fillText("CVE-" + (2026 + k) + "-0" + (1337 + k * 211), s.x, s.y + 92); });
+        if (t > 0.72) { x.globalAlpha = clamp((t - 0.72) * 6); font(64, 800, "Consolas,monospace"); x.textAlign = "center"; x.fillStyle = "#fff"; x.strokeStyle = C; x.lineWidth = 8; x.strokeText("ACCESS GRANTED", cx, cy); x.fillText("ACCESS GRANTED", cx, cy); }
+      };
+    } else if (key === "gpt") {                                         // 公式展开：三块公式展板从三边飞来就位 → 腰间符号环放大成全场光环，符号连成星座
+      const PW = Math.min(420, W * 0.3), PH = PW * 0.42, SY = ["∫", "Σ", "π", "∞", "√", "∇"];
+      const P = [{ from: [-PW, cy - H * 0.05], to: [cx - W * 0.3, cy - H * 0.24], f: 0 }, { from: [cx, -PH * 2], to: [cx, cy - H * 0.36], f: 1 }, { from: [W + PW, cy - H * 0.05], to: [cx + W * 0.3, cy - H * 0.24], f: 2 }];
+      const formula = (f, X, Y, s) => { x.fillStyle = "#3b2a7a"; x.textAlign = "left"; x.textBaseline = "middle"; const px = 40 * s;
+        if (f === 0) { font(px); const w = x.measureText("e+1=0").width + px * 0.6; let X0 = X - w / 2; sup("e", "iπ", X0, Y, px); font(px); x.fillText("+1=0", X0 + x.measureText("e").width + px * 0.62, Y); }
+        else if (f === 1) { font(px); const X0 = X - px * 3.1; font(px * 1.3); x.fillText("∫", X0, Y); font(px * 0.42); x.fillText("∞", X0 + px * 0.55, Y - px * 0.55); x.fillText("−∞", X0 + px * 0.35, Y + px * 0.6); sup("e", "−x²", X0 + px * 0.95, Y, px); font(px); x.fillText("dx = √π", X0 + px * 2.25, Y); }
+        else { const X0 = X - px * 2.6; font(px * 1.2); x.fillText("Σ", X0, Y); font(px * 0.4); x.fillText("∞", X0 + px * 0.2, Y - px * 0.72); x.fillText("n=1", X0 + px * 0.05, Y + px * 0.72); font(px); x.fillText("1/n² = π²/6", X0 + px * 0.95, Y); } };
+      at(380, () => Sound.sfx("g1_gpt", 1)); at(650, () => Sound.sfx("g1_gpt2", 0.8));
+      draw = (t) => {
+        const rr = (0.1 + 0.3 * ease((t - 0.35) / 0.5)) * W, rot = t * 1.6;
+        if (t > 0.3) { x.globalAlpha = clamp((t - 0.3) * 4) * 0.85; x.strokeStyle = C; x.lineWidth = 3; x.beginPath(); x.ellipse(cx, cy + H * 0.1, rr, rr * 0.3, 0, 0, 7); x.stroke();
+          const pts = SY.map((s, k) => { const a = rot + k * Math.PI / 3; return [cx + Math.cos(a) * rr, cy + H * 0.1 + Math.sin(a) * rr * 0.3, s]; });
+          x.globalAlpha *= 0.5; x.lineWidth = 1.5; x.beginPath(); pts.forEach(([X, Y], k) => k ? x.lineTo(X, Y) : x.moveTo(X, Y)); x.closePath(); x.stroke(); x.globalAlpha /= 0.5;
+          x.textAlign = "center"; x.textBaseline = "middle"; for (const [X, Y, s] of pts) { x.fillStyle = "#fff"; x.strokeStyle = C; x.lineWidth = 2.5; x.beginPath(); x.arc(X, Y, 34, 0, 7); x.fill(); x.stroke(); x.fillStyle = C; font(44); x.fillText(s, X, Y + 2); } }
+        P.forEach((q, k) => { const e = ease((t - k * 0.08) / 0.4); if (e <= 0) return; const X = q.from[0] + (q.to[0] - q.from[0]) * e, Y = q.from[1] + (q.to[1] - q.from[1]) * e;
+          x.globalAlpha = Math.min(1, e * 1.5); x.fillStyle = "rgba(248,246,255,.94)"; x.strokeStyle = C; x.lineWidth = 3; x.beginPath(); x.roundRect(X - PW / 2, Y - PH / 2, PW, PH, 10); x.fill(); x.stroke();
+          x.lineWidth = 1; x.strokeRect(X - PW / 2 + 7, Y - PH / 2 + 7, PW - 14, PH - 14); formula(q.f, X, Y, PW / 420); });
+        if (t > 0.4) { x.globalAlpha = clamp((t - 0.4) * 3) * 0.6; x.strokeStyle = C; x.setLineDash([4, 8]); x.lineWidth = 2; x.beginPath(); P.forEach((q, k) => k ? x.lineTo(q.to[0], q.to[1]) : x.moveTo(q.to[0], q.to[1])); x.stroke(); x.setLineDash([]); }
+      };
+    } else if (key === "gemini") {                                      // 落笔成章：书页从四周翻飞聚拢 → 一道墨迹笔画横扫全屏 → 页面收成羽毛笔的光
+      const pages = Array.from({ length: 26 }, (_, k) => { const a = Math.random() * 7, d = Math.max(W, H) * (0.55 + Math.random() * 0.3); return { x0: cx + Math.cos(a) * d, y0: cy + Math.sin(a) * d, r0: Math.random() * 6, sp: 2 + Math.random() * 3, dl: Math.random() * 0.25, tx: cx + (Math.random() - .5) * W * 0.5, ty: cy + (Math.random() - .5) * H * 0.4 }; });
+      const pts = Array.from({ length: 60 }, (_, k) => { const u = k / 59; return [W * (0.06 + 0.88 * u), cy + Math.sin(u * Math.PI * 2.2) * H * 0.16 - (u - 0.5) * H * 0.1]; });
+      Sound.sfx("g1_gemini", 1); at(560, () => Sound.sfx("g1_gemini2", 0.7));
+      draw = (t) => {
+        for (const q of pages) { const e = ease((t - q.dl) / 0.6), X = q.x0 + (q.tx - q.x0) * e, Y = q.y0 + (q.ty - q.y0) * e; if (e <= 0) continue;
+          x.save(); x.translate(X, Y); x.rotate(q.r0 + t * q.sp); x.globalAlpha = Math.min(1, e * 2) * (t > 0.85 ? clamp((1.05 - t) * 5) : 1);
+          x.fillStyle = "#fff"; x.strokeStyle = C; x.lineWidth = 1.5; x.fillRect(-26, -34, 52, 68); x.strokeRect(-26, -34, 52, 68);
+          x.globalAlpha *= 0.5; for (let k = 0; k < 5; k++) x.fillRect(-18, -22 + k * 10, k === 4 ? 20 : 36, 2); x.restore(); }
+        const n = Math.floor(clamp((t - 0.25) / 0.45) * pts.length); if (n > 1) { x.globalAlpha = 0.9; x.strokeStyle = C; x.lineCap = "round";
+          for (let k = 1; k < n; k++) { x.lineWidth = 4 + 14 * Math.sin(k / pts.length * Math.PI); x.beginPath(); x.moveTo(...pts[k - 1]); x.lineTo(...pts[k]); x.stroke(); }
+          const [qx, qy] = pts[n - 1]; x.fillStyle = "#fff"; x.beginPath(); x.ellipse(qx + 18, qy - 30, 10, 38, 0.5, 0, 7); x.fill(); x.stroke(); }
+      };
+    } else if (key === "deepseek") {                                    // 开源洪流：满屏提交格一列列点亮 → 蓝色浪潮从下往上漫过全场
+      const S = 26, cols = Math.ceil(W / S), rows = Math.ceil(H / S), lv = Array.from({ length: cols * rows }, () => Math.random());
+      const blues = ["#e3eeff", "#cfe2ff", "#9cc3ff", "#6fa6f0", "#3C78D8"];
+      at(80, () => Sound.sfx("g1_deepseek", 1));
+      draw = (t) => {
+        const fr = ease(t / 0.55) * (cols + 8);
+        for (let c = 0; c < cols; c++) { if (c > fr) break; for (let r = 0; r < rows; r++) { const v = lv[c * rows + r]; if (v < 0.55) continue; x.globalAlpha = clamp((fr - c) / 6) * 0.45; x.fillStyle = blues[Math.floor(v * 5)]; x.fillRect(c * S + 2, r * S + 2, S - 4, S - 4); } }
+        if (t > 0.4) { const lvl = H * (1.05 - ease((t - 0.4) / 0.55) * 1.0); x.globalAlpha = 0.6; const gr = x.createLinearGradient(0, lvl - 60, 0, H); gr.addColorStop(0, "rgba(255,255,255,.95)"); gr.addColorStop(0.15, "#9cc3ff"); gr.addColorStop(1, C);
+          x.fillStyle = gr; x.beginPath(); x.moveTo(0, H); for (let X = 0; X <= W; X += 20) x.lineTo(X, lvl + Math.sin(X / 90 + t * 9) * 26 + Math.sin(X / 37 - t * 6) * 10); x.lineTo(W, H); x.closePath(); x.fill();
+          x.globalAlpha = 0.9; x.fillStyle = "#fff"; for (let k = 0; k < 14; k++) { const X = (k * 97 + t * 400) % W, Y = lvl + 30 + (k * 53) % (H * 0.5); x.beginPath(); x.arc(X, Y, 3 + k % 4, 0, 7); x.fill(); } }
+      };
+    } else {                                                             // 一镜到底：场记板一拍 → 上下两条胶片横向划过 → 时间轴拖到头 → 定格白闪
+      const FH = 120;
+      at(250, () => Sound.sfx("g1_doubao", 1)); at(800, () => Sound.sfx("g1_doubao2", 0.7));
+      const strip = (Y, off, dir) => { x.fillStyle = "#222"; x.fillRect(0, Y, W, FH); const fw = 150;
+        for (let X = ((off * dir) % fw) - fw; X < W + fw; X += fw) { x.fillStyle = "#fff"; for (let k = 0; k < 6; k++) { x.fillRect(X + 8 + k * 24, Y + 8, 12, 10); x.fillRect(X + 8 + k * 24, Y + FH - 18, 12, 10); }
+          const gr = x.createLinearGradient(X, Y, X + fw, Y + FH); gr.addColorStop(0, C); gr.addColorStop(1, "#fff"); x.fillStyle = gr; x.fillRect(X + 10, Y + 24, fw - 20, FH - 48); } };
+      draw = (t) => {
+        const e = ease((t - 0.25) / 0.6); if (e > 0) { x.globalAlpha = Math.min(1, e * 2); strip(H * 0.1, e * W * 1.2, 1); strip(H * 0.9 - FH, e * W * 1.2, -1); }
+        if (t < 0.55) { x.globalAlpha = t > 0.42 ? clamp((0.55 - t) * 8) : 1; const s = 1.2, ang = t < 0.25 ? -0.55 * (1 - t / 0.25 * 0.15) : 0;
+          x.save(); x.translate(cx, cy); x.scale(s, s); x.fillStyle = "#222"; x.fillRect(-150, -60, 300, 170); x.fillStyle = "#fff"; font(30, 700, "Consolas,monospace"); x.textAlign = "center"; x.fillText("SCENE 1   TAKE 1", 0, 20); x.fillText("ONE TAKE", 0, 70);
+          x.save(); x.translate(-150, -60); x.rotate(ang); for (let k = 0; k < 6; k++) { x.fillStyle = k % 2 ? "#fff" : "#222"; x.fillRect(k * 50, -36, 50, 36); } x.strokeStyle = "#222"; x.lineWidth = 3; x.strokeRect(0, -36, 300, 36); x.restore(); x.restore(); }
+        if (t > 0.3) { const bx = W * 0.15, bw = W * 0.7, by = H * 0.9 - FH - 34; x.globalAlpha = 0.95; x.fillStyle = "rgba(255,255,255,.85)"; x.fillRect(bx, by, bw, 8); x.fillStyle = C; const ph = ease((t - 0.3) / 0.5); x.fillRect(bx, by, bw * ph, 8);
+          x.beginPath(); x.arc(bx + bw * ph, by + 4, 12, 0, 7); x.fill(); }
+      };
+    }
+    let live = true; const t0 = performance.now();
+    const tick = (now) => { if (!live) return; const t = (now - t0) / 1000; x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, W, H); x.globalAlpha = 1; draw(t); x.globalAlpha = 1; if (t < DUR) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+    at(DUR * 1000 - 200, () => box.classList.add("ug-out")); at(DUR * 1000 + 150, () => { live = false; cv.remove(); });
+  }
   function deployShow(p, cmd, name) {
     if (!(Engine.speed > 0)) return Promise.resolve(false);
     const key = hzKey(p), sp = 1, hero = heroes[p.i];   // 大招固定 3 秒，不跟加速   // 玩家自己的大招固定时长，不跟加速
@@ -1020,10 +1117,11 @@ window.UI = (function () {
     }
     const fx = $("#fx").getBoundingClientRect(), hc = center(p), cx = fx.width / 2, cy = fx.height * 0.46;
     box.innerHTML = `<div class="ult-veil"></div><canvas class="ult-pt"></canvas><div class="ult-stage"><div class="ult-rays"></div><div class="ult-emb"></div><div class="ult-ring"></div><div class="ult-ring r2"></div><img class="ult-ghost" src="${hzImg(p, "b")}" alt="">
-      <img class="ult-a" src="${hzImg(p, "a")}" alt=""><img class="ult-b" src="${hzImg(p, "b")}" alt="">${HZ_BLINK.includes(key) ? `<img class="ult-bl" src="${hzImg(p, "b_blink")}" alt="">` : ""}</div>
+      <img class="ult-a" src="${hzImg(p, "a")}" alt=""><img class="ult-b" src="${hzImg(p, "b")}" alt="">${HZ_BLINK.includes(key) && !godSkin(p) ?`<img class="ult-bl" src="${hzImg(p, "b_blink")}" alt="">` : ""}</div>
       <div class="ult-flash"></div><div class="ult-edge"></div><div class="ds-skip">点一下跳过</div>`;
-    const emb = emblem(key, tc.color, 640); box.querySelector(".ult-emb").appendChild(emb);
-    const pt = particles(box.querySelector(".ult-pt"), key, tc.color);
+    const ek = godSkin(p) && ULT[key + "_g1"] ? key + "_g1" : key;   // 神级皮肤有自己的纹章 / 粒子就换上
+    const emb = emblem(ek, tc.color, 640); box.querySelector(".ult-emb").appendChild(emb);
+    const pt = particles(box.querySelector(".ult-pt"), ek, tc.color);
     const others = heroes.filter((h, k) => h && k !== p.i);
     return new Promise((res) => {
       let over = false;
