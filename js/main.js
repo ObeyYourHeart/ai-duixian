@@ -278,7 +278,8 @@ window.Main = (function () {
     const rels = (window.GAME_DATA.relations || []).filter(([a, b]) => a === pickKey || b === pickKey)
       .sort((x, y) => ["ally", "mentor", "friend", "rival"].indexOf(x[2]) - ["ally", "mentor", "friend", "rival"].indexOf(y[2]));
     $("#sd-rels").innerHTML = rels.map(([a, b, t, note]) => `<span class="${t}" title="${note}"><b>${REL[t]}</b>${CH[a === pickKey ? b : a].name}</span>`).join("");
-    $("#sd-skills").innerHTML = c.skills.map((s) => `<div class="sd-skill"><div class="sd-row"><b>${s.name}</b><em class="${s.type}">${s.type === "active" ? "主动" : "被动"}</em><span class="sd-short">${s.short || ""}</span><i>▾</i></div><p>${s.desc}</p></div>`).join("");
+    $("#sd-skills").innerHTML = c.skills.filter((s) => !s.harness || !c.harness).map((s) => `<div class="sd-skill"><div class="sd-row"><b>${s.name}</b><em class="${s.type}">${s.type === "active" ? "主动" : "被动"}</em><span class="sd-short">${s.short || ""}</span><i>▾</i></div><p>${s.desc}</p></div>`).join("")
+      + (c.harness ? `<div class="sd-skill hz"><div class="sd-row"><b>${c.harness.name}</b><em class="hz">Harness</em><span class="sd-short">${c.harness.short}</span><i>▾</i></div><p>${c.harness.desc}<br><small>部署满格才上线：${hzNeed(pickKey)}。每主动打出 1 张牌进度 +1。</small></p></div>` : "");   // v49 选人页也写上 Harness（原来只有对局详情卡里有）
     $("#sd-skills").querySelectorAll(".sd-skill").forEach((e) => { e.onclick = () => { e.classList.toggle("open"); Sound.sfx("click", 0.4); }; });
     $("#sd-bio").classList.remove("open"); $("#sd-bio").onclick = () => $("#sd-bio").classList.toggle("open");
     modeDesc();
@@ -397,6 +398,11 @@ window.Main = (function () {
   const TYPE = { basic: "基本牌", trick: "锦囊牌", equip: "装备牌", bomb: "炸弹" };
   const cardTile = (k) => { const d = CD[k]; return `<div class="ru-card ${d.type}"><img src="${IMG(`assets/img/card_${k}.webp`)}" alt=""><div class="ru-cn">${d.name}</div>
     <div class="ru-cd"><b>${d.short}</b><span>${d.desc}</span><small>${TYPE[d.type]} · ${d.type === "bomb" ? "按人数埋进牌堆" : "×" + d.n}</small></div></div>`; };
+  // v49 Harness 满格张数：直接读引擎的数值表（不写死，调平衡时说明跟着变）
+  function hzNeed(k) {
+    const T = Engine.T, f = (K, d) => (K && K[k] != null ? K[k] : d), a = f(T.deployK, T.deployNeed), b = f(T.deployK2p, T.deployNeed2p), t = (T.deployKTeam || {})[k];
+    return `乱斗 ${a} 张 · 单挑 ${b} 张${t != null && t !== a ? ` · 2v2 ${t} 张` : ""}`;
+  }
   const RULE_TABS = [
     ["quick", "快速上手", () => `<h2>快速上手</h2><p class="ru-lead">${D.world || ""}</p>
       <div class="ru-steps">
@@ -436,9 +442,19 @@ window.Main = (function () {
     ["chars", "角色与技能", () => `<h2>角色与技能 <small>每人三到五个技能，看设定多少</small></h2>
       <div class="ru-chars">${keys.map((k) => { const c = CH[k]; return `<div class="ru-ch" style="--c:${c.color};--l:${c.light}">
         <div class="ru-ch1"><img src="${UI.portrait(k, "avatar")}" alt=""><div><b>${c.name}</b><span>${"❤".repeat(c.hp)}</span></div></div>
-        <div class="ru-sks">${c.skills.map((s) => `<div class="ru-sk" title="${s.desc}"><b>${s.name}</b><em class="${s.type}">${s.type === "active" ? "主动" : "被动"}</em><span>${s.short || s.desc}</span></div>`).join("")}</div></div>`; }).join("")}</div>
+        <div class="ru-sks">${c.skills.filter((s) => !s.harness || !c.harness).map((s) => `<div class="ru-sk" title="${s.desc}"><b>${s.name}</b><em class="${s.type}">${s.type === "active" ? "主动" : "被动"}</em><span>${s.short || s.desc}</span></div>`).join("")}
+          ${c.harness ? `<div class="ru-sk hz" title="${c.harness.desc}"><b>${c.harness.name}</b><em class="hz">Harness</em><span>${c.harness.short}（${hzNeed(k)}上线）</span></div>` : ""}</div></div>`; }).join("")}</div>
       <h3>人物关系</h3><ul class="ru-list">${(D.relations || []).map(([a, b, t, note]) => `<li><b class="rel ${t}">${{ ally: "盟友", friend: "交好", rival: "宿敌" }[t]}</b>${CH[a].name} × ${CH[b].name}——${note}</li>`).join("")}</ul>
       <p class="ru-note">三人乱斗和单挑里：盟友在场上还有别人时互不吐槽，只剩她俩时「协议到期」；宿敌会优先针对对方；交好的下手轻一点。</p>`],
+    ["harness", "🚀 Harness", () => `<h2>🚀 Harness <small>每位 AI娘 自带的编程工具</small></h2>
+      <p class="ru-lead">每个人都带着自家真实的终端编程 harness（Claude Code、Codex、Antigravity……）。开局是「部署中」，<b>攒够牌就上线</b>，上线后她的某个技能升级一小步，整局生效、破防也不掉。</p>
+      <ul class="ru-list">
+        <li><b>部署进度</b>：你自己<b>主动打出</b>的每张牌 +1（吐槽、奶茶、锦囊、装备都算，被限流退回手里的吐槽也算）。被逼出来的【反驳】【已读不回】【甩锅】【回滚】、拆宕机用的【重启】不算，技能也不算（Muse【代办】替你打出的那张锦囊算 1 张）。名牌上方的细条就是进度。</li>
+        <li><b>满格张数每人不同</b>，单挑和乱斗也不同（见下表）；2v2、抢群主、全明星沿用乱斗的张数，个别人 2v2 单独定。</li>
+        <li><b>上线</b>：放一段约 3 秒的大招演出，点一下或按 Esc 跳过；你自己上线时，配乐换成 Harness 曲（第 3 轮「吵上头」之后照旧放激烈的曲子）。</li>
+        <li>【Codex】回手、【DSH】跑插件在被封号的回合也照样结算；DSH 的吐槽插件只有【反驳】挡得住。</li>
+      </ul>
+      <h3>每个人的 Harness</h3><div class="ru-modes">${keys.filter((k) => CH[k].harness).map((k) => { const c = CH[k], h = c.harness; return `<div style="--c:${c.color}"><b>${c.name} · ${h.name}</b><span>${h.desc}<br><small>满格：${hzNeed(k)}</small></span></div>`; }).join("")}</div>`],
     ["modes", "游戏模式", () => `<h2>游戏模式</h2><div class="ru-modes">
       <div><b>三人乱斗</b><span>你和两个电脑，最后留在群里的人当群主。先手第一回合只摸 1 张，最后出手的人第一回合摸 4 张（抵消先手优势）。</span></div>
       <div><b>单挑</b><span>一对一，把她踢出群就赢。先手第一回合只摸 1 张，后手第一回合摸 4 张。</span></div>
@@ -521,7 +537,7 @@ window.Main = (function () {
       const done = () => { e.preventDefault(); e.stopImmediatePropagation(); };
       if (!$("#rules").classList.contains("hidden")) { closeRules(); done(); return; }
       if ($("#report")) { $("#report .rp-x").click(); done(); return; }
-      if ($("#fx .dshow")) { UI.skipDeploy(); done(); return; }   // v48 上线演出：Esc 跳过   // v43 战报卡：Esc 只关战报，回到结算框
+      if ($("#modal").classList.contains("hidden") && UI.skipDeploy()) { done(); return; }   // v48 上线演出：Esc 跳过（v49 按「真的跳了」判断：原来查旧类名永远不中，Esc 会落到应答框变成「不出」；设置等窗口开着时先关窗口）   // v43 战报卡：Esc 只关战报，回到结算框
       const md = $("#modal");
       if (!md.classList.contains("hidden")) {
         if ($("#modal-close").style.display !== "none") md.classList.add("hidden");

@@ -216,7 +216,7 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 
 /* 牌 */
 .card { position: absolute; width: 150px; height: 212px; border-radius: 16px; background: #fff; border: 4px solid #fff; overflow: hidden; cursor: pointer;
-  box-shadow: 0 4px 12px rgba(60, 40, 120, .22); transition: transform .15s, left .25s, top .25s, box-shadow .15s; }
+  box-shadow: 0 4px 12px rgba(60, 40, 120, .22); transition: transform .15s, translate .25s, left .25s, top .25s, box-shadow .15s; }
 .card .cn { position: absolute; left: 0; right: 0; top: 0; height: 40px; background: var(--basic); color: #fff; font-family: var(--title); font-size: 27px; line-height: 40px !important;
   text-align: center; line-height: 32px; letter-spacing: 1px; }
 .card.trick .cn { background: var(--trick); }
@@ -244,7 +244,7 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 .cardback::after { content: "✦"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 44px; }
 
 #hand { position: absolute; left: calc(270px + var(--dx)); top: calc(668px + var(--dy)); width: 900px; height: 232px; }
-#hand .card { touch-action: none; }
+#hand .card { touch-action: none; left: 0; top: 0; }   /* v49 位置走 translate（ui.js renderHand；老浏览器不支持时 JS 照旧写 left/top 盖过这里） */
 #hand .card.dragging { opacity: .25; }
 .card .kn { display: none; position: absolute; left: 6px; top: 46px; width: 26px; height: 26px; border-radius: 50%; background: rgba(42, 36, 64, .7); color: #fff;
   font-size: 15px; font-weight: 800; line-height: 26px; text-align: center; }
@@ -760,6 +760,10 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .ru-sk em { font-style: normal; font-size: 12px; font-weight: 800; color: #fff; border-radius: 7px; padding: 0 6px; background: #9a93bf; flex: none; }
 .ru-sk em.active { background: var(--c); }
 .ru-sk span { font-size: 15px; font-weight: 700; color: #4a4270; }
+/* v49 选人页 / 规则页的 Harness 一行：金色，和对局里上线后的金边一致 */
+.ru-sk.hz, .sd-skill.hz { background: #fff8e6; box-shadow: inset 0 0 0 2px #e8c36a; }
+.ru-sk em.hz, .sd-skill em.hz { background: linear-gradient(90deg, #b8860b, #e0a52a); }
+.sd-skill.hz small { color: #8a5a00; font-size: 13px; }
 .ru-modes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .ru-props { display: flex; gap: 14px; flex-wrap: wrap; margin: 6px 0 4px; }
 .ru-props span { display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: var(--title); font-size: 17px; color: var(--acc-ink); background: #fff; border-radius: 16px; padding: 8px 14px 6px; }
@@ -1010,7 +1014,10 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 /* v48 大招演出 */
 .ult { position: absolute; inset: 0; z-index: 72; pointer-events: none; overflow: hidden; }
 .ult:not(.lite) { pointer-events: auto; cursor: pointer; }
-.ult.out { opacity: 0; transition: opacity .3s; }
+.ult.out { opacity: 0; transition: opacity .3s; pointer-events: none; }
+.ult.rel { pointer-events: none; cursor: auto; }                      /* v49 电脑上线放行后：罩子不再吃点击，薄纱先淡掉，底下的对局看得见 */
+.ult.rel .ult-veil, .ult.rel.s3 .ult-veil, .ult.rel .ult-edge { opacity: 0; transition: opacity .3s; }   /* .rel.s3：要压过后面 .ult.s3 .ult-veil 的 transition */
+.ult.rel .ds-skip, .ult.out .ds-skip { opacity: 0; }                  /* 放行后点了也不会跳，「点一下跳过」先收起来 */
 .ult-veil { position: absolute; inset: 0; background: rgba(255, 255, 255, .5); animation: dvIn .15s ease-out; }
 .ult.s3 .ult-veil { background: linear-gradient(180deg, rgba(255, 255, 255, .7), color-mix(in srgb, var(--l) 70%, rgba(255, 255, 255, .6))); transition: background .3s; }
 .ult-pt { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
@@ -1163,3 +1170,8 @@ body.hinfo-on #fx .bubble { opacity: 0; transition: opacity .15s; }   /* v50 详
 #stage.tiny #scr-game .btn, #stage.tiny #scr-game .icon, #stage.portrait #scr-game .btn, #stage.portrait #scr-game .icon,
 body.ult-on #scr-game .btn, body.ult-on #scr-game .icon { backdrop-filter: none; -webkit-backdrop-filter: none; }
 #stage.tiny #scr-game .btn, #stage.tiny #scr-game .icon, #stage.portrait #scr-game .btn, #stage.portrait #scr-game .icon { background-color: rgba(255, 255, 255, .8); }
+/* v49 手机上对局外的页面（标题 / 大厅 / 选人 / 组队）也关掉毛玻璃：背景图在动、群聊在滚时每帧都要重算这些模糊；底色调实一点 */
+#stage.tiny .btn, #stage.tiny .icon, #stage.portrait .btn, #stage.portrait .icon, #stage.tiny .logo .b1, #stage.portrait .logo .b1, #stage.tiny .subtitle .msg, #stage.portrait .subtitle .msg,
+#stage.tiny .mode-switch, #stage.portrait .mode-switch, #stage.tiny #lobby-chat, #stage.portrait #lobby-chat, #stage.tiny .tm-side, #stage.portrait .tm-side { backdrop-filter: none; -webkit-backdrop-filter: none; }
+#stage.tiny .btn, #stage.tiny .icon, #stage.portrait .btn, #stage.portrait .icon { background-color: rgba(255, 255, 255, .8); }
+#stage.tiny #lobby-chat, #stage.portrait #lobby-chat, #stage.tiny .tm-side, #stage.portrait .tm-side, #stage.tiny .mode-switch, #stage.portrait .mode-switch, #stage.tiny .subtitle .msg, #stage.portrait .subtitle .msg { background-color: rgba(255, 255, 255, .88); }

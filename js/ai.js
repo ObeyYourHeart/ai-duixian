@@ -217,7 +217,7 @@ window.AI = (function () {
     // MiniMax 神奇海螺：手里有吐槽就先问海螺，点到的人这回合挡不了吐槽
     if (g.canSkill(p, "magic") && H("tucao").length && p.tucao < g.limitTucao(p)) return { skill: "magic" };
     // 豆包 一键成片：刚打出的是好牌（吐槽 / 红包 / 蒸馏……），手里还有牌可弃，就拍成视频再放一遍
-    if (g.canSkill(p, "remake") && p.hand.length >= 2 && p.lastPlay && p.lastPlay.k === "tucao") return { skill: "remake" };
+    if (g.canSkill(p, "remake") && p.hand.length >= (!g.remakeCost(p) ? 0 : 2) && p.lastPlay && p.lastPlay.k === "tucao") return { skill: "remake" };   // v49 TRAE SOLO 上线后不用弃牌，手里没牌也拍
     // Kimi 排练：吐槽够用、或者乐队差最后一名、或者这回合已经吐槽完了，就写一首新歌；只有 1 张又能把人踢出群时先留着打
     if (g.canSkill(p, "rehearse")) {
       const nT = H("tucao").length, band = (p.band || []).length, spent = p.tucao >= g.limitTucao(p);

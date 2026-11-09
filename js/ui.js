@@ -45,7 +45,7 @@ window.UI = (function () {
     h.style.scale = s === 1 ? "" : String(s); h.style.transformOrigin = s === 1 ? "" : "0 0";
   }
   // 舞台尺寸变了（换屏幕、全屏、转手机）：重算坐标，把角色卡和手牌挪到新位置
-  function layout(W, H, portrait) { SW = W; SH = H; PORTRAIT = !!portrait; relayout(); }
+  function layout(W, H, portrait) { SW = W; SH = H; PORTRAIT = !!portrait; for (const s of ["#ctip", "#hinfo"]) { const e = $(s); if (e) e._sig = ""; } relayout(); }   // v49 重新布局（含切到 / 切出小屏 tiny）：浮窗、详情卡的缓存作废，重新量尺寸、摆位置
   function relayout() {
     const W = SW, H = SH;
     if (PORTRAIT) {
@@ -93,7 +93,7 @@ window.UI = (function () {
 
   // ---------------------------------------------------------------- 装配
   function attach(game) {
-    g = game; heroes = []; for (const k in blinkAt) delete blinkAt[k]; rage(false);
+    g = game; heroes = []; hzPre = []; for (const k in blinkAt) delete blinkAt[k]; rage(false);
     const seats = $("#seats"); seats.innerHTML = "";
     $("#pile").innerHTML = ""; $("#chat-list").innerHTML = ""; $("#fx").innerHTML = ""; skillSig = "";
     $("#chat-n").textContent = g.players.length;
@@ -153,14 +153,16 @@ window.UI = (function () {
     return null;
   }
 
+  // v49 sync 每出一张牌要跑 4–5 次：值没变就不写（写一次 DOM 就要重新解析 + 后面整页重排）
+  function put(e, v) { if (e && e.textContent !== v) e.textContent = v; }
+  const TR = !!(window.CSS && CSS.supports && CSS.supports("translate", "1px 2px"));   // v49 手牌走 translate（不支持的老浏览器照旧用 left/top）
   function sync() {
     if (!g) return;
     for (const p of g.players) {
       const h = heroes[p.i];
-      let hp = "";
-      for (let k = 0; k < p.maxHp; k++) hp += HEART.replace("%c", k < p.hp ? "" : " empty");
-      h.querySelector(".hp").innerHTML = hp;
-      h.querySelector(".cnt span").textContent = p.hand.length;
+      const hpE = h.querySelector(".hp"), hs = p.hp + "/" + p.maxHp;
+      if (hpE.dataset.s !== hs) { hpE.dataset.s = hs; let hp = ""; for (let k = 0; k < p.maxHp; k++) hp += HEART.replace("%c", k < p.hp ? "" : " empty"); hpE.innerHTML = hp; }
+      put(h.querySelector(".cnt span"), String(p.hand.length));
       h.classList.toggle("out", !p.alive);
       if (!p.alive && !h.querySelector(".stamp")) h.appendChild(el("div", "stamp", "退群"));
       let st = "";
@@ -178,11 +180,14 @@ window.UI = (function () {
         if (hb) { const H = p.ch.harness, n = g.deployNeed(p), d = Math.min(n, p.deploy || 0), nm = p.key === "xds" ? (p.disguise ? "Claude Code" : "DSH") : H && H.name;
           const sig = !H || !p.alive ? "" : p.deployed ? "on|" + nm : d + "/" + n + nm;
           if (hb.dataset.s !== sig) { hb.dataset.s = sig; hb.className = "hzbar" + (!sig ? " none" : p.deployed ? " on" : ""); h.classList.toggle("hzp", !!sig);   // v50 不用 :has()（每次改 DOM 都要重算，平板上卡）
-            hb.innerHTML = !sig ? "" : p.deployed ? `<b>${nm}</b><em>ONLINE</em>` : `<b>${nm}</b><i style="--f:${(d / n).toFixed(3)}"></i><em>${d}/${n}</em>`; hb.title = H ? H.short : ""; } } }
+            hb.innerHTML = !sig ? "" : p.deployed ? `<b>${nm}</b><em>ONLINE</em>` : `<b>${nm}</b><i style="--f:${(d / n).toFixed(3)}"></i><em>${d}/${n}</em>`; hb.title = H ? H.short : ""; }
+          if (H && p.alive && !p.deployed && n - d <= 1 && !hzPre[p.i] && Engine.speed > 0) hzPre[p.i] = ["a", "b"].map((f) => { const im = new Image(); im.src = hzImg(p, f); if (im.decode) im.decode().catch(() => {}); return im; }); } }   // v49 差 1 格就上线：先把上线立绘下载、解码好（演出开始才建图片，慢网第一次大招会空着）；演完放掉
       for (const eq of g.equips(p)) st += `<span class="eq${CD[eq.k].owner ? " zw" : ""}">${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`;   // 分格后可能不止一件
       if (p.cloud) st += '<span class="eq zw">☁ 云端任务跑着</span>';                                       // v47 Codex
+      if (p.clip) st += '<span class="eq zw" title="MiniMax Code 素材库：1 条【吐槽】，下次兔子快递先烧它">🎞 素材</span>';   // v49 MiniMax Code
+      if (p.bgTask) st += `<span class="eq zw" title="Muse Code：Jolly 在后台办【${CD[p.bgTask.k].name}】，她下回合一开始自动打出">🧸 Jolly 跑腿中</span>`;   // v49 Muse Code
       if (p.plugins && p.plugins.length) st += `<span class="eq zw" title="${p.plugins.map((c) => CD[c.k].name).join("、")}">🔌 插件 ${p.plugins.length}</span>`;   // v47 DSH
-      h.querySelector(".status").innerHTML = st;
+      const stE = h.querySelector(".status"); if (stE._s !== st) { stE._s = st; stE.innerHTML = st; }
       const bd = h.querySelector(".band");
       if (bd) {                                                    // Kimi 的乐队：到了几名乐手，空位是虚线
         const n = (p.band || []).length;
@@ -193,22 +198,23 @@ window.UI = (function () {
         }
         bd.classList.toggle("full", n >= Engine.T.bandMax);
       }
-      const sd = h.querySelector(".side"), lab = sideLabel(p);
-      sd.className = "side" + (lab ? " " + lab.cls : ""); sd.textContent = lab ? lab.text : "";
+      const sd = h.querySelector(".side"), lab = sideLabel(p), sc = "side" + (lab ? " " + lab.cls : "");
+      if (sd.className !== sc) sd.className = sc; put(sd, lab ? lab.text : "");
     }
-    $("#deck").textContent = g.deck.length;
-    $("#round").textContent = g.round;
+    put($("#deck"), String(g.deck.length));
+    put($("#round"), String(g.round));
     // 炸弹猫：牌堆里还剩几张宕机、下一张是宕机的概率；你看过的牌堆顶
     const bl = g.bombsLeft();
-    $("#bombs").textContent = bl;
-    $("#risk").textContent = g.deck.length ? ` ${PORTRAIT ? "" : "下张 "}${Math.round(bl / g.deck.length * 100)}%` : "";   // 竖屏顶栏窄，只写百分比
+    put($("#bombs"), String(bl));
+    put($("#risk"), g.deck.length ? ` ${PORTRAIT ? "" : "下张 "}${Math.round(bl / g.deck.length * 100)}%` : "");   // 竖屏顶栏窄，只写百分比
     const kn = g.human.alive ? g.known(g.human, 5) : [];
     let last = kn.length; while (last > 0 && !kn[last - 1]) last--;
     const kb = $("#known"), math = g.human.alive && g.hasSkill(g.human, "math") ? g.bombSpots() : null;   // ChatGPT 演算：宕机在第几张
     kb.classList.toggle("hidden", !last && !(math && math.length));
-    if (math && math.length) kb.innerHTML = '<span class="kt">🧮 演算</span>' + `<span class="kc boom">宕机在第 ${math.join("、")} 张</span>` +
-      kn.slice(0, last).map((c, i) => c && c.k !== "dangji" ? `<span class="kc">${i + 1}. ${CD[c.k].name}</span>` : "").join("");
-    else if (last) kb.innerHTML = '<span class="kt">👁 你看过的牌堆顶</span>' + kn.slice(0, last).map((c, i) => `<span class="kc${c && c.k === "dangji" ? " boom" : c ? "" : " unk"}">${i + 1}. ${c ? CD[c.k].name : "？"}</span>`).join("");
+    const kh = math && math.length ? '<span class="kt">🧮 演算</span>' + `<span class="kc boom">宕机在第 ${math.join("、")} 张</span>` +
+      kn.slice(0, last).map((c, i) => c && c.k !== "dangji" ? `<span class="kc">${i + 1}. ${CD[c.k].name}</span>` : "").join("")
+      : last ? '<span class="kt">👁 你看过的牌堆顶</span>' + kn.slice(0, last).map((c, i) => `<span class="kc${c && c.k === "dangji" ? " boom" : c ? "" : " unk"}">${i + 1}. ${c ? CD[c.k].name : "？"}</span>`).join("") : null;
+    if (kh != null && kb._s !== kh) { kb._s = kh; kb.innerHTML = kh; }
     renderHand();
     renderSkills();
     if (infoP && !$("#hinfo").classList.contains("hidden")) showHeroInfo(infoP, infoFocus);
@@ -235,17 +241,20 @@ window.UI = (function () {
     const keep = new Set();
     me.hand.forEach((c, i) => {
       let e = existing[c.id];
+      const x = xs[i];
       if (!e) {
         e = cardEl(c); e.removeAttribute("title"); bindHandCard(e, c.id);
         e.appendChild(el("div", "kn"));
-        box.appendChild(e); e.style.left = hw + "px"; e.style.top = "8px";
+        box.appendChild(e);
+        if (TR) { e.style.translate = `${hw}px 8px`; if (Engine.speed > 0) void getComputedStyle(e).translate; }   // v49 新牌先放在右边、量一次起点，下面写新位置时由 translate 过渡滑进来（中途手牌再变也能顺着改道；单独的动画会挡住过渡，到头一下跳过去）
+        else { e.style.left = hw + "px"; e.style.top = "8px"; }
       }
       keep.add(String(c.id));
-      const x = xs[i];
       e.dataset.x = x;
-      e.style.zIndex = i === focus ? 30 : i + 1;
-      requestAnimationFrame(() => { e.style.left = x + "px"; e.style.top = "8px"; });
-      e.querySelector(".kn").textContent = i < 9 ? i + 1 : "";
+      const z = String(i === focus ? 30 : i + 1); if (e.style.zIndex !== z) e.style.zIndex = z;
+      if (TR) { if (e.dataset.tx !== String(x)) { e.dataset.tx = x; e.style.translate = `${x}px 8px`; } }   // v49 手牌位置走合成层的 translate（left/top 过渡每挪一次整排牌都要重画十几帧，主线程一卡牌就跳）
+      else requestAnimationFrame(() => { e.style.left = x + "px"; e.style.top = "8px"; });
+      put(e.querySelector(".kn"), i < 9 ? String(i + 1) : "");
       const usable = mode === "play" && !busy && !skillMode && g.canUse(me, c);
       const respond = mode === "respond" && respondCards.includes(c.id);
       e.classList.toggle("can", !!(usable || respond || mode === "discard"));
@@ -310,6 +319,15 @@ window.UI = (function () {
     if (s.id === "math" && p.human && g.bombSpots) { const sp = g.bombSpots(); if (sp.length) out.push(`宕机在第 ${sp.join("、")} 张`); }
     return out;
   }
+  function hzState(p) {                                                 // v49 详情卡 Harness 一栏的当前状态（Codex / DSH 原来写在技能状态里，v48 挪出技能表后就看不到了）
+    const ids = (p.ch.harness && p.ch.harness.ids) || [], out = [];
+    if (!p.deployed) return out;
+    if (ids.includes("mmcode")) out.push(p.clip ? "素材库里有 1 条吐槽" : "素材库空着");
+    if (ids.includes("musecode")) { const cap = g.players.length === 2 ? Engine.T.museBgMax2p : Engine.T.museBgMax; out.push(p.bgTask ? `Jolly 在办【${CD[p.bgTask.k].name}】` : `后台还能跑 ${Math.max(0, cap - (p.bgN || 0))} 次`); }
+    if (ids.includes("codex") && p.cloud) out.push(`云端在跑【${CD[p.cloud.k].name}】`);
+    if (ids.includes("dsh") && g.dshMax) out.push(`插件 ${(p.plugins || []).length} / ${g.dshMax(p)}`);
+    return out;
+  }
   function heroStatus(p) {
     const st = [];
     if (p.banned) st.push("🚫 封号中"); if (p.muted) st.push("🔇 禁言中"); if (p.dumb) st.push("❓ 降智中");
@@ -327,25 +345,29 @@ window.UI = (function () {
     const relRow = rel ? ((window.GAME_DATA.relations || []).find(([a, b]) => (a === p.key && b === me.key) || (a === me.key && b === p.key)) || [])[3] : "";
     const side = g.mode === "team" && p !== me ? (g.nation ? `${((window.GAME_DATA.nations || {})[p.ch.nation] || {}).name} · ` : "") + (p.team === me.team ? "队友" : "对手") : g.mode === "id5" ? (p.role === "lord" || p.human || p.revealed ? Engine.ROLE[p.role] : "身份未知") : "";
     const st = heroStatus(p);
-    box.style.setProperty("--c", p.ch.color); box.style.setProperty("--l", p.ch.light); document.body.classList.add("hinfo-on");   // v50 详情开着时藏起说话气泡（气泡那层更高，会盖住技能说明）
-    box.innerHTML = `<div class="hi-head"><img src="${portrait(p.key, "avatar")}" alt=""><div class="hi-nm"><b>${p.name}</b></div><button class="hi-x" title="关闭">✕</button></div>
-      <div class="hi-stat"><span>❤ 心态 ${Math.max(0, p.hp)} / ${p.maxHp}</span><span>🂠 手牌 ${p.hand.length}（上限 ${g.handLimit(p)}）</span>${g.equips(p).map((eq) => `<span>${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`).join("")}${p.cloud ? "<span>☁ 云端任务跑着</span>" : ""}${p.plugins && p.plugins.length ? `<span>🔌 插件：${p.plugins.map((c) => CD[c.k].name).join("、")}</span>` : ""}${side ? `<span>${side}</span>` : ""}${p.alive ? "" : "<span>已退群</span>"}</div>
+    const html = `<div class="hi-head"><img src="${portrait(p.key, "avatar")}" alt=""><div class="hi-nm"><b>${p.name}</b></div><button class="hi-x" title="关闭">✕</button></div>
+      <div class="hi-stat"><span>❤ 心态 ${Math.max(0, p.hp)} / ${p.maxHp}</span><span>🂠 手牌 ${p.hand.length}（上限 ${g.handLimit(p)}）</span>${g.equips(p).map((eq) => `<span>${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`).join("")}${p.cloud ? "<span>☁ 云端任务跑着</span>" : ""}${p.plugins && p.plugins.length ? `<span>🔌 插件：${p.plugins.map((c) => CD[c.k].name).join("、")}</span>` : ""}${p.clip ? "<span>🎞 素材 1 条</span>" : ""}${p.bgTask ? "<span>🧸 Jolly 跑腿中</span>" : ""}${side ? `<span>${side}</span>` : ""}${p.alive ? "" : "<span>已退群</span>"}</div>
       ${st.length ? `<div class="hi-st">${st.join(" · ")}</div>` : ""}
       ${rel ? `<div class="hi-rel ${rel}"><b>${REL_NAME[rel]}</b>${relRow}</div>` : ""}
       ${p !== me && window.Props ? `<div class="hi-props"><div class="hp-row">${Props.kindsFor(me).map((k) => `<button class="hp-b${Props.KINDS[k].owner ? " sig" : ""}" data-k="${k}" title="${Props.KINDS[k].name}${Props.KINDS[k].owner ? "（你的专属）" : ""}"><img src="${A(`assets/img/prop_${k}.webp`)}" alt=""><span>${Props.KINDS[k].name}</span></button>`).join("")}</div>
         <div class="hp-note">${Props.meaning(g, me, p)}</div></div>` : ""}
-      ${p.ch.harness ? `<div class="hi-hz${p.deployed ? " on" : ""}"><div class="hi-sk1"><b>Harness · ${p.ch.harness.name}</b><em>${p.deployed ? "已上线" : `部署 ${p.deploy || 0} / ${g.deployNeed(p)}`}</em></div>
+      ${p.ch.harness ? `<div class="hi-hz${p.deployed ? " on" : ""}"><div class="hi-sk1"><b>Harness · ${p.ch.harness.name}</b><em>${p.deployed ? "已上线" : `部署 ${p.deploy || 0} / ${g.deployNeed(p)}`}</em>${hzState(p).map((x) => `<i>${x}</i>`).join("")}</div>
         <div class="hi-short">${p.ch.harness.short}</div><div class="hi-desc">${p.ch.harness.desc}<br><small>每打出 1 张牌部署进度 +1，满格上线，整局生效。</small></div></div>` : ""}
       <div class="hi-skills">${p.ch.skills.filter((s) => !s.harness || !p.ch.harness).map((s) => {
         const ss = skillState(p, s);
         return `<div class="hi-sk${s.id === infoFocus ? " focus" : ""}"><div class="hi-sk1"><b>${s.name}</b><em class="${s.type}">${s.type === "active" ? "主动" : "被动"}</em>${ss.map((x) => `<i>${x}</i>`).join("")}</div>
           <div class="hi-short">${s.short || ""}</div><div class="hi-desc">${s.desc}</div></div>`;
       }).join("")}</div>`;
+    const q = pos(p), sc = seatScale(p), sig = p.i + "|" + q.x + "," + q.y + "," + sc + "|" + SW + "x" + SH + "|" + html;
+    if (box._sig === sig && box.className === "") return;                // v49 详情卡开着等电脑出牌时，每次 sync 都整卡重建 + 量尺寸：内容没变就跳过
+    box._sig = sig;
+    box.style.setProperty("--c", p.ch.color); box.style.setProperty("--l", p.ch.light); document.body.classList.add("hinfo-on");   // v50 详情开着时藏起说话气泡（气泡那层更高，会盖住技能说明）
+    box.innerHTML = html;
     box.className = "";
     box.querySelector(".hi-x").onclick = (ev) => { ev.stopPropagation(); hideHeroInfo(); };
     box.querySelectorAll(".hp-b").forEach((b) => { b.onclick = (ev) => { ev.stopPropagation(); if (Props.human(g, me, p, b.dataset.k)) hideHeroInfo(); }; });
     // 放在角色旁边：右边放得下就放右边，不然放左边；上下不出屏
-    const q = pos(p), sc = seatScale(p), w = box.offsetWidth, h = box.offsetHeight;
+    const w = box.offsetWidth, h = box.offsetHeight;
     let x = q.x + HERO_W * sc + 14;
     if (x + w > SW - 12) x = q.x - w - 14;
     if (x < 12) x = Math.max(12, Math.min(SW - w - 12, q.x + HERO_W * sc / 2 - w / 2));
@@ -380,13 +402,16 @@ window.UI = (function () {
     } else if (mode === "respond" && respondCards.includes(c.id)) html += `<div class="tgo"><span>👉 点这张打出</span></div>`;
     else if (!$("#prompt").classList.contains("hidden")) { tip.className = "hidden"; return; }
     if (swapNote(c) && !(playing && !g.canUse(me, c))) html = html.replace("</div>", `</div><div class="tsw">${swapNote(c)}</div>`);   // 装备冲突提醒，紧跟在说明下面
+    const cx = HAND_X + ((+ce.dataset.x || 0) + CARD_W / 2) * HS, ph = $("#prompt").classList.contains("hidden");
+    const sig = html + "|" + cx + "|" + ph + "|" + SW + "|" + SH;
+    if (tip._sig === sig && tip.className === "") return;                // v49 内容、位置都没变：不重建、不再量尺寸（写完马上读尺寸 = 强制重排）
+    tip._sig = sig;
     tip.innerHTML = html;
     tip.className = "";
     const go = tip.querySelector("#tip-go");
     if (go) go.onclick = (ev) => { ev.stopPropagation(); playSelected(); };
     const w = tip.offsetWidth, h = tip.offsetHeight;
-    const cx = HAND_X + ((+ce.dataset.x || 0) + CARD_W / 2) * HS;
-    const top = $("#prompt").classList.contains("hidden") ? HAND_Y + (8 - 34) * HS - 12 - h : PROMPT_Y - 12 - h;
+    const top = ph ? HAND_Y + (8 - 34) * HS - 12 - h : PROMPT_Y - 12 - h;
     tip.style.left = Math.max(16, Math.min(SW - 16 - w, cx - w / 2)) + "px";
     tip.style.top = top + "px";
   }
@@ -483,7 +508,8 @@ window.UI = (function () {
       });
       if (me.ch.harness) {                                          // v48 Harness：单独一个金色小牌，没上线灰着显示进度
         const H = me.ch.harness, dup = acts.some((a) => H.ids.includes(a.s.id));   // Harness 本身就是上面的技能按钮（Claude Code）时只写 Harness，省一行
-        const ch = el("span", "pchip hzc" + (me.deployed ? "" : " off"), `${dup ? "Harness" : `Harness · ${H.name}`}<small>${me.deployed ? "已上线" : `部署 ${hz}`}</small>`);
+        const crowd = acts.length + pas.length >= 4;                     // v49 技能多的人（MiniMax 3 主动 + 1 被动）去掉「Harness · 」前缀：平板上不然会独占一行，把结束按钮顶出框
+        const ch = el("span", "pchip hzc" + (me.deployed ? "" : " off"), `${dup ? "Harness" : crowd ? H.name : `Harness · ${H.name}`}<small>${me.deployed ? "已上线" : `部署 ${hz}`}</small>`);
         ch.title = `【${H.name}】${H.short}（每打出 1 张牌部署 +1，满格上线）`;
         ch.onclick = (ev) => { ev.stopPropagation(); showHeroInfo(me); };
         box.appendChild(ch);
@@ -610,7 +636,7 @@ window.UI = (function () {
     if (!arr || !arr.length) return;
     const now = performance.now();
     if (!important && now - (lastSay.t || 0) < 900) return;
-    lastSay.t = now;
+    lastSay.t = Math.max(lastSay.t || 0, now);                          // v49 不往回拨：上线台词设的「说完前别插嘴」不会被别人的重要台词冲掉
     const idx = Math.floor(Math.random() * arr.length);
     const text = arr[idx];
     Sound.voice(p.key, key, idx);
@@ -783,6 +809,20 @@ window.UI = (function () {
       setTimeout(() => { if (!g) return; const b = el("div", "cardback"); flyEl(b, DECK, center(p), 300, 0.7, 0.5).then((e) => e.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: "forwards" }).finished.then(() => e.remove())); }, k * 70);
     }
   }
+  // v49 MiniMax Code 素材库 / Muse Code 后台任务：牌飞进座位上的标签（on），或者从标签里拿出来（off：烧掉当燃料 / Jolly 跑完回来）
+  function hzStash(p, kind, on, c) {
+    if (!g || !(Engine.speed > 0) || !heroes[p.i]) { sync(); return; }
+    const seat = center(p), mid = { x: SW / 2, y: SH * 0.42 };
+    if (on) {
+      Sound.sfx(kind === "clip" ? "ding" : "notify", 0.45);
+      const e = c ? cardEl(c) : el("div", "cardback");
+      flyEl(e, mid, seat, 460, 0.5, 0.22).then((x) => x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: "forwards" }).finished.then(() => x.remove()));
+    } else if (kind === "clip") {                                      // 素材烧成燃料：从座位缩小、淡掉
+      const e = c ? cardEl(c) : el("div", "cardback");
+      flyEl(e, { x: seat.x, y: seat.y - 40 }, seat, 320, 0.3, 0.08).then((x) => x.remove());
+    }
+    sync();
+  }
   function steal(from, to) {
     const b = el("div", "cardback");
     flyEl(b, center(from), center(to), 420, 0.6, 0.6).then((e) => e.remove());
@@ -838,7 +878,7 @@ window.UI = (function () {
     clashSkip = null;
     if (skipped && Sound.hush) { Sound.hush(a.key); Sound.hush(b.key); }
     box.classList.add("bye"); setTimeout(() => box.remove(), 220);
-    lastSay.t = performance.now();
+    lastSay.t = Math.max(lastSay.t || 0, performance.now());
   }
   // 变身：换伪装立绘、名牌改成“Claude？”
   function disguise(p, on) {
@@ -874,9 +914,10 @@ window.UI = (function () {
   // v48 上线演出（改版：以立绘为主）：
   //   玩家自己上线——浅色薄纱上大立绘居中，镜头慢推（整张等比放大，不扭曲）→ 切到第 2 帧 + 身后光点散开 + 配音 + 眨眼；
   //   旁边全息小屏打部署命令，「XX 上线！」章在一侧。点一下 / Esc 跳过。电脑上线——只用第 2 帧，半屏切入约 1 秒（同技能切入）
-  let deploySkip = null;
-  function skipDeploy() { if (deploySkip) deploySkip(); }
-  const HZ_BLINK = ["claude", "gemini", "deepseek", "doubao", "kimi", "grok", "qwen", "xds", "xds_cl"];   // 有眨眼帧的（GPT / GLM 合成不自然，不眨）
+  let deploySkip = null, deployCur = null;   // deploySkip：现在能跳的那场；deployCur：还没收尾的那场（v49 同一时间只留一场）
+  let hzPre = [];                                                       // v49 每个座位预载好的上线立绘（差 1 格时建，演完换成 1 = 不再预载）
+  function skipDeploy() { if (!deploySkip) return false; deploySkip(); return true; }   // v49 返回跳没跳：Esc 按它判断（原来查旧类名 .dshow 永远查不到，Esc 还会落到应答框变成「不出」）
+  const HZ_BLINK = ["claude", "gemini", "deepseek", "doubao", "kimi", "grok", "qwen", "xds", "xds_cl", "minimax", "muse"];   // 有眨眼帧的（GPT / GLM 合成不自然，不眨）
   // v50 神级皮肤（g1）开大招：换成神皮造型的上线立绘 + 专属开场 + 专属台词（deploy_g1，say 自动挑）
   const GOD = ["claude", "gpt", "gemini", "deepseek", "doubao"];
   function godSkin(p) { return !p.disguise && GOD.includes(p.key) && window.Settings && Settings.skinOf(p.key) === "g1"; }
@@ -884,8 +925,9 @@ window.UI = (function () {
   // v48 大招演出：玩家自己上线约 3 秒（时停 → 斜切眼部特写 → 纹章 + 爆发 → 技能名砸下 → 光点回座位），点一下 / Esc 跳过；
   //   电脑上线简版约 1.5 秒（斜切 + 技能名）。不震屏、不用集中线；立绘不扭曲，只动镜头 / UI / 两帧；粒子用 canvas，CSS 只动 transform / opacity
   const HZ_EYE = { claude: [335, 92], gpt: [345, 202], gemini: [353, 230], deepseek: [324, 187], glm: [226, 216], doubao: [342, 216], kimi: [349, 144],
-    grok: [382, 256], qwen: [405, 162], xds: [348, 352], xds_cl: [364, 374] };   // 发动帧（720×1080）两眼中点，斜切光带里的眼部特写用
+    grok: [382, 256], qwen: [405, 162], xds: [348, 352], xds_cl: [364, 374], minimax: [360, 220], muse: [360, 220] };   // 发动帧（720×1080）两眼中点，斜切光带里的眼部特写用
   const ULT = {                                                       // 专属纹章 / 粒子 / 音色
+    minimax: { glyph: "conch", part: "carrot", sfx: "ult_minimax" }, muse: { glyph: "jolly", glyph2: "todo", part: "todo", sfx: "ult_muse" },   // v49 MiniMax Code 海螺螺线 + 小胡萝卜 / Muse Code Jolly 兜帽 + 待办框
     claude: { glyph: "flower", part: "petal", sfx: "ult_claude" }, gpt: { glyph: "cloud", part: "feather", sfx: "ult_gpt" },
     gemini: { glyph: "star", part: "stardust", sfx: "ult_gemini" }, deepseek: { glyph: "whale", part: "bubble", sfx: "ult_deepseek" },
     xds: { glyph: "whale", part: "bubble", sfx: "ult_deepseek" }, xds_cl: { glyph: "flower", part: "petal", sfx: "ult_claude" },
@@ -911,8 +953,13 @@ window.UI = (function () {
     const whale = () => { x.beginPath(); x.ellipse(0, 0, 14, 8, 0, 0, 7); x.fill(); x.beginPath(); x.moveTo(12, 0); x.lineTo(22, -8); x.lineTo(22, 8); x.closePath(); x.fill(); };
     const coin = () => { x.lineWidth = 3; x.beginPath(); x.arc(0, 0, 11, 0, 7); x.stroke(); x.font = "700 14px sans-serif"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText("$", 0, 1); };
     const hex = () => { x.lineWidth = 3; x.beginPath(); for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; x.lineTo(Math.cos(a) * 13, Math.sin(a) * 13); } x.closePath(); x.stroke(); x.beginPath(); x.arc(0, 0, 4, 0, 7); x.fill(); };
-    const G = { flower, star, cloud, film, whale, coin, hex, inf: glyphText("∞"), code: glyphText("</>"), note: glyphText("♪"), check: glyphText("✓") }[U.glyph] || flower;
-    x.globalAlpha = .95; motif(G, 8, r * 0.72, 1.5 * size / 600); motif(G, 12, r * 0.34, 1 * size / 600);
+    const conch = () => { x.lineWidth = 2.5; x.beginPath(); for (let k = 0; k <= 90; k++) { const a = k / 90 * 6 * Math.PI, rr = 1.5 + 12.5 * k / 90; x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } x.stroke(); };   // v49 三圈海螺螺线
+    const jolly = () => { x.lineWidth = 2.5; x.beginPath(); x.ellipse(0, 1, 11, 14, 0, 0, 7); x.stroke(); x.beginPath(); x.ellipse(0, -1, 6.5, 5.5, 0, 0, 7); x.stroke();   // v49 Jolly 兜帽剪影：圆豆子身 + 脸洞 + 两个小眼睛
+      x.beginPath(); x.arc(-2.5, -1.5, 1.3, 0, 7); x.fill(); x.beginPath(); x.arc(2.5, -1.5, 1.3, 0, 7); x.fill(); };
+    const todo = () => { x.lineWidth = 2.5; x.strokeRect(-10, -10, 20, 20); x.beginPath(); x.moveTo(-6, 0); x.lineTo(-1.5, 5); x.lineTo(7, -6); x.stroke(); };   // v49 打勾的待办框
+    const GL = { flower, star, cloud, film, whale, coin, hex, conch, jolly, todo, inf: glyphText("∞"), code: glyphText("</>"), note: glyphText("♪"), check: glyphText("✓") };
+    const G = GL[U.glyph] || flower, G2 = GL[U.glyph2] || G;            // glyph2：内圈换一种图案
+    x.globalAlpha = .95; motif(G, 8, r * 0.72, 1.5 * size / 600); motif(G2, 12, r * 0.34, 1 * size / 600);
     x.globalAlpha = 1; x.scale(3 * size / 600, 3 * size / 600); G();
     return c;
   }
@@ -934,12 +981,20 @@ window.UI = (function () {
         case "film": x.fillRect(-s, -s * 0.7, s * 2, s * 1.4); x.fillStyle = "#fff"; x.fillRect(-s * 0.6, -s * 0.35, s * 1.2, s * 0.7); break;
         case "bill": x.fillStyle = "#e9c46a"; x.fillRect(-s * 1.2, -s * 0.6, s * 2.4, s * 1.2); x.fillStyle = "#8a6d1f"; x.fillRect(-s * 0.3, -s * 0.3, s * 0.6, s * 0.6); break;
         case "code": case "note": case "check": case "sym": x.font = `700 ${Math.round(s * 2.2)}px Consolas, monospace`; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(q.t, 0, 0); break;
+        case "carrot":                                                  // v49 MiniMax：小胡萝卜 + 粉白星点
+          if (q.alt) { x.beginPath(); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, rr = k % 2 ? s * 0.25 : s * 0.7; x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } x.closePath(); x.fill(); break; }
+          x.fillStyle = "#ff8a3d"; x.beginPath(); x.moveTo(-s * 0.45, -s * 0.5); x.lineTo(s * 0.45, -s * 0.5); x.lineTo(0, s * 1.1); x.closePath(); x.fill();
+          x.fillStyle = "#4caf50"; x.beginPath(); x.ellipse(-s * 0.22, -s * 0.78, s * 0.16, s * 0.38, -0.5, 0, 7); x.ellipse(s * 0.22, -s * 0.78, s * 0.16, s * 0.38, 0.5, 0, 7); x.fill(); break;
+        case "todo":                                                    // v49 Muse：白色小待办卡 + 蓝色短条
+          if (q.alt) { x.fillRect(-s * 0.9, -s * 0.18, s * 1.8, s * 0.36); break; }
+          x.fillStyle = "#fff"; x.fillRect(-s, -s * 0.75, s * 2, s * 1.5); x.strokeStyle = color; x.lineWidth = 1.5; x.strokeRect(-s, -s * 0.75, s * 2, s * 1.5); x.strokeRect(-s * 0.72, -s * 0.32, s * 0.56, s * 0.56);
+          x.fillStyle = color; x.fillRect(s * 0.02, -s * 0.24, s * 0.72, s * 0.14); x.fillRect(s * 0.02, s * 0.08, s * 0.5, s * 0.14); break;
         default: x.beginPath(); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, rr = k % 2 ? s * 0.3 : s; x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } x.closePath(); x.fill();
       }
       x.restore();
     };
     const TXT = { code: ["{ }", "</>", "( )", "=>", ";"], note: ["♪", "♫", "♬"], check: ["✓"], sym: ["∫", "Σ", "π", "∞", "√", "∇"] }[U.part] || [""];
-    const add = (o) => P.push(Object.assign({ r: Math.random() * 6, vr: (Math.random() - .5) * 4, s: 5 + Math.random() * 7, c: Math.random() < .3 ? "#fff" : color, t: TXT[Math.floor(Math.random() * TXT.length)], max: o.life }, o));
+    const add = (o) => P.push(Object.assign({ r: Math.random() * 6, vr: (Math.random() - .5) * 4, s: 5 + Math.random() * 7, c: Math.random() < .3 ? "#fff" : color, t: TXT[Math.floor(Math.random() * TXT.length)], alt: Math.random() < .45, max: o.life }, o));
     const tick = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
       x.clearRect(0, 0, cv.width, cv.height);
@@ -979,7 +1034,7 @@ window.UI = (function () {
     return t;
   }
   // v48 大招登场（全场特效，三种试样：A 领域展开 / B 终端接管 / C 三连斜切；window.ULT_STYLE 选，默认 A）
-  const GLY = { claude: "✿", gpt: "☁", gemini: "✦", deepseek: "◉", xds: "◉", xds_cl: "✿", glm: "</>", doubao: "▶", kimi: "♪", grok: "$", qwen: "✓" };
+  const GLY = { claude: "✿", gpt: "☁", gemini: "✦", deepseek: "◉", xds: "◉", xds_cl: "✿", glm: "</>", doubao: "▶", kimi: "♪", grok: "$", qwen: "✓", minimax: "〰", muse: "☑" };   // v49 MiniMax 声波 / Muse 待办框
   function ultIntro(box, p, key, tc, name, at, hc, fx) {
     // 小DeepSeek 穿 Claude 的衣服：换成 Claude 的圣女领域展开（橙色法阵 + 光柱降临）
     const style = key === "xds_cl" ? "A" : godSkin(p) ? "G" : (window.ULT_STYLE || "B"), W = fx.width, H = fx.height, add = (cls, html = "") => { const e = el("div", cls, html); box.appendChild(e); return e; };
@@ -1114,15 +1169,32 @@ window.UI = (function () {
     if (game !== g || !$("#fx")) return;
     const idle = window.requestIdleCallback ? (f) => requestIdleCallback(f, { timeout: 4000 }) : (f) => setTimeout(f, 200);
     const host = el("div"); host.style.cssText = "position:absolute;left:0;top:0;width:10px;height:10px;overflow:hidden;visibility:hidden;pointer-events:none;contain:strict"; $("#fx").appendChild(host);
-    const steps = game.players.filter((p) => p.ch.harness).map((p) => () => { host.innerHTML = `<div class="un-big">${p.ch.harness.name}</div><div class="un-sub">HARNESS ONLINE</div>`; void host.offsetHeight; });
-    steps.push(() => { host.innerHTML = `<div class="ub-hud"><b>HARNESS BOOT</b><span>DEPLOY 100%</span><p><em>✓</em> load model mount tools link skills sync memory</p>0123456789abcdef ·</div>`; void host.offsetHeight; });
-    steps.push(() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
-      for (const f of ["700 34px Consolas, monospace", "700 44px 'Cambria Math','Times New Roman',serif", "700 22px Consolas, monospace"]) { x.font = f; x.fillText(Object.values(GLY).join("") + "∫Σπ∞√∇∂e+1=0dx ACCESS GRANTED CVE-", 0, 30); } host.remove(); });
+    // v49 和真大招一模一样的结构（技能名逐字拆成 span、HUD 带位置类）：字形缓存按字体、字号、分段记，结构不一样等于没预热
+    const hz = game.players.filter((p) => p.ch.harness), steps = [];
+    for (const p of hz) for (const nm of p.key === "xds" ? ["DSH", "Claude Code"] : [p.ch.harness.name]) steps.push(() => {
+      host.innerHTML = `<div class="ult" style="--c:${p.ch.color}"><div class="ult-name"><div class="un-big">${[...nm].map((c) => `<span>${c === " " ? "&nbsp;" : c}</span>`).join("")}</div><div class="un-sub">HARNESS ONLINE</div></div></div>`; void host.offsetHeight; });
+    if (hz.some((p) => !godSkin(p))) steps.push(() => {                 // 默认的 B 式开场：四块 HUD
+      host.innerHTML = `<div class="ult"><div class="ub-hud ub-top"><b>HARNESS BOOT</b><span>${hz.map((p) => p.ch.harness.name).join(" ")}</span><i></i></div><div class="ub-hud ub-left">${["load model", "mount tools", "link skills", "sync memory"].map((t) => `<p><em>✓</em> ${t}</p>`).join("")}</div>`
+        + `<div class="ub-hud ub-right"><span>DEPLOY</span><div class="ub-bar"><i></i></div><span class="ub-pct">100%</span></div><div class="ub-hud ub-bot">0123456789abcdef · 0123456789abcdef</div></div>`; void host.offsetHeight; });
+    // canvas 字形：只排这局真会画到的字（慢在给缺字找系统回退字体；'Cambria Math' 只有 GPT 神皮用），每种字体单独一步
+    const F = {}, add = (f, t) => { F[f] = (F[f] || "") + t; };
+    for (const p of hz) for (const k of p.key === "xds" ? ["xds", "xds_cl"] : [p.key]) {
+      const god = k !== "xds_cl" && godSkin(p), U = ULT[god && ULT[k + "_g1"] ? k + "_g1" : k] || ULT.claude;
+      if (!god && k !== "xds_cl") add("700 34px Consolas, monospace", (GLY[k] || "✦") + "1");   // B 式符号雨
+      const gt = { inf: "∞", code: "</>", note: "♪", check: "✓" }[U.glyph]; if (gt) add("700 22px Consolas, monospace", gt);   // 纹章上的字
+      if (U.glyph === "coin") add("700 14px sans-serif", "$");
+      const pt = { code: "{ }</>( )=>;", note: "♪♫♬", check: "✓", sym: "∫Σπ∞√∇" }[U.part]; if (pt) add("700 20px Consolas, monospace", pt);   // 粒子
+      if (god && k === "gpt") { add("700 44px 'Cambria Math','Times New Roman',serif", "∫Σπ∞√∇ e+1=0 dx=√π 1/n²=π²/6 n=1"); add("700 26px 'Cambria Math','Times New Roman',serif", "iπ−x²∞−∞"); }
+    }
+    const cv = document.createElement("canvas"); cv.width = cv.height = 64; const cx2 = cv.getContext("2d");
+    for (const f in F) steps.push(() => { cx2.font = f; cx2.fillText(F[f], 0, 30); });
+    steps.push(() => host.remove());
     const run = () => { if (game !== g) { host.remove(); return; } const f = steps.shift(); if (f) { f(); if (steps.length) idle(run); } };
     idle(run);
   }
   function deployShow(p, cmd, name) {
     if (!(Engine.speed > 0)) return Promise.resolve(false);
+    if (deployCur) deployCur();                                         // v49 上一场还没收尾（电脑上线提前放行时会出现）：先收掉，同一时间只留一场——不然两场会互相拆掉压 BGM、灰座位这些状态
     const key = hzKey(p), sp = 1, hero = heroes[p.i];   // 大招固定 3 秒，不跟加速   // 玩家自己的大招固定时长，不跟加速
     const tc = key === "xds_cl" ? window.GAME_DATA.chars.claude : p.ch;   // 小DeepSeek 套壳时用 Claude 的橙色
     const box = el("div", "ult"); box.style.setProperty("--c", tc.color); box.style.setProperty("--l", tc.light || "#fff");
@@ -1135,21 +1207,28 @@ window.UI = (function () {
       return new Promise((res) => at(1500, () => { seatOn(); document.body.classList.remove("ult-on"); box.classList.add("out"); setTimeout(() => box.remove(), 300); res(false); }));
     }
     const fx = $("#fx").getBoundingClientRect(), hc = center(p), cx = fx.width / 2, cy = fx.height * 0.46;
-    box.innerHTML = `<div class="ult-veil"></div><canvas class="ult-pt"></canvas><div class="ult-stage"><div class="ult-rays"></div><div class="ult-emb"></div><div class="ult-ring"></div><div class="ult-ring r2"></div><img class="ult-ghost" src="${hzImg(p, "b")}" alt="">
-      <img class="ult-a" src="${hzImg(p, "a")}" alt=""><img class="ult-b" src="${hzImg(p, "b")}" alt="">${HZ_BLINK.includes(key) && !godSkin(p) ?`<img class="ult-bl" src="${hzImg(p, "b_blink")}" alt="">` : ""}</div>
+    const fb = `onerror="this.onerror=null;this.src='${portrait(p.key, "pose")}'"`;   // v49 上线立绘没下载到（或还没画）就用全身立绘兜底，不让大招出现空白
+    box.innerHTML = `<div class="ult-veil"></div><canvas class="ult-pt"></canvas><div class="ult-stage"><div class="ult-rays"></div><div class="ult-emb"></div><div class="ult-ring"></div><div class="ult-ring r2"></div><img class="ult-ghost" src="${hzImg(p, "b")}" alt="" ${fb}>
+      <img class="ult-a" src="${hzImg(p, "a")}" alt="" ${fb}><img class="ult-b" src="${hzImg(p, "b")}" alt="" ${fb}>${HZ_BLINK.includes(key) && !godSkin(p) ?`<img class="ult-bl" src="${hzImg(p, "b_blink")}" alt="">` : ""}</div>
       <div class="ult-flash"></div><div class="ult-edge"></div><div class="ds-skip">点一下跳过</div>`;
     const ek = godSkin(p) && ULT[key + "_g1"] ? key + "_g1" : key;   // 神级皮肤有自己的纹章 / 粒子就换上
     const emb = emblem(ek, tc.color, 640); box.querySelector(".ult-emb").appendChild(emb);
     const pt = particles(box.querySelector(".ult-pt"), ek, tc.color);
     const others = heroes.filter((h, k) => h && k !== p.i);
     return new Promise((res) => {
-      let over = false;
+      let over = false, tailed = false, said = false;
+      // v49 收尾只执行一次、结束时补一次：原来收尾嵌在 2.6 秒的定时器里，早点跳过（或慢机上 3 秒的结束定时器先到）就丢了「部署成功」和换曲
+      //   电脑上线不切 Harness 曲，只放一声短乐句（玩家自己上线才换曲）；!g：已经退回首页就别再切曲
+      const tail = () => { if (tailed || !g) return; tailed = true; Sound.sfx("deploy_ok", 0.8); seatOn(); if (p.human) Sound.track("harness", true); else Sound.sfx("harness_sting", 0.5); };
+      const line = () => { if (said || !g) return; said = true; const lk = key === "xds_cl" && p.ch.lines.wish ? "wish" : "deploy"; if (p.ch.lines[lk]) { const ms = +say(p, lk, true) || 0; if (ms) lastSay.t = Math.max(lastSay.t || 0, performance.now() + ms - 900); } };   // v49 上线台词也只说一次、跳过时补上（原来 1.8 秒前跳过就不说了；小DS 套壳的大招跳过后 套壳 就一句话都没有）   // 小DeepSeek 套壳上线说「我、我就是 Claude 呀……」   // 说完之前别人的闲话先不插嘴
       const done = () => {
-        if (over) return; over = true; deploySkip = null; timers.forEach(clearTimeout); pt.stop();
+        if (over) return; over = true; timers.forEach(clearTimeout); pt.stop();
+        if (deploySkip === done) deploySkip = null; if (deployCur === done) deployCur = null;
+        line(); tail(); hzPre[p.i] = 1;                                         // 预载的立绘用完了，放掉（每张解码后约 4 MB）
         others.forEach((h) => h.classList.remove("ult-grey")); seatOn(); Sound.hold(false); document.body.classList.remove("ult-on");
-        box.classList.add("out"); setTimeout(() => box.remove(), 350); res(true);
+        box.classList.add("out"); box.style.pointerEvents = "none"; setTimeout(() => box.remove(), 350); res(true);
       };
-      deploySkip = done; box.onclick = (e) => { e.stopPropagation(); done(); };
+      deploySkip = deployCur = done; box.onclick = (e) => { e.stopPropagation(); done(); };
       // ① 时停 0.3 s
       Sound.hold(true); Sound.sfx("ult_charge", 0.7); others.forEach((h) => h.classList.add("ult-grey"));
       pt.gather(hc.x, hc.y, 45);
@@ -1160,7 +1239,7 @@ window.UI = (function () {
       at(1400, () => {
         box.classList.add("hit"); Sound.sfx("ult_impact", 0.55); at(160, () => Sound.sfx((ULT[key] || ULT.claude).sfx, 1));   // 专属音色错开冲击声 0.16 s、放大，听得出是谁
         pt.burst(cx, cy, 80);
-        at(420, () => { const lk = key === "xds_cl" && p.ch.lines.wish ? "wish" : "deploy"; if (p.ch.lines[lk]) say(p, lk, true); });   // 小DeepSeek 套壳上线：说「我、我就是 Claude 呀……」   // 台词等专属音色响完再进
+        at(420, line);   // 小DeepSeek 套壳上线：说「我、我就是 Claude 呀……」   // 台词等专属音色响完再进   // v49 这句说完之前，别人的闲话（不重要的台词）先不插嘴——电脑上线提前放行后，对局里的下一句会把它打断
         at(700, () => { box.classList.add("blink"); at(130, () => box.classList.remove("blink")); });
       });
       // ④ 技能名砸下 0.5 s
@@ -1168,7 +1247,8 @@ window.UI = (function () {
       // ⑤ 收尾 0.4 s：光点飞回座位，徽章 + 流光环，Harness 曲强拍直接进
       at(2600, () => {
         box.classList.add("s5"); pt.home(cx, cy, hc.x, hc.y, 40);
-        at(380, () => { Sound.sfx("deploy_ok", 0.8); seatOn(); Sound.track("harness", true); });
+        at(380, tail);
+        if (!p.human) { if (deploySkip === done) deploySkip = null; box.classList.add("rel"); box.style.pointerEvents = "none"; res(true); }   // v49 电脑上线：演到收尾就放行对局（收尾这 0.4 秒照常播完，罩子不再吃点击和 Esc），每次少停 0.7 秒
       });
       at(3000, done);
     });
@@ -1727,6 +1807,7 @@ window.UI = (function () {
       if (e.key === "Enter") { const b = $("#modal-body .pkgo .btn.primary"); if (b) b.click(); }
       return;
     }
+    if (e.key === "Escape" && skipDeploy()) { e.preventDefault(); e.stopImmediatePropagation(); return; }   // v49 兜底：main.js 的 Esc（捕获阶段）先处理；它没处理到时这里再跳演出，免得罩子底下的应答框把 Esc 当成「不出」
     if (e.key === "Escape" && $("#report")) { closeReport(); return; }
     if (e.key === "Escape" && clashSkip) { clashSkip(); return; }
     if (e.key === "Escape" && infoP) { hideHeroInfo(); return; }
@@ -1770,5 +1851,5 @@ window.UI = (function () {
   }
 
   return { skinKey, attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, clash, lean, skillNote, band, banner, rage, news, phase, toast,
-    deploy, skipDeploy, humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr, throwProp, asset: A };
+    deploy, skipDeploy, hzStash, humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr, throwProp, asset: A };
 })();

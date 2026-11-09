@@ -96,7 +96,12 @@ window.Engine = (function () {
   const EQ_SLOT = { xianka: "hw", fanghuoqiang: "sec", jiami: "sec", yunbeifen: "sec", chongdianbao: "bag" };   // 装备分格：硬件 / 安全 / 记忆
   for (const k in CD) if (CD[k].owner) EQ_SLOT[k] = "zw";             // v47 专武：角色专属装备，单独一格
   const EQ_SLOT_NAME = { hw: "硬件", sec: "安全", bag: "记忆", zw: "专武" };
-  Object.assign(T, Object.assign({ agPeek: 5, agFloat: 0, deployNeed: 6, deployNeed2p: 4, deployK: { claude: 1, gemini: 1, gpt: 3, kimi: 9, grok: 16, glm: 12, xds: 14, doubao: 7, qwen: 12 }, deployK2p: { claude: 2, gemini: 1, gpt: 12, kimi: 9, grok: 8, glm: 14, xds: 12, doubao: 3, qwen: 12 }, botTamper: 0.15, factBot: false, subagent: false, dshMax: 2, dshMax2p: 1, dshBreak: 0.2, dshBreak2p: 0.4, codexDraw: 1 }, window.TUNE || {}));   // v47 专武数值：反重力搜索看几张 / 飘回来概率；@grok 提示词被改概率；DSH 插件上限 / 翻车率；Codex 回来多摸几张
+  Object.assign(T, Object.assign({ agPeek: 5, agFloat: 0, deployNeed: 6, deployNeed2p: 4,
+    deployK: { claude: 1, gemini: 1, gpt: 3, kimi: 10, grok: 14, glm: 10, xds: 6, doubao: 7, qwen: 12, deepseek: 4, minimax: 5, muse: 6 },   // v49 满格张数（乱斗）：小DS 14→6、GLM 12→10、Grok 16→14、DeepSeek 6→4、Kimi 9→10；MiniMax / Muse 新加
+    deployK2p: { claude: 2, gemini: 1, gpt: 12, kimi: 14, grok: 8, glm: 14, xds: 12, doubao: 3, qwen: 18, minimax: 4, muse: 8 },             // v49 单挑：Kimi 9→14、Qwen 12→18
+    deployKTeam: { muse: 12 },                                                                                                              // v49 2v2 单独的满格张数（没写的沿用乱斗表；全明星不用）
+    botTamper: 0.15, factBot: false, subagent: false, dshMax: 2, dshMax2p: 1, dshBreak: 0.2, dshBreak2p: 0.4, codexDraw: 2,
+    museBgMax: 2, museBgMax2p: 1, soloDuel: 1 }, window.TUNE || {}));   // v47 专武数值：反重力搜索看几张 / 飘回来概率；@grok 提示词被改概率；DSH 插件上限 / 翻车率；Codex 回来多摸几张（v49 1→2）   // v49 Muse Code 后台每局几次（单挑）；单挑里 TRAE SOLO 让一键成片能重放几次吐槽
   const SN = (key, id) => { const s = CH[key].skills.find((x) => x.id === id); return s ? s.name : id; };
 
   function buildDeck(keys) {
@@ -200,7 +205,8 @@ window.Engine = (function () {
     // ---------------------------------------------------------------- v48 Harness：每打出 1 张牌部署进度 +1，满格上线，整局生效
     hasH(p, id) { return !!(p && p.deployed && p.ch.harness && (p.ch.harness.ids || []).includes(id)); }
     seatDrawArr() { return (this.mode === "ffa" && this.players.length >= 4 && T.seatDraw.ffa4) || T.seatDraw[this.mode]; }   // v50
-    deployNeed(p) { const two = this.players.length === 2, K = two ? T.deployK2p : T.deployK; return K[p.key] != null ? K[p.key] : two ? T.deployNeed2p : T.deployNeed; }
+    deployNeed(p) { const two = this.players.length === 2, K = two ? T.deployK2p : T.deployK, KT = this.mode === "team" && !this.nation && T.deployKTeam;   // v49 deployKTeam：2v2 单独定满格数（没写的沿用乱斗表；全明星内部也是组队模式，要排除）
+      if (KT && KT[p.key] != null) return KT[p.key]; return K[p.key] != null ? K[p.key] : two ? T.deployNeed2p : T.deployNeed; }
     async deployTick(p) {
       if (!p.ch.harness || p.deployed || !p.alive) return;
       p.deploy = (p.deploy || 0) + 1;
@@ -211,7 +217,7 @@ window.Engine = (function () {
       if (this.ui.deploy) await this.ui.deploy(p, cmd, hname);           // v48 上线演出：浅色薄纱 + 居中终端卡片 + 「上线！」章 + 头像光环 + 音效 / 短乐句
       this.ui.sys(`${p.name} 的 ${hname} 部署完成，上线了：${H.short}`, "good");
       if (p.ch.lines.deploy && !(E.speed > 0)) this.ui.say(p, "deploy", true);   // 台词在大招演出里说
-      await wait(500);
+      if (p.human || !(E.speed > 0)) await wait(500);                    // v49 电脑上线：演出收尾时已经放行，不再空等
     }
     teaHeal(p) { return this.hasSkill(p, "bigeat") ? T.bigEat : 1; }
     doubaoHere() { return this.players.some((q) => q.key === "doubao" && q.alive); }
@@ -513,6 +519,7 @@ window.Engine = (function () {
       if (this.over) return;
       if (p.cloud) await this.codexBack(p);                                 // v47 专武 Codex：云端任务跑完回来
       if (p.plugins && p.plugins.length) await this.dshRun(p);               // v47 专武 DSH：跑一个插件
+      if (p.bgTask && p.alive && !this.over) await this.museBack(p);         // v49 Muse Code：后台 agent 把上回合的事办掉（封号 / 禁言的回合也照跑）
       if (this.over || !p.alive) return;
       if (p.banned) {                                       // Claude 的封号：整回合跳过
         p.banned = false; this.ui.sync();
@@ -710,6 +717,7 @@ window.Engine = (function () {
       if (this.cur === p.i) p.lastPlay = { k: card.k, targets: targets.slice() };   // 豆包 一键成片：这回合刚打出的牌
       this.playing = card;                                              // 正在结算的这张牌（服务器繁忙要把吐槽退回去）
       await this.resolve(p, card, targets);
+      this.playing = null;                                              // v49 结算完清掉（不清的话，之后一键成片的虚拟吐槽被限流时会把这张已经生效的吐槽退回手里）
       this.ui.sync();
       if (this.checkOver()) return;
       if (this.deployQ === p) { this.deployQ = null; await this.deployTick(p); }
@@ -1225,7 +1233,7 @@ window.Engine = (function () {
     // 回合结束：Codex 挂云端任务、DSH 插插件
     async zwEnd(p) {
       if (this.hasH(p, "codex") && !p.cloud && p.hand.length >= 2) {
-        const c = p.human ? (await this.ui.humanConfirm("【Codex】挑一张手牌丢到云端跑？下回合它回来，再多摸 1 张", true) ? ((await this.ui.humanPick(p.hand.slice(), 1, "丢哪张到云端跑？")) || [])[0] : null)
+        const c = p.human ? (await this.ui.humanConfirm(`【Codex】挑一张手牌丢到云端跑？下回合它回来，再多摸 ${T.codexDraw} 张`, true) ?((await this.ui.humanPick(p.hand.slice(), 1, "丢哪张到云端跑？")) || [])[0] : null)
           : p.hand.find((x) => x.id === AI.cheapest(this, p, 1, p.hand.filter((y) => ["chongqi", "fanbo", "tucao", "naicha", "shuaiguo", "yidu", "huigun"].includes(y.k)).map((y) => y.id))[0]);   // 防守用的牌留在手里
         if (c && p.hand.includes(c)) {
           this.takeFromHand(p, c); p.cloud = c; Sound.sfx("whoosh_little", 0.5); this.ui.skillNote(p, "Codex");
@@ -1242,6 +1250,15 @@ window.Engine = (function () {
       }
     }
     dshMax(p) { return p && p.key === "xds" ? 1 : this.players.length === 2 ? T.dshMax2p : T.dshMax; }   // 小DeepSeek 插件上限 1   // 单挑插件上限 1（2 个时单挑 57%）
+    async museBack(p) {   // v49 Muse Code 后台 agent：上回合代办交给后台的锦囊，这回合一开始自动替你打出（这回合用不了就收进手里）
+      const c = p.bgTask; p.bgTask = null;
+      const top = Math.max(...this.players.filter((q) => q.alive).map((q) => q.hand.length));   // 2v2 跑分：榜一里有队友时不自动打（会点到自己人）
+      const tieMate = c.k === "paofen" && this.mode === "team" && this.players.some((q) => q.alive && q !== p && q.hand.length === top && !this.rivals(p).includes(q));
+      if (this.ui.hzStash) this.ui.hzStash(p, "bg", false, c);              // 「🧸 Jolly 跑腿中」→ 牌飞回她面前
+      p.hand.push(c); this.ui.sync();
+      if (CD[c.k].type === "trick" && this.canUse(p, c) && !tieMate) { this.ui.skillNote(p, "Muse Code"); this.ui.log(p, `【Muse Code】Jolly 跑完腿回来了：替你打出【${CD[c.k].name}】`); await this.useCard(p, c, AI.autoTargets(this, p, c)); }
+      else { this.ui.log(p, `【Muse Code】Jolly 跑完腿回来了，这件事现在办不了：【${CD[c.k].name}】收进手里`); await wait(300); }
+    }
     async codexBack(p) {
       const c = p.cloud; p.cloud = null;
       p.hand.push(c); this.ui.drawAnim(p, 1); this.ui.skillNote(p, "Codex"); Sound.sfx("notify", 0.5);
@@ -1255,8 +1272,9 @@ window.Engine = (function () {
         this.ui.sys(`${p.name} 的 DSH 悄悄更新了一版……${n} 个插件全部不兼容，失效了`, "bad"); this.ui.sync(); await wait(600); return;
       }
       const c = p.plugins[rnd(p.plugins.length)]; this.ui.skillNote(p, "DSH");
-      if (c.k === "tucao" && this.rivals(p).length) {
-        const ts = this.rivals(p), t = AI.pickTarget(this, p, ts) || ts[0];
+      const dshTs = this.foesOf(p, this.rivals(p));                     // v49 抢群主里没有敌意目标时不乱打（原来会打座位号最小的人，常常是群主）——改成摸 1
+      if (c.k === "tucao" && dshTs.length) {
+        const ts = dshTs, t = AI.pickTarget(this, p, ts) || ts[0];
         this.ui.log(p, `【DSH】吐槽插件自动运行：冲着 ${t.name} 开喷`); Sound.sfx("whoosh_cartoon", 0.5); await wait(400);
         this.noEv = (this.noEv || 0) + 1;
         try { const ok = await this.ask(t, "fanbo", { from: p, card: { k: "tucao" } }); if (!ok) await this.damage(p, t, 1); } finally { this.noEv--; }
@@ -1275,6 +1293,8 @@ window.Engine = (function () {
       if (t.band && t.band.length) { for (const c of t.band) this.toDiscard(c); t.band = []; }   // Kimi 没唱出去的新歌
       if (t.plugins && t.plugins.length) { for (const c of t.plugins) this.toDiscard(c); t.plugins = []; }   // v47 DSH 插件
       if (t.cloud) { this.toDiscard(t.cloud); t.cloud = null; }                                          // v47 Codex 云端任务
+      if (t.bgTask) { this.toDiscard(t.bgTask); t.bgTask = null; }                                       // v49 Muse Code 后台任务
+      if (t.clip) { this.toDiscard(t.clip); t.clip = null; }                                             // v49 MiniMax Code 素材库
       if (this.bomb && this.bomb.holder === t) { this.toDiscard(this.bomb.card); this.bomb = null; }
       t.eggBy = null; for (const q of this.players) if (q.eggBy === t) q.eggBy = null;   // GLM 糖衣：退群的人身上的蛋、她挂出去的蛋都作废
       this.outOrder.push(t);
@@ -1427,14 +1447,16 @@ window.Engine = (function () {
     }
     // MiniMax 兔子快递拿哪张当燃料：手里最没用的那张（AI.value 最低），不拿【重启】
     rocketFuel(p) {
+      if (p.clip && this.hasH(p, "mmcode")) return p.clip;               // v49 MiniMax Code：素材库里有归档的吐槽就先烧它，不花手牌
       const ok = p.hand.filter((c) => (T.rocketAny || CD[c.k].type === "trick") && c.k !== "chongqi");
       return ok.length ? ok.slice().sort((a, b) => AI.value(this, p, a) - AI.value(this, p, b))[0] : null;
     }
-    remakeCost(p) { return p && this.hasH(p, "solo") ? 0 : this.players.length === 2 ? T.remakeCost2p : T.remakeCost; }   // v48 TRAE SOLO：一键成片不用弃牌
+    remakeCost(p) { return p && this.hasH(p, "solo") && this.players.length > 2 ? 0 : this.players.length === 2 ? T.remakeCost2p : T.remakeCost; }   // v48 TRAE SOLO：一键成片不用弃牌（v49 单挑里照常弃 2 张，单挑的 SOLO 改成能重放吐槽，见 remakeTargets）
     // 一键成片能不能放、放给谁：返回目标数组（没有目标的牌是 []），放不了返回 null
     remakeTargets(p) {
       const lp = p.lastPlay;
-      if (!lp || !T.remakeKinds.includes(lp.k) || (lp.k === "tucao" && this.players.length === 2 && !T.remakeTucao2p)) return null;   // 单挑里重放吐槽太强
+      const soloDuel = this.players.length === 2 && T.soloDuel && this.hasH(p, "solo") && (p.soloDuelN || 0) < T.soloDuel;   // v49 单挑里 TRAE SOLO 上线后，一键成片每局能重放 T.soloDuel 次吐槽（没上线时单挑不能用）
+      if (!lp || !T.remakeKinds.includes(lp.k) || (lp.k === "tucao" && this.players.length === 2 && !T.remakeTucao2p && !soloDuel)) return null;   // 单挑里重放吐槽太强
       const d = CD[lp.k];
       if (lp.k === "naicha") return p.hp < p.maxHp ? [] : null;
       if (lp.k === "moyu") return this.deck.length + this.discard.length > 0 ? [] : null;
@@ -1477,7 +1499,7 @@ window.Engine = (function () {
       // v30【越狱】：针对你的技能（风控、维护日、借鉴、挥金、砍价、蹭饭、兔子快递）落下前，目标手里有越狱就能让它无效（技能照样算用过）
       if (t && T.jailbreakSkills.includes(id) && this.rivals(p).includes(t)) {
         this.ui.skill(p, SN(p.key, id));
-        if (await this.jailbreak(t, `${p.name} 的【${SN(p.key, id)}】`)) { this.ui.log(p, `【${SN(p.key, id)}】对 ${t.name} 用不出来——她越狱跑了`); await wait(500); return; }
+        if (await this.jailbreak(t, `${p.name} 的【${SN(p.key, id)}】`)) { if (id === "buy") p.buyN = (p.buyN || 0) + 1; this.ui.log(p, `【${SN(p.key, id)}】对 ${t.name} 用不出来——她越狱跑了`); await wait(500); return; }   // v49 被越狱挡下的那次收购也算一次（Grok Build 每回合最多 2 次）
       }
       if (t && id !== "bundle" && id !== "qingke") { p.hits[t.i] = (p.hits[t.i] || 0) + 1; this.noteHostile(p, t, 0.5); }   // 送牌 / 请客不算出手
       if (id === "ban") {
@@ -1555,6 +1577,7 @@ window.Engine = (function () {
         // Kimi 排练：一张吐槽写成新歌扣在面前，乐队来一名乐手
         // v29 试验 rehearseAny：没有吐槽时，手里最没用的一张（重启 / 甩锅除外）也能写成歌
         const c = p.hand.find((x) => x.k === "tucao") || p.hand.filter((x) => x.k !== "chongqi" && x.k !== "shuaiguo").sort((a, b) => AI.value(this, p, a) - AI.value(this, p, b))[0];
+        const fresh = !(p.band && p.band.length);                         // 这是新乐队的第一首（Kimi Code 一次写 2 首时，n 直接到 2，原来的 n === 1 判断会漏掉）
         this.takeFromHand(p, c);
         (p.band = p.band || []).push(c);
         if (this.hasH(p, "swarm") && p.band.length < T.bandMax) {          // v48 Agent 集群：一次写 2 首，来 2 名乐手（扣 2 张）
@@ -1568,7 +1591,7 @@ window.Engine = (function () {
         if (n >= T.bandMax) this.ui.sys(`🎤 ${p.name} 的乐队到齐了——新专辑随时会发布！`, "bad");
         await wait(500);
         if (T.rehearseDraw) await this.draw(p, T.rehearseDraw, true);
-        else if (T.rehearseFirst && n === 1 && this.players.length > 2) await this.draw(p, T.rehearseFirst, true);   // v37 多人局：组新乐队（第一首）时摸牌（单挑不摸，她单挑本来就 52%）
+        else if (T.rehearseFirst && fresh && this.players.length > 2) await this.draw(p, T.rehearseFirst, true);   // v37 多人局：组新乐队（第一首）时摸牌（单挑不摸，她单挑本来就 52%）   // v49 按「新乐队第一首」判断（Kimi Code 一次写 2 首时原来会漏摸）
       } else if (id === "live") {
         // Kimi 一鸣惊人：乐队到齐开演唱会，新歌一首接一首，每首所有对手都要反驳
         const songs = p.band.splice(0), names = shuffle((p.ch.songs || []).slice());
@@ -1610,11 +1633,17 @@ window.Engine = (function () {
         const skip = []; let got = null;
         const best = (this.players.length === 2 && T.errandPick2p ? T.errandPick2p : T.errandPick) === "best";   // errandPick2p：单挑可以单独定（"best" 单挑 65 太强）
         const look = this.players.length === 2 ? T.errandLook2p : T.errandLook;
-        for (let i = 0; i < look && (best || !got); i++) {
+        const bgCap = this.players.length === 2 ? T.museBgMax2p : T.museBgMax;   // v49 Muse Code：后台每局最多几次（单挑 1）——便宜档限速
+        const mc = this.hasH(p, "musecode") && !p.bgTask && (p.bgN || 0) < bgCap;   // 翻到的第 2 件能办的事交给后台 agent，下回合开始自动替你办
+        const bgFit = (c) => CD[c.k].type === "trick" && c.k !== "tiaocao" && c.k !== "yueyu" && this.canUse(p, c);   // 跳槽不挂后台（自动换手牌等于自残）；越狱也不挂（回合开始自动打出会把自己的封号解掉）
+        for (let i = 0; i < look && (best || !got || (mc && !skip.some(bgFit))); i++) {   // 单挑「办第一件事」模式：找到第二件能办的就停，不多翻（不然会把更多牌沉到牌堆底）
           const c = this.pull(); if (!c) break;
-          if (CD[c.k].type === "trick" && this.canUse(p, c) && (!got || AI.value(this, p, c) > AI.value(this, p, got))) { if (got) skip.push(got); got = c; } else skip.push(c);
+          if (CD[c.k].type === "trick" && this.canUse(p, c) && (!got || (best && AI.value(this, p, c) > AI.value(this, p, got)))) { if (got) skip.push(got); got = c; } else skip.push(c);
         }
+        let extra = null;
+        if (got && mc) { const us = skip.filter(bgFit).sort((a, b) => AI.value(this, p, b) - AI.value(this, p, a)); if (us.length) { extra = us[0]; skip.splice(skip.indexOf(extra), 1); } }
         for (const c of skip) this.deck.unshift(c);
+        if (extra) { p.bgTask = extra; p.bgN = (p.bgN || 0) + 1; this.ui.skillNote(p, "Muse Code"); this.ui.log(p, `【Muse Code】另一件事【${CD[extra.k].name}】交给 Jolly 去后台跑，下回合一开始替你办（${p.bgN} / ${bgCap}）`); if (this.ui.hzStash) this.ui.hzStash(p, "bg", true, extra); }
         if (skip.length) { this.insertSeq++; this.forget(); }
         if (!got) { this.ui.log(p, `【${SN(p.key, "errand")}】翻了 ${skip.length} 张，没找到能办的事`); this.ui.sync(); await wait(400); return; }
         this.ui.log(p, `【${SN(p.key, "errand")}】接下任务：替你打出【${CD[got.k].name}】` + (skip.length ? `（跳过的 ${skip.length} 张放到牌堆底）` : ""));
@@ -1636,7 +1665,10 @@ window.Engine = (function () {
         this.ui.log(p, `【${SN(p.key, "magic")}】神奇海螺，今天怼谁？——海螺说：${t.name}。这回合 ${p.name} 吐槽她，她不能【反驳】`); this.ui.sync(); await wait(600);
       } else if (id === "rocket") {
         // MiniMax 兔子快递：弃 1 张锦囊当燃料，太空兔子骑胡萝卜火箭砸向一名对手——要打出【反驳】，否则心态 −1
-        const c = this.rocketFuel(p); this.takeFromHand(p, c); this.toDiscard(c); p.rocketN = (p.rocketN || 0) + 1;
+        const c = this.rocketFuel(p);
+        if (c === p.clip) { p.clip = null; this.toDiscard(c); this.ui.skillNote(p, "MiniMax Code"); this.ui.log(p, "【MiniMax Code】烧的是素材库里那条素材，不花手牌"); if (this.ui.hzStash) this.ui.hzStash(p, "clip", false, c); }   // v49 素材库的吐槽先烧
+        else { this.takeFromHand(p, c); this.toDiscard(c); }
+        p.rocketN = (p.rocketN || 0) + 1;
         this.ui.skill(p, SN(p.key, "rocket")); this.ui.say(p, "sig", true);
         this.ui.log(p, `【${SN(p.key, "rocket")}】拿【${CD[c.k].name}】当燃料，太空兔子骑着胡萝卜火箭，把快递砸向 ${t.name}`); this.ui.sync();
         if (this.ui.throwProp) this.ui.throwProp(p, t, "carrot"); await wait(700);
@@ -1650,20 +1682,32 @@ window.Engine = (function () {
         }
       } else if (id === "shoot") {
         // MiniMax 海螺开拍：海螺一开，文字变视频——1 张吐槽拍成视频，当【刷屏】打出去（虚拟牌，不占吐槽次数）
-        const c = p.hand.find((x) => x.k === "tucao"); this.takeFromHand(p, c); this.toDiscard(c); p.shootN = (p.shootN || 0) + 1; if (T.shootCounts) p.tucao++;
+        const c = p.hand.find((x) => x.k === "tucao");
+        const hold = this.hasH(p, "mmcode") && !p.clip;                   // v49 MiniMax Code 可能把它存成素材：先拿在手边，结算完再决定进弃牌堆还是素材库（先进弃牌堆的话，结算途中有人摸牌洗牌会把它洗回牌堆，打中了也存不了）
+        this.takeFromHand(p, c); if (!hold) this.toDiscard(c);
+        p.shootN = (p.shootN || 0) + 1; if (T.shootCounts) p.tucao++;
         this.ui.skill(p, SN(p.key, "shoot")); this.ui.say(p, "attack", true); Sound.sfx("fanfare_short", 0.5);
         this.ui.log(p, `【${SN(p.key, "shoot")}】把一句【吐槽】拍成视频，当【刷屏】发到群里`); this.ui.sync(); await wait(500);
         const v = { id: -(++this.vid), k: "shuaping", virtual: true }, ts = this.rivals(p), hp0 = ts.map((q) => q.hp);
         await this.ui.showCard(p, v, ts);
         await this.resolve(p, v, ts);
         const sDraw = this.mode === "team" && !this.nation ? T.shootDrawTeam : T.shootDraw;   // v37 2v2 开拍不摸（2v2 开拍只打对手后 MiniMax 到 59%）
-        if (sDraw && p.alive && !this.over && ts.some((q, k) => q.hp < hp0[k])) {   // 视频爆了：至少打中一个人，播放量涨了，摸牌
-          this.ui.log(p, `视频爆了，播放量涨了——摸 ${sDraw} 张`); await this.draw(p, sDraw, true);
+        const hits = ts.filter((q, k) => q.hp < hp0[k]).length;
+        if (hold) {
+          if (hits && p.alive && !this.over && !p.clip) {                 // v49 MiniMax Code：打中了，这条吐槽素材归档（不算手牌、别人拿不走），下次兔子快递直接烧它   // p.alive：开拍途中被 DeepSeek 锐评反打退群时不能再存
+            p.clip = c; this.ui.skillNote(p, "MiniMax Code"); this.ui.log(p, "【MiniMax Code】视频爆了——这条【吐槽】素材归档，下次兔子快递直接拿它当燃料");
+            if (this.ui.hzStash) this.ui.hzStash(p, "clip", true, c);
+          } else this.toDiscard(c);                                       // 没打中 / 她退群了 / 对局结束：照常进弃牌堆
+        }
+        const sn = sDraw && hits ? sDraw : 0;
+        if (sn && p.alive && !this.over) {   // 视频爆了：至少打中一个人，播放量涨了，摸牌
+          this.ui.log(p, `视频爆了，播放量涨了——摸 ${sn} 张`); await this.draw(p, sn, true);
         }
         this.ui.sync();
       } else if (id === "remake") {
         // 豆包 一键成片：把这回合刚打出的牌拍成视频，再放一遍（虚拟牌，不进弃牌堆、不算出牌次数）
         const lp = p.lastPlay, ts = this.remakeTargets(p); p.remakeN = (p.remakeN || 0) + 1; if (T.remakeCounts) p.tucao++;
+        if (this.players.length === 2 && lp && lp.k === "tucao") { p.soloDuelN = (p.soloDuelN || 0) + 1; this.ui.skillNote(p, "TRAE SOLO"); this.ui.log(p, "【TRAE SOLO】SOLO 模式单挑也能重放吐槽（这局就这 1 次）"); }   // v49 单挑只有 SOLO 上线后才能重放吐槽
         if (this.remakeCost(p)) this.dropRandom(p, this.remakeCost(p));
         else if (this.hasH(p, "solo")) { this.ui.skillNote(p, "TRAE SOLO"); this.ui.log(p, "【TRAE SOLO】素材 SOLO 自己找好了，不用弃牌"); }
         this.ui.skill(p, SN(p.key, "remake")); this.ui.say(p, "remake", true); Sound.sfx("fanfare_short", 0.5);
@@ -1833,8 +1877,9 @@ window.Engine = (function () {
       } else if (id === "disguise") {
         // 小DeepSeek 变身：穿上 Claude 的衣服冒充 Claude，顺手学她封一个号
         p.disguise = true; this.ui.disguise(p, true); p.wishedShell = false;
-        if (p.deployed && p.ch.harness) { this.ui.log(p, "【换壳】harness 跟着衣服换：$ dsh → $ claude，这次能许愿一次"); if (this.ui.deploy) this.ui.deploy(p, p.ch.harness.cmd2, "Claude Code"); if (p.ch.lines.shell) setTimeout(() => this.ui.say(p, "shell", true), 1400 * E.speed); }   // v48 换上 Claude 的衣服：放 Claude Code 版大招（橙色法阵）
-        this.ui.skill(p, SN(p.key, "disguise")); this.ui.say(p, "disguise", true); Sound.sfx("stamp_thick", 0.8);
+        const shell = !!(p.deployed && p.ch.harness);
+        if (shell) { this.ui.log(p, "【换壳】harness 跟着衣服换：$ dsh → $ claude，这次能许愿一次"); if (this.ui.deploy) await this.ui.deploy(p, p.ch.harness.cmd2, "Claude Code"); }   // v48 换上 Claude 的衣服：放 Claude Code 版大招（橙色法阵）   // v49 等它放完再继续（原来不等：电脑接着出牌、应答框压在罩子底下，三句配音互相打断），配音只留大招里许愿那句
+        this.ui.skill(p, SN(p.key, "disguise")); if (!shell) this.ui.say(p, "disguise", true); Sound.sfx("stamp_thick", 0.8);
         if (T.disguiseAct === "ban") { t.banned = true; this.ui.log(p, `【${SN(p.key, "disguise")}】换上 Claude 的衣服，冒充 Claude 封了 ${t.name} 的号：她的下个回合跳过`); }
         else {                                                            // 学 Claude 润色：整手重写，多摸 1 张
           const n = p.hand.length; for (const c of p.hand.splice(0)) this.toDiscard(c);
