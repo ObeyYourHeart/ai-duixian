@@ -157,7 +157,7 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
   background: linear-gradient(165deg, var(--l), #ffffff 75%); box-shadow: 0 8px 20px rgba(70, 50, 140, .22); transition: box-shadow .2s, filter .3s; }
 /* v51 角色框露出更多立绘（用户选的样式 C）：整张底图放进框里（原来放大到 250 宽、只露头和肩），名字条和技能标签变窄，能看到腰和手里的道具 */
 /*   立绘比框宽一点（224，框内 204）：不少表情图边上有直直切断的空边（最多 24 px），原来放大到 250 时看不到，整张放进来就露出来了；
-     Kimi / GLM 的默认立绘是 9:16 画的，两边各空 45 px，单独放大到 246（.hero[data-wide]，穿皮肤时不用） */
+     GLM 的默认立绘是 9:16 画的（Kimi 的 v52 按原版重画后不用了），两边各空 45 px，单独放大到 246（.hero[data-wide]，穿皮肤时不用） */
 .hero .por { position: absolute; left: 50%; top: 0; width: var(--pw, 224px); transform: translateX(-50%); transition: transform .12s; }
 .hero[data-wide] { --pw: 246px; }
 .hero .por img { width: 100%; display: block; }
@@ -1115,7 +1115,8 @@ body.ult-on #known, body.ult-on .skpop { visibility: hidden; }
 .ult.hold .ug-back { transform: scale(1.043); transition: transform var(--hold, 3s) linear; }   /* 神环留在立绘身后，停留时跟着立绘慢慢推近（立绘这一段从 1.04 推到 1.085，也就是再放大 4.3%） */
 .ult.s5 .ug-back { opacity: 0; transition: opacity .35s; }
 .ult.ug-fable .ult-emb { display: none; }   /* Fable·许愿之神：身后是她自己的神环（.ug-back），不再叠通用的橙色纹章 */
-.ult.ug-fable .ult-ring { border-width: 3px; border-color: #F1C35A; box-shadow: 0 0 22px #FFE2A0; } .ult.ug-fable .ult-ring.r2 { border-width: 1.5px; }   /* Fable·许愿之神：冲击时扩散的两圈环用细金线（默认是 10 px 的粗主题色环） */
+.ult.ug-fable .ult-ring { border-width: 3px; border-color: #F1C35A; box-shadow: 0 0 22px #FFE2A0; } .ult.ug-fable .ult-ring.r2 { border-width: 1.5px; }   /* Fable·许愿之神：冲击时扩散的两圈环用细金线（默认是 10 px 的粗主题色环） */
+.ult.ug-moon .ult-ring { border-color: #DDE1F5; box-shadow: 0 0 22px #EEF0FF; }   /* v53 Kimi 月之暗面·月相之神：冲击环用细银线（同样不叠通用纹章，身后是月相神环） */
 .ult.ug-out .ug-tint { opacity: .25; transition: opacity .3s; }
 .ub-rain { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
 .ult.ub-shatter .ub-rain { opacity: 0; transform: scale(1.15); transition: opacity .35s, transform .35s; }

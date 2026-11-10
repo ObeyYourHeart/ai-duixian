@@ -106,7 +106,7 @@ window.UI = (function () {
     for (const p of g.players) {
       const h = el("div", "hero" + (p.ch.skills.some((s) => s.id === "rehearse") ? " has-band" : ""));
       h.style.setProperty("--c", p.ch.color); h.style.setProperty("--l", p.ch.light);
-      if ((p.key === "kimi" || p.key === "glm") && !(window.Settings && Settings.skinOf(p.key))) h.dataset.wide = "1";   // v51 这两位的默认立绘两边有空边，角色框里多放大一点（见 style.css .hero[data-wide]）
+      if (p.key === "glm" && !(window.Settings && Settings.skinOf(p.key))) h.dataset.wide = "1";   // v51 这两位的默认立绘两边有空边，角色框里多放大一点（见 style.css .hero[data-wide]）
       const vis = p.ch.skills.filter((s) => !s.harness);                  // v48 Harness 不算普通技能
       const tags = vis.map((s) => `<span class="${s.type}" title="${s.short || s.desc}">${s.name}</span>`).join("");
       h.innerHTML = `<div class="por"><img src="${portrait(p.key, "base")}" alt=""></div><div class="flash"></div><div class="hp"></div>
@@ -966,14 +966,14 @@ window.UI = (function () {
   const HZ_BLINK = ["claude", "gemini", "deepseek", "doubao", "kimi", "grok", "qwen", "xds", "xds_cl", "minimax", "muse"];   // 有眨眼帧的（GPT / GLM 合成不自然，不眨）
   // v50 神级皮肤（g1）开大招：换成神皮造型的上线立绘 + 专属开场 + 专属台词（deploy_g1）
   // v51 一人可以有不止一套神皮（Claude 第二套 g2「Fable·许愿之神」）：GOD 按角色列出神皮 id，godId 返回现在穿的那套（不是神皮返回 ""）
-  const GOD = { claude: ["g1", "g2"], gpt: ["g1"], gemini: ["g1"], deepseek: ["g1"], doubao: ["g1"] };
+  const GOD = { claude: ["g1", "g2"], gpt: ["g1"], gemini: ["g1"], deepseek: ["g1"], doubao: ["g1"], kimi: ["g1"] };
   const GOD_SFX = { claude_g1: ["g1_claude_lock"], claude_g2: ["g2_wish"], gpt_g1: ["g1_gpt2"], gemini_g1: ["g1_gemini2"], doubao_g1: ["g1_doubao2"] };   // 神皮开场 / 局内彩蛋里除了「神皮 id_角色」那一条之外还会用到的专属音（开局一起预载）
   function godId(p) { if (!p || p.disguise || !window.Settings) return ""; const s = Settings.skinOf(p.key); return (GOD[p.key] || []).includes(s) ? s : ""; }
   function godSkin(p) { return !!godId(p); }
   function hzImg(p, f) { const k = p.key === "xds" && p.disguise ? "xds_cl" : p.key, gid = godId(p); if (gid && f !== "b_blink") return A(`assets/img/hz_${k}_${gid}_${f}.webp`); return A(`assets/img/hz_${k}_${k === "xds_cl" && f === "a" ? "b" : f}.webp`); }
   // v48 大招演出：玩家自己上线约 3 秒（时停 → 斜切眼部特写 → 纹章 + 爆发 → 技能名砸下 → 光点回座位），点一下 / Esc 跳过；
   //   电脑上线简版约 1.5 秒（斜切 + 技能名）。不震屏、不用集中线；立绘不扭曲，只动镜头 / UI / 两帧；粒子用 canvas，CSS 只动 transform / opacity
-  const HZ_EYE = { claude: [335, 92], gpt: [345, 202], gemini: [353, 230], deepseek: [324, 187], glm: [226, 216], doubao: [342, 216], kimi: [349, 144],
+  const HZ_EYE = { claude: [335, 92], gpt: [345, 202], gemini: [353, 230], deepseek: [324, 187], glm: [226, 216], doubao: [342, 216], kimi: [344, 127],
     grok: [382, 256], qwen: [405, 162], xds: [348, 352], xds_cl: [364, 374], minimax: [360, 220], muse: [360, 220] };   // 发动帧（720×1080）两眼中点，斜切光带里的眼部特写用
   const ULT = {                                                       // 专属纹章 / 粒子 / 音色
     minimax: { glyph: "conch", part: "carrot", sfx: "ult_minimax" }, muse: { glyph: "jolly", glyph2: "todo", part: "todo", sfx: "ult_muse" },   // v49 MiniMax Code 海螺螺线 + 小胡萝卜 / Muse Code Jolly 兜帽 + 待办框
@@ -981,7 +981,7 @@ window.UI = (function () {
     gemini: { glyph: "star", part: "stardust", sfx: "ult_gemini" }, deepseek: { glyph: "whale", part: "bubble", sfx: "ult_deepseek" },
     xds: { glyph: "whale", part: "bubble", sfx: "ult_deepseek" }, xds_cl: { glyph: "flower", part: "petal", sfx: "ult_claude" },
     glm: { glyph: "code", part: "code", sfx: "ult_glm" }, doubao: { glyph: "film", part: "film", sfx: "ult_doubao" },
-    kimi: { glyph: "note", part: "note", sfx: "ult_kimi" }, grok: { glyph: "coin", part: "bill", sfx: "ult_grok" },
+    kimi: { glyph: "note", part: "note", sfx: "ult_kimi" }, kimi_g1: { glyph: "note", part: "note", sfx: "ult_kimi_g1" }, grok: { glyph: "coin", part: "bill", sfx: "ult_grok" },
     qwen: { glyph: "check", part: "check", sfx: "ult_qwen" },
     claude_g1: { glyph: "hex", part: "petal", sfx: "ult_claude" }, gpt_g1: { glyph: "inf", part: "sym", sfx: "ult_gpt" },   // v50 神级皮肤换纹章 / 粒子
     claude_g2: { glyph: "star5", glyph2: "book", glyph0: "sun", part: "page", sfx: "ult_claude_g2" },   // v51 Fable·许愿之神：外圈五角星、内圈翻开的寓言之书、中心金阳；粒子书页 + 五角星；专属冲击音
@@ -1017,6 +1017,25 @@ window.UI = (function () {
     const art = (n) => { const im = new Image(); im.decoding = "async"; im.src = A(`assets/img/claude_g2_fx_${n}.webp`); return im; };   // 道具插画：开局空闲时就开始下载（warmUlt），没下完的那一帧先不画它
     wishSp = { stars: GEM.map(star), pages: ["#FFF1CF", "#FFE9B8", "#FFE2A6", "#FFEBD0"].map(page), glow, shoot, book: art("book"), book0: art("book0"), wand: art("wand") };
     return wishSp;
+  }
+  // v53 Kimi 月之暗面·月相之神：月相圆盘贴纸（亮面银白、暗面半透明的靛色、细银边、一圈柔光；不画放射线）+ 六件乐器插画（开局空闲时就开始下载，见 warmUlt）
+  let moonSp = null;
+  function moonSprites() {
+    if (moonSp) return moonSp;
+    const mk = (w, h, f) => { const c = document.createElement("canvas"); c.width = w; c.height = h; const x = c.getContext("2d"); x.translate(w / 2, h / 2); f(x); return c; };
+    const halo = (x, r, a) => { const gr = x.createRadialGradient(0, 0, 0, 0, 0, r); gr.addColorStop(0, `rgba(246, 247, 255, ${a})`); gr.addColorStop(0.45, `rgba(214, 220, 250, ${a * 0.45})`); gr.addColorStop(1, "rgba(206, 212, 248, 0)"); x.fillStyle = gr; x.fillRect(-r, -r, 2 * r, 2 * r); };
+    // f：亮面占几成（0 新月 … 1 满月）；right：亮面在右边。明暗交界线是半宽 |1 − 2f|·r 的半椭圆：凸月往暗面鼓、蛾眉月往亮面鼓
+    const moon = (f, right) => mk(128, 128, (x) => { const r = 34; halo(x, 64, 0.3 + 0.5 * f);
+      x.fillStyle = "rgba(78, 84, 132, .55)"; x.beginPath(); x.arc(0, 0, r, 0, 2 * Math.PI); x.fill();
+      if (f > 0) { const lit = x.createRadialGradient(-r * 0.3, -r * 0.3, 2, 0, 0, r); lit.addColorStop(0, "#FFFFFF"); lit.addColorStop(1, "#CDD2EC"); x.fillStyle = lit;
+        const left = right ? f > 0.5 : f <= 0.5;
+        x.beginPath(); x.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, !right); x.ellipse(0, 0, Math.max(0.01, Math.abs(1 - 2 * f) * r), r, 0, Math.PI / 2, left ? 1.5 * Math.PI : -Math.PI / 2, !left); x.closePath(); x.fill(); }
+      x.lineWidth = 2; x.strokeStyle = "rgba(124, 132, 192, .95)"; x.beginPath(); x.arc(0, 0, r, 0, 2 * Math.PI); x.stroke(); x.lineWidth = 0.8; x.strokeStyle = "rgba(255, 255, 255, .9)"; x.beginPath(); x.arc(0, 0, r - 1.6, 0, 2 * Math.PI); x.stroke(); });
+    const cache = {};
+    const phase = (k) => { const f = k <= 4 ? k / 4 : (8 - k) / 4, right = k < 4, id = f + (right ? "r" : "l"); return cache[id] || (cache[id] = moon(f, right)); };   // 环的左半边是上弦（亮面在右）、右半边是下弦
+    const art = (n) => { const im = new Image(); im.decoding = "async"; im.src = A(`assets/img/kimi_g1_fx_${n}.webp`); return im; };
+    moonSp = { phase, glow: mk(256, 256, (x) => halo(x, 128, 0.95)), inst: ["violin", "harp", "horn", "cello", "drum", "keytar"].map(art) };
+    return moonSp;
   }
   function luckyStar(x, s, fill) { x.fillStyle = fill; x.beginPath(); for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? s * 0.45 : s; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); } x.closePath(); x.fill(); }   // 五角星（四角星是 Gemini 的标志，不用）
   function hzKey(p) { return p.key === "xds" && p.disguise ? "xds_cl" : p.key; }
@@ -1187,7 +1206,7 @@ window.UI = (function () {
     const sk = (q) => ({ x: q.x * K, y: q.y * K });
     add("ug-tint");
     let bc = null, xb = null;                                           // v51 Fable·许愿之神：放大的星环（神环）画在立绘身后的一层（薄纱之上、立绘之下），不压她的脸
-    if (key === "claude" && gid === "g2") { bc = document.createElement("canvas"); bc.className = "ug-back"; box.appendChild(bc); bc.width = W; bc.height = H; xb = bc.getContext("2d"); bc.style.transformOrigin = `50% ${ultNarrow() ? 40 : 46}%`; }   // 停留时跟着立绘一起慢推，中心对着立绘的中心
+    if ((key === "claude" && gid === "g2") || (key === "kimi" && gid === "g1")) { bc = document.createElement("canvas"); bc.className = "ug-back"; box.appendChild(bc); bc.width = W; bc.height = H; xb = bc.getContext("2d"); bc.style.transformOrigin = `50% ${ultNarrow() ? 40 : 46}%`; }   // 停留时跟着立绘一起慢推，中心对着立绘的中心
     const cv = document.createElement("canvas"); cv.className = "ug-cv"; box.appendChild(cv); cv.width = W; cv.height = H;
     const x = xb ? Object.assign(cv.getContext("2d"), { flush() {} }) : offCtx(cv);   // 许愿之神整段不写字，直接画在页面画布上，省掉每帧整屏贴图
     const seats = g ? (g.rivals ? g.rivals(p) : g.players.filter((q) => q !== p)).filter((q) => q.alive).map((q) => sk(center(q))) : [];   // v51 只锁对手（2v2 原来把队友也锁上）
@@ -1272,6 +1291,57 @@ window.UI = (function () {
           if (t >= 0.585) star(x, X, Y, (44 - 28 * f) * u * (0.5 + 0.5 * ease((t - 0.585) / 0.06)), 0, Math.min(1, (t - 0.585) / 0.03) * (1 - clamp((t - 0.74) / 0.08)), true);
         }
         if (t > 0.6) halo(t);                                           // 后层：神环展开
+      };
+    } else if (key === "kimi" && gid === "g1") {                        // v53 Kimi 月之暗面·月相之神「万籁齐鸣」：只画细银线、月相圆盘和柔光，乐器是和立绘同画风的插画；左右对称、只用减速缓动、不旋转
+      //   0.06–0.24 八个月相沿一圈从下往上、左右同时亮起（最下新月、最上满月，银线跟着合拢）→ 0.24 满月一亮 → 0.28–0.46 一行五线谱从圆心向两边展开 →
+      //   0.46–0.71 六件乐器左右交替浮现在月相环外，各冒出一个音符 → 0.74 起乐器、谱线淡出，月相环放大成她身后的神环（停留时一道月光顺着环走，经过哪个月相哪个亮一下）
+      const sp = moonSprites(), narrow = ultNarrow(), cy2 = H * (narrow ? 0.40 : 0.46), sh = H * (narrow ? 0.64 : 0.84), sw = sh * 2 / 3, u = Math.min(W, H) / 720, TAU = 2 * Math.PI;
+      const R0 = 170 * u, cyR = cy2 - sh * 0.12, IH = 92 * u * (narrow ? 0.85 : 1);
+      const rx = Math.min((W / 2 - 24 * u) / 1.043, sw * 0.64), ry = Math.min(sh * 0.5, (cy2 - 26 * u) / 1.043);   // 神环：停留时跟着立绘推近 4.3%，给环上的月相留出位置
+      const MA = Array.from({ length: 8 }, (_, k) => Math.PI / 2 + k * Math.PI / 4);   // 第 k 个月相在环上的角度：0 最下（新月），4 最上（满月）
+      const LT = MA.map((_, k) => (k === 4 ? 0.24 : 0.06 + 0.04 * Math.min(k, 8 - k)));   // 亮起的时间：左右成对，对上专属音里的五声玻璃铃
+      const ok = (im) => im.complete && im.naturalWidth > 0;
+      box.classList.add("ug-fable", "ug-moon");                        // 不用通用纹章；冲击环用细银线（见 style.css）
+      const silver = (c, path, w, al, hot) => { if (al <= 0) return; c.lineCap = "round";   // 细银线：底下一道很淡的宽光、中间一道银、上面一道细高光（不描深色粗边）
+        c.globalAlpha = al * 0.3; c.strokeStyle = "#A9B2E2"; c.lineWidth = w * 3.4; c.beginPath(); path(c); c.stroke();
+        c.globalAlpha = al; c.strokeStyle = hot ? "#FFFFFF" : "#8E98CF"; c.lineWidth = w; c.stroke();
+        c.strokeStyle = "#FFFFFF"; c.lineWidth = w * 0.34; c.stroke(); c.globalAlpha = 1; };
+      const glow = (X, Y, r, al) => { if (al <= 0 || r <= 0) return; x.globalAlpha = Math.min(1, al); x.drawImage(sp.glow, X - r, Y - r, 2 * r, 2 * r); x.globalAlpha = 1; };
+      const moonAt = (c, X, Y, s, k, al) => { if (al <= 0 || s <= 0) return; const h = s * 64 / 34; c.globalAlpha = Math.min(1, al); c.drawImage(sp.phase(k), X - h, Y - h, 2 * h, 2 * h); c.globalAlpha = 1; };
+      const note = (X, Y, al) => { x.globalAlpha = al; x.fillStyle = "#F6F7FF"; x.strokeStyle = "rgba(92, 98, 152, .55)"; x.lineWidth = 1;
+        x.beginPath(); x.ellipse(X, Y, 7 * u, 5 * u, -0.35, 0, TAU); x.fill(); x.stroke(); x.fillRect(X + 5.4 * u, Y - 24 * u, 1.8 * u, 24 * u); x.globalAlpha = 1; };
+      const halo = (t) => {                                             // 后层：月相环放大成围住立绘的神环（两道细银线，八个月相骑在环上；不转）
+        const e = ease((t - 0.76) / 0.22), RX = R0 + (rx - R0) * e, RY = R0 + (ry - R0) * e, CY = cyR + (cy2 - cyR) * e, ba = clamp((t - 0.74) / 0.06), late = Math.max(0, t - DUR);
+        const run = late > 0 ? (late * 1.6) % 11 : -9;                  // 停留时那道月光走到第几个月相（11 格里 8 格有月相，走完一圈歇一下）
+        silver(xb, (c) => c.ellipse(cx, CY, RX, RY, 0, 0, TAU), 3 * u + 1, ba);
+        xb.globalAlpha = ba * 0.8; xb.strokeStyle = "#A9B2E2"; xb.lineWidth = 1.2 * u + 0.5; xb.beginPath(); xb.ellipse(cx, CY, Math.max(1, RX - 10 * u), Math.max(1, RY - 10 * u), 0, 0, TAU); xb.stroke(); xb.globalAlpha = 1;
+        for (let k = 0; k < 8; k++) { const tw = late > 0 ? 1 + 0.35 * Math.max(0, 1 - Math.abs(run - k) / 1.2) : 1; moonAt(xb, cx + Math.cos(MA[k]) * RX, CY + Math.sin(MA[k]) * RY, (22 + 6 * e) * u * tw, k, ba); }
+      };
+      hold = (t) => { xb.setTransform(1, 0, 0, 1, 0, 0); xb.clearRect(0, 0, W, H); xb.globalAlpha = 1; halo(t); };
+      Sound.sfx("g1_kimi", 1);                                          // 一个文件逐拍对上画面：长笛起音 → 五声玻璃铃（月相成对亮起）→ 长笛短句（谱线展开）→ 六声拨弦（乐器入座）→ 琶音 + 垫音（神环展开）
+      const night = (al) => { if (al <= 0) return; const r = R0 + 160 * u, gr = x.createRadialGradient(cx, cyR, 0, cx, cyR, r);
+        gr.addColorStop(0, "rgba(60, 70, 142, .46)"); gr.addColorStop(0.6, "rgba(102, 114, 192, .28)"); gr.addColorStop(1, "rgba(140, 152, 214, 0)");
+        x.globalAlpha = Math.min(1, al); x.fillStyle = gr; x.fillRect(cx - r, cyR - r, 2 * r, 2 * r); x.globalAlpha = 1; };
+      draw = (t) => {
+        const fa = 1 - clamp((t - 0.74) / 0.08);
+        night(clamp(t / 0.1) * (1 - clamp((t - 0.72) / 0.14)));
+        if (t < 0.82) {                                                 // 开场的月相环：银线从最下面向两边往上合拢，月相按 LT 成对亮起；满月亮起时一团柔光
+          const up = clamp((t - 0.06) / 0.18);
+          if (up > 0) { silver(x, (c) => c.arc(cx, cyR, R0, Math.PI / 2, Math.PI / 2 + Math.PI * up), 2.6 * u, fa); silver(x, (c) => c.arc(cx, cyR, R0, Math.PI / 2, Math.PI / 2 - Math.PI * up, true), 2.6 * u, fa); }
+          for (let k = 0; k < 8; k++) { const pp = ease((t - LT[k]) / 0.07); if (pp > 0) moonAt(x, cx + Math.cos(MA[k]) * R0, cyR + Math.sin(MA[k]) * R0, 22 * u * (0.6 + 0.4 * pp), k, fa * pp); }
+          const bl = Math.sin(Math.PI * clamp((t - 0.24) / 0.16)); if (bl > 0) glow(cx, cyR - R0, 70 * u * (0.8 + 0.4 * bl), bl * 0.9 * fa);
+        }
+        const L = ease((t - 0.28) / 0.18) * (W / 2 - 24 * u), sa = 1 - clamp((t - 0.74) / 0.12);   // 五线谱：从圆心向两边展开
+        if (L > 0 && sa > 0) for (let i = -2; i <= 2; i++) { const Y = cyR + i * 10 * u; silver(x, (c) => { c.moveTo(cx - L, Y); c.lineTo(cx + L, Y); }, 1.2 * u + 0.4, sa * 0.85); }
+        for (let j = 0; j < 6; j++) {                                   // 乐器：左右交替、先中间再上面再下面，0.10 s 里微微升起（不弹跳），各冒出一个音符往上飘；0.80–0.92 往环心收一点、淡出
+          const t1 = 0.46 + 0.05 * j, v = ease((t - t1) / 0.1), o = clamp((t - 0.8) / 0.12); if (v <= 0 || o >= 1) continue;
+          const side = j % 2 ? 1 : -1, lev = [0, 0, -1, -1, 1, 1][j], a = side < 0 ? Math.PI - lev * 0.55 : lev * 0.55, RI = R0 + 100 * u - o * 24 * u;
+          const X = cx + Math.cos(a) * RI, Y = cyR + Math.sin(a) * RI + (1 - v) * 16 * u, al = Math.min(1, (t - t1) / 0.06) * (1 - o), im = sp.inst[j];
+          glow(X, Y, 62 * u, al * 0.5);
+          if (ok(im)) { const iw = IH * im.naturalWidth / im.naturalHeight; x.globalAlpha = al; x.drawImage(im, X - iw / 2, Y - IH / 2, iw, IH); x.globalAlpha = 1; }
+          const nv = clamp((t - t1 - 0.04) / 0.32); if (nv > 0 && nv < 1) note(X + side * 0.42 * IH, Y - 0.5 * IH - nv * 22 * u, 1 - nv);
+        }
+        if (t > 0.74) halo(t);
       };
     } else if (key === "claude") {                                      // 零日封锁：六边形防火墙从四边合拢 → 扫描线 → 对手座位依次上锁 → ACCESS GRANTED
       const R = 30, hw = R * Math.sqrt(3), cells = [];
@@ -1372,6 +1442,7 @@ window.UI = (function () {
     const F = {}, add = (f, t) => { F[f] = (F[f] || "") + t; };
     for (const p of hz) { const gid = godId(p); if (!gid || !Sound.prime) continue;   // v51 神皮开场的专属音（逐拍对画面）和专属冲击音先下载好，第一次上线不晚半拍
       steps.push(() => [gid + "_" + p.key, (ULT[p.key + "_" + gid] || ULT[p.key] || ULT.claude).sfx].concat(GOD_SFX[p.key + "_" + gid] || []).forEach((n) => Sound.prime(n))); }
+    if (hz.some((p) => p.key === "kimi" && godId(p) === "g1")) steps.push(() => { const sp = moonSprites(); for (let k = 0; k < 8; k++) sp.phase(k); for (const im of sp.inst) if (im.decode) im.decode().then(() => { const c = document.createElement("canvas"); c.width = c.height = 2; c.getContext("2d").drawImage(im, 0, 0, 2, 2); }).catch(() => {}); });   // v53 月相贴纸先画好、乐器插画下完就解码
     if (hz.some((p) => godId(p) === "g2")) steps.push(() => wishSprites(), () => { const sp = wishSprites(); if (!sp.url) sp.url = { shoot: sp.shoot.toDataURL(), badge: sp.stars[0].toDataURL() }; for (const im of [sp.book, sp.book0, sp.wand]) if (im.decode) im.decode().then(() => { const c = document.createElement("canvas"); c.width = c.height = 2; c.getContext("2d").drawImage(im, 0, 0, 2, 2); }).catch(() => {}); });   // 道具插画：下完就解码、先画一次（不然第一次上线时现解码会卡一下）   // v51 许愿之神的贴纸开局空闲时先画好、转好（演出第一帧、第一次许愿都不现场画）
     for (const p of hz) for (const k of p.key === "xds" ? ["xds", "xds_cl"] : [p.key]) {
       const gid = k !== "xds_cl" ? godId(p) : "", god = !!gid, U = ULT[gid && ULT[k + "_" + gid] ? k + "_" + gid : k] || ULT.claude;
