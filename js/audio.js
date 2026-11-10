@@ -41,6 +41,7 @@ window.Sound = (function () {
     lastPick = pool[Math.floor(Math.random() * pool.length)];
     a.pause(); a.src = src(`assets/music/${lastPick}.mp3`);
     a.loop = true; a.volume = 0; bgm = a;
+    if (hard === "soft") { held = false; if (old) fade(old, 0, 400, () => { if (old !== bgm) old.pause(); }); if (S.music) { a.play().catch(() => {}); fade(a, level(), 1600); } return; }   // v54 Harness 曲：1.6 秒淡入，和角色主题乐句的尾音叠着过渡（原来在强拍上硬切）
     if (hard) { held = false; if (old) { old.pause(); old.volume = 0; } if (S.music) { a.volume = level(); a.play().catch(() => {}); } return; }   // v48 Harness 曲：在强拍上直接进，不淡入
     if (old) fade(old, 0, 700, () => { if (old !== bgm) old.pause(); });
     if (S.music) { a.play().catch(() => {}); fade(a, level(), 900); }
@@ -86,5 +87,7 @@ window.Sound = (function () {
   function left(charKey, name) { const a = voices[charKey]; return a && !a.paused && !a.ended && isFinite(a.duration) && a.src.indexOf(name + ".mp3") >= 0 ? Math.max(0, (a.duration - a.currentTime) * 1000) : 0; }
   // v51 先把一个音效下载好放进池子、不播：神皮开场的专属音是逐拍对着画面做的，等到第一次播才开始下载，整段声音会比画面晚（线上慢网尤其明显）
   function prime(name) { if (!S.sfx || (pools[name] && pools[name].length)) return; const a = new Audio(); a.preload = "auto"; a.src = src(`assets/sfx/${name}.mp3`); try { a.load(); } catch (e) {} pools[name] = [a]; }
-  return { S, DEF, music, track, hold, sfx, voice, hush, left, prime, toggleSfx, setVol };
+  // v54 把一个正在响的音效在 ms 毫秒里淡出再停（角色主题乐句有 7–10 秒长：演出收尾 / 被跳过时要收掉）
+  function sfxFade(name, ms = 300) { (pools[name] || []).forEach((a) => { if (!a.paused && !a.ended) fade(a, 0, ms, () => a.pause()); }); }
+  return { S, DEF, music, track, hold, sfx, sfxFade, voice, hush, left, prime, toggleSfx, setVol };
 })();

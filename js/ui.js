@@ -967,7 +967,7 @@ window.UI = (function () {
   // v50 神级皮肤（g1）开大招：换成神皮造型的上线立绘 + 专属开场 + 专属台词（deploy_g1）
   // v51 一人可以有不止一套神皮（Claude 第二套 g2「Fable·许愿之神」）：GOD 按角色列出神皮 id，godId 返回现在穿的那套（不是神皮返回 ""）
   const GOD = { claude: ["g1", "g2"], gpt: ["g1"], gemini: ["g1"], deepseek: ["g1"], doubao: ["g1"], kimi: ["g1"] };
-  const GOD_SFX = { claude_g1: ["g1_claude_lock"], claude_g2: ["g2_wish"], gpt_g1: ["g1_gpt2"], gemini_g1: ["g1_gemini2"], doubao_g1: ["g1_doubao2"] };   // 神皮开场 / 局内彩蛋里除了「神皮 id_角色」那一条之外还会用到的专属音（开局一起预载）
+  const GOD_SFX = { claude_g1: ["g1_claude_lock"], claude_g2: ["g2_wish"] };   // 神皮开场 / 局内彩蛋里除了「神皮 id_角色」那一条之外还会用到的专属音（开局一起预载）
   function godId(p) { if (!p || p.disguise || !window.Settings) return ""; const s = Settings.skinOf(p.key); return (GOD[p.key] || []).includes(s) ? s : ""; }
   function godSkin(p) { return !!godId(p); }
   function hzImg(p, f) { const k = p.key === "xds" && p.disguise ? "xds_cl" : p.key, gid = godId(p); if (gid && f !== "b_blink") return A(`assets/img/hz_${k}_${gid}_${f}.webp`); return A(`assets/img/hz_${k}_${k === "xds_cl" && f === "a" ? "b" : f}.webp`); }
@@ -1039,6 +1039,7 @@ window.UI = (function () {
   }
   function luckyStar(x, s, fill) { x.fillStyle = fill; x.beginPath(); for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? s * 0.45 : s; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); } x.closePath(); x.fill(); }   // 五角星（四角星是 Gemini 的标志，不用）
   function hzKey(p) { return p.key === "xds" && p.disguise ? "xds_cl" : p.key; }
+  function thName(p) { const g = godId(p); return "th_" + hzKey(p) + (g ? "_" + g : ""); }   // v54 角色主题乐句的文件名：th_<角色>[_神皮]（小DeepSeek 套壳是 th_xds_cl）
   // v51 大招立绘用的是竖屏布局吗：和 CSS 的 @media (max-aspect-ratio: 1/1) 同一个条件（正方形屏幕也算），JS 里的爆开中心 / 神环跟着它走
   function ultNarrow() { return !!(window.matchMedia && matchMedia("(max-aspect-ratio: 1/1)").matches); }
   // 纹章：画一次到离屏 canvas，演出时只转 CSS transform
@@ -1170,7 +1171,7 @@ window.UI = (function () {
       const fl = add("ua-floor"); fl.appendChild(emblem(key, tc.color, 520));
       const pl = add("ua-pillars"); for (let k = 0; k < 9; k++) { const i = el("i"); i.style.left = (5 + k * 11 + (k % 2) * 3) + "%"; i.style.animationDelay = (k % 4) * 0.05 + 0.15 + "s"; i.style.height = (55 + (k * 37) % 35) + "%"; pl.appendChild(i); }
       add("ua-column");
-      Sound.sfx("in_a_swell", 0.85); at(520, () => Sound.sfx("in_a_bell", 0.75));
+      // v54 开场的声音都在角色主题乐句里（th_*，deployShow 在开场第一帧播），这里不再单独放
       box.classList.add("descend");
     } else if (style === "B") {                                         // 终端接管：主题色接管 + 专属符号雨 + 四边 HUD 启动自检 → 整屏碎成光点
       add("ub-tint");
@@ -1185,9 +1186,8 @@ window.UI = (function () {
       add("ub-hud ub-left", ["load model", "mount tools", "link skills", "sync memory"].map((t, k) => `<p style="animation-delay:${0.12 + k * 0.1}s"><em>✓</em> ${t}</p>`).join(""));
       add("ub-hud ub-right", `<span>DEPLOY</span><div class="ub-bar"><i></i></div><span class="ub-pct">100%</span>`);
       add("ub-hud ub-bot", Array.from({ length: 4 }, () => Math.random().toString(16).slice(2, 10)).join(" · "));
-      Sound.sfx("b_charge", 0.8); at(80, () => Sound.sfx("b_rise", 0.7));                  // 接管：充能 + 上升音，自检每打一个勾一声（音阶 do mi sol do），碎开时水晶迸裂
-      [0, 1, 2, 3].forEach((k) => at(120 + k * 100, () => Sound.sfx("b_chk" + k, 0.6)));
-      at(500, () => { box.classList.add("ub-shatter"); Sound.sfx("b_burst", 0.9); });
+      // v54 开场的声音都在角色主题乐句里（引子前四个音对四个勾，0.50 s 对碎开）；原来 12 人共用的：                  // 接管：充能 + 上升音，自检每打一个勾一声（音阶 do mi sol do），碎开时水晶迸裂
+            at(500, () => { box.classList.add("ub-shatter"); });
     } else {                                                            // 三连斜切：全身剪影 / 描边大字 / 纹章带，依次划过 → 收向中心
       const tile = emblem(key, tc.color, 160).toDataURL();
       const b1 = add("uc-band uc-1", `<img src="${hzImg(p, "b")}" alt=""><img src="${hzImg(p, "b")}" alt=""><img src="${hzImg(p, "b")}" alt="">`);
@@ -1255,7 +1255,7 @@ window.UI = (function () {
         star(xb, cx + Math.cos(a1) * (RX + 9 * u), CY + Math.sin(a1) * (RY + 9 * u), 30 * u * (1 + 0.05 * Math.sin(late * 1.3)), 0, clamp((t - 0.7) / 0.1), true);
       };
       hold = (t) => { xb.setTransform(1, 0, 0, 1, 0, 0); xb.clearRect(0, 0, W, H); xb.globalAlpha = 1; halo(t); };
-      Sound.sfx("g2_claude", 1);                                        // 一个文件逐拍对上画面：竖琴（流星）→ 七个拨音（七颗星）→ 玻璃琴（书翻开）→ 玻璃铃（魔杖一点）→ 钢片琴（光凝成星）→ 琶音 + 风铃（神环展开）
+      /* v54 声音在 th_claude_g2 里 */                                      // 一个文件逐拍对上画面：竖琴（流星）→ 七个拨音（七颗星）→ 玻璃琴（书翻开）→ 玻璃铃（魔杖一点）→ 钢片琴（光凝成星）→ 琶音 + 风铃（神环展开）
       draw = (t) => {
         const open = clamp((t - 0.24) / 0.1), out = clamp((t - 0.6) / 0.12);   // open：书翻开的进度（0.24–0.34）；out：书退场（0.60–0.72）
         if (t < 0.74) {                                                 // 寓言之书：0–0.14 在一团柔光里浮现（只微微上升，不弹跳）；0.24–0.34 在一团圆光里从合着换成翻开（两张图交叠，不翻牌）；0.60–0.72 缩小、飘进立绘里她的怀中
@@ -1318,7 +1318,7 @@ window.UI = (function () {
         for (let k = 0; k < 8; k++) { const tw = late > 0 ? 1 + 0.35 * Math.max(0, 1 - Math.abs(run - k) / 1.2) : 1; moonAt(xb, cx + Math.cos(MA[k]) * RX, CY + Math.sin(MA[k]) * RY, (22 + 6 * e) * u * tw, k, ba); }
       };
       hold = (t) => { xb.setTransform(1, 0, 0, 1, 0, 0); xb.clearRect(0, 0, W, H); xb.globalAlpha = 1; halo(t); };
-      Sound.sfx("g1_kimi", 1);                                          // 一个文件逐拍对上画面：长笛起音 → 五声玻璃铃（月相成对亮起）→ 长笛短句（谱线展开）→ 六声拨弦（乐器入座）→ 琶音 + 垫音（神环展开）
+      /* v54 声音在 th_kimi_g1 里 */                                        // 一个文件逐拍对上画面：长笛起音 → 五声玻璃铃（月相成对亮起）→ 长笛短句（谱线展开）→ 六声拨弦（乐器入座）→ 琶音 + 垫音（神环展开）
       const night = (al) => { if (al <= 0) return; const r = R0 + 160 * u, gr = x.createRadialGradient(cx, cyR, 0, cx, cyR, r);
         gr.addColorStop(0, "rgba(60, 70, 142, .46)"); gr.addColorStop(0.6, "rgba(102, 114, 192, .28)"); gr.addColorStop(1, "rgba(140, 152, 214, 0)");
         x.globalAlpha = Math.min(1, al); x.fillStyle = gr; x.fillRect(cx - r, cyR - r, 2 * r, 2 * r); x.globalAlpha = 1; };
@@ -1348,7 +1348,7 @@ window.UI = (function () {
       for (let r = 0, y = 0; y < H + R; r++, y += R * 1.5) for (let X = (r % 2) * hw / 2; X < W + hw; X += hw) cells.push([X, y, Math.min(X, W - X, y, H - y) / (Math.min(W, H) / 2)]);
       const hex = (X, Y, rr) => { x.beginPath(); for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; x.lineTo(X + Math.cos(a) * rr, Y + Math.sin(a) * rr); } x.closePath(); };
       const lock = (X, Y, s) => { x.lineWidth = s * 0.22; x.beginPath(); x.arc(X, Y - s * 0.35, s * 0.42, Math.PI, 0); x.stroke(); x.fillRect(X - s * 0.62, Y - s * 0.35, s * 1.24, s * 0.95); x.fillStyle = "#fff"; x.beginPath(); x.arc(X, Y + 0.05 * s, s * 0.14, 0, 7); x.fill(); };
-      Sound.sfx("g1_claude", 1);                                        // 神皮开场只用自己的专属音：警报 + 一个座位上锁一声咔哒
+      /* v54 警报在 th_claude_g1 里 */                                      // 神皮开场只用自己的专属音：警报 + 一个座位上锁一声咔哒
       seats.forEach((s, k) => at(520 + k * 110, () => Sound.sfx("g1_claude_lock", 0.8)));
       draw = (t) => {
         const fr = ease(t / 0.55) * 1.05;
@@ -1367,7 +1367,7 @@ window.UI = (function () {
         if (f === 0) { font(px); const w = x.measureText("e+1=0").width + px * 0.6; let X0 = X - w / 2; sup("e", "iπ", X0, Y, px); font(px); x.fillText("+1=0", X0 + x.measureText("e").width + px * 0.62, Y); }
         else if (f === 1) { font(px); const X0 = X - px * 3.1; font(px * 1.3); x.fillText("∫", X0, Y); font(px * 0.42); x.fillText("∞", X0 + px * 0.55, Y - px * 0.55); x.fillText("−∞", X0 + px * 0.35, Y + px * 0.6); sup("e", "−x²", X0 + px * 0.95, Y, px); font(px); x.fillText("dx = √π", X0 + px * 2.25, Y); }
         else { const X0 = X - px * 2.6; font(px * 1.2); x.fillText("Σ", X0, Y); font(px * 0.4); x.fillText("∞", X0 + px * 0.2, Y - px * 0.72); x.fillText("n=1", X0 + px * 0.05, Y + px * 0.72); font(px); x.fillText("1/n² = π²/6", X0 + px * 0.95, Y); } };
-      at(380, () => Sound.sfx("g1_gpt", 1)); at(650, () => Sound.sfx("g1_gpt2", 0.8));
+      
       draw = (t) => {
         const rr = (0.1 + 0.3 * ease((t - 0.35) / 0.5)) * W, rot = t * 1.6;
         if (t > 0.3) { x.globalAlpha = clamp((t - 0.3) * 4) * 0.85; x.strokeStyle = C; x.lineWidth = 3; x.beginPath(); x.ellipse(cx, cy + H * 0.1, rr, rr * 0.3, 0, 0, 7); x.stroke();
@@ -1382,7 +1382,7 @@ window.UI = (function () {
     } else if (key === "gemini") {                                      // 落笔成章：书页从四周翻飞聚拢 → 一道墨迹笔画横扫全屏 → 页面收成羽毛笔的光
       const pages = Array.from({ length: 26 }, (_, k) => { const a = Math.random() * 7, d = Math.max(W, H) * (0.55 + Math.random() * 0.3); return { x0: cx + Math.cos(a) * d, y0: cy + Math.sin(a) * d, r0: Math.random() * 6, sp: 2 + Math.random() * 3, dl: Math.random() * 0.25, tx: cx + (Math.random() - .5) * W * 0.5, ty: cy + (Math.random() - .5) * H * 0.4 }; });
       const pts = Array.from({ length: 60 }, (_, k) => { const u = k / 59; return [W * (0.06 + 0.88 * u), cy + Math.sin(u * Math.PI * 2.2) * H * 0.16 - (u - 0.5) * H * 0.1]; });
-      Sound.sfx("g1_gemini", 1); at(560, () => Sound.sfx("g1_gemini2", 0.7));
+      
       draw = (t) => {
         for (const q of pages) { const e = ease((t - q.dl) / 0.6), X = q.x0 + (q.tx - q.x0) * e, Y = q.y0 + (q.ty - q.y0) * e; if (e <= 0) continue;
           x.save(); x.translate(X, Y); x.rotate(q.r0 + t * q.sp); x.globalAlpha = Math.min(1, e * 2) * (t > 0.85 ? clamp((1.05 - t) * 5) : 1);
@@ -1395,7 +1395,7 @@ window.UI = (function () {
     } else if (key === "deepseek") {                                    // 开源洪流：满屏提交格一列列点亮 → 蓝色浪潮从下往上漫过全场
       const S = 26, cols = Math.ceil(W / S), rows = Math.ceil(H / S), lv = Array.from({ length: cols * rows }, () => Math.random());
       const blues = ["#e3eeff", "#cfe2ff", "#9cc3ff", "#6fa6f0", "#3C78D8"];
-      at(80, () => Sound.sfx("g1_deepseek", 1));
+      
       draw = (t) => {
         const fr = ease(t / 0.55) * (cols + 8);
         for (let c = 0; c < cols; c++) { if (c > fr) break; for (let r = 0; r < rows; r++) { const v = lv[c * rows + r]; if (v < 0.55) continue; x.globalAlpha = clamp((fr - c) / 6) * 0.45; x.fillStyle = blues[Math.floor(v * 5)]; x.fillRect(c * S + 2, r * S + 2, S - 4, S - 4); } }
@@ -1405,7 +1405,7 @@ window.UI = (function () {
       };
     } else {                                                             // 一镜到底：场记板一拍 → 上下两条胶片横向划过 → 时间轴拖到头 → 定格白闪
       const FH = 120;
-      at(250, () => Sound.sfx("g1_doubao", 1)); at(800, () => Sound.sfx("g1_doubao2", 0.7));
+      
       const strip = (Y, off, dir) => { x.fillStyle = "#222"; x.fillRect(0, Y, W, FH); const fw = 150;
         for (let X = ((off * dir) % fw) - fw; X < W + fw; X += fw) { x.fillStyle = "#fff"; for (let k = 0; k < 6; k++) { x.fillRect(X + 8 + k * 24, Y + 8, 12, 10); x.fillRect(X + 8 + k * 24, Y + FH - 18, 12, 10); }
           const gr = x.createLinearGradient(X, Y, X + fw, Y + FH); gr.addColorStop(0, C); gr.addColorStop(1, "#fff"); x.fillStyle = gr; x.fillRect(X + 10, Y + 24, fw - 20, FH - 48); } };
@@ -1440,8 +1440,8 @@ window.UI = (function () {
         + `<div class="ub-hud ub-right"><span>DEPLOY</span><div class="ub-bar"><i></i></div><span class="ub-pct">100%</span></div><div class="ub-hud ub-bot">0123456789abcdef · 0123456789abcdef</div></div>`; void host.offsetHeight; });
     // canvas 字形：只排这局真会画到的字（慢在给缺字找系统回退字体；'Cambria Math' 只有 GPT 神皮用），每种字体单独一步
     const F = {}, add = (f, t) => { F[f] = (F[f] || "") + t; };
-    for (const p of hz) { const gid = godId(p); if (!gid || !Sound.prime) continue;   // v51 神皮开场的专属音（逐拍对画面）和专属冲击音先下载好，第一次上线不晚半拍
-      steps.push(() => [gid + "_" + p.key, (ULT[p.key + "_" + gid] || ULT[p.key] || ULT.claude).sfx].concat(GOD_SFX[p.key + "_" + gid] || []).forEach((n) => Sound.prime(n))); }
+    for (const p of hz) { if (!Sound.prime) continue; const gid = godId(p);   // v54 每个人的主题乐句（逐拍对画面）先下载好，第一次上线不晚半拍；神皮还有局内彩蛋音
+      steps.push(() => [thName(p)].concat(gid ? GOD_SFX[p.key + "_" + gid] || [] : []).forEach((n) => Sound.prime(n))); }
     if (hz.some((p) => p.key === "kimi" && godId(p) === "g1")) steps.push(() => { const sp = moonSprites(); for (let k = 0; k < 8; k++) sp.phase(k); for (const im of sp.inst) if (im.decode) im.decode().then(() => { const c = document.createElement("canvas"); c.width = c.height = 2; c.getContext("2d").drawImage(im, 0, 0, 2, 2); }).catch(() => {}); });   // v53 月相贴纸先画好、乐器插画下完就解码
     if (hz.some((p) => godId(p) === "g2")) steps.push(() => wishSprites(), () => { const sp = wishSprites(); if (!sp.url) sp.url = { shoot: sp.shoot.toDataURL(), badge: sp.stars[0].toDataURL() }; for (const im of [sp.book, sp.book0, sp.wand]) if (im.decode) im.decode().then(() => { const c = document.createElement("canvas"); c.width = c.height = 2; c.getContext("2d").drawImage(im, 0, 0, 2, 2); }).catch(() => {}); });   // 道具插画：下完就解码、先画一次（不然第一次上线时现解码会卡一下）   // v51 许愿之神的贴纸开局空闲时先画好、转好（演出第一帧、第一次许愿都不现场画）
     for (const p of hz) for (const k of p.key === "xds" ? ["xds", "xds_cl"] : [p.key]) {
@@ -1489,12 +1489,13 @@ window.UI = (function () {
       let over = false, tailed = false, said = false;
       // v49 收尾只执行一次、结束时补一次：原来收尾嵌在 2.6 秒的定时器里，早点跳过（或慢机上 3 秒的结束定时器先到）就丢了「部署成功」和换曲
       //   电脑上线不切 Harness 曲，只放一声短乐句（玩家自己上线才换曲）；!g：已经退回首页就别再切曲
-      const tail = () => { if (tailed || !g) return; tailed = true; Sound.sfx("deploy_ok", 0.8); seatOn(); if (p.human) Sound.track("harness", true); else Sound.sfx("harness_sting", 0.5); };
+      const th = thName(p);                                              // v54 角色主题乐句：开场第一帧播起，引子 → 白闪落点 → 垫在台词下面的余韵，收束和弦落在 Harness 曲进来之前
+      const tail = (ms) => { if (tailed || !g) return; tailed = true; if (Sound.sfxFade) Sound.sfxFade(th, ms > 0 ? ms : 1800); Sound.sfx("deploy_ok", 0.8); seatOn(); if (p.human) Sound.track("harness", "soft"); else Sound.sfx("harness_sting", 0.5); };   // 乐句的尾音和 Harness 曲的淡入叠着过渡；被跳过时（ms = 300）很快收掉
       const line = () => { if (said || !g) return 0; said = true; let ms = 0; if (p.ch.lines[lk]) { ms = +say(p, lk, true) || 0; if (ms) lastSay.t = Math.max(lastSay.t || 0, performance.now() + ms - 900); } return voiceOn ? ms : 0; };   // 返回这句配音多长（没开配音返回 0）   // v51 神皮上线必说自己的专属台词（原来走 skinKey 只有六成概率）   // v49 上线台词也只说一次、跳过时补上（原来 1.8 秒前跳过就不说了；小DS 套壳的大招跳过后 套壳 就一句话都没有）   // 小DeepSeek 套壳上线说「我、我就是 Claude 呀……」   // 说完之前别人的闲话先不插嘴
       const done = () => {
         if (over) return; over = true; timers.forEach(clearTimeout); pt.stop();
         if (deploySkip === done) deploySkip = null; if (deployCur === done) deployCur = null;
-        line(); tail(); hzPre[p.i] = 1;                                         // 预载的立绘用完了，放掉（每张解码后约 4 MB）
+        line(); if (!tailed && Sound.sfxFade) Sound.sfxFade(th, 300); tail(300); hzPre[p.i] = 1;                                         // 预载的立绘用完了，放掉（每张解码后约 4 MB）
         others.forEach((h) => h.classList.remove("ult-grey")); seatOn(); Sound.hold(false); document.body.classList.remove("ult-on");
         box.classList.add("out"); box.style.pointerEvents = "none"; setTimeout(() => box.remove(), 350); res(true);
       };
@@ -1503,11 +1504,11 @@ window.UI = (function () {
       Sound.hold(true); Sound.sfx("ult_charge", 0.7); others.forEach((h) => h.classList.add("ult-grey"));
       pt.gather(hc.x, hc.y, 45);
       // ② 斜切 0.6 s
-      at(300, () => { box.classList.add("s2"); ultIntro(box, p, key, tc, name, (ms, f) => at(ms + 0, f), hc, fx); });
+      at(300, () => { box.classList.add("s2"); Sound.sfx(th, 1); ultIntro(box, p, key, tc, name, (ms, f) => at(ms + 0, f), hc, fx); });
       // ③ 爆发 1.2 s：起手帧推入 + 纹章转 → 0.5 s 后切发动帧 + 白闪 + 冲击环 + 粒子 + 台词
       at(900, () => box.classList.add("s3"));
       at(1400, () => {
-        box.classList.add("hit"); Sound.sfx("ult_impact", 0.55); at(160, () => Sound.sfx((ULT[ek] || ULT[key] || ULT.claude).sfx, 1));   // 专属音色错开冲击声 0.16 s、放大，听得出是谁（v51 神皮有自己的冲击音就用它）
+        box.classList.add("hit"); Sound.sfx("ult_impact", 0.4);                                          // v54 落点的和弦在主题乐句里，这一下只当底鼓（原来这里还有一段角色专属音）   // 专属音色错开冲击声 0.16 s、放大，听得出是谁（v51 神皮有自己的冲击音就用它）
         pt.burst(cx, cy, 80);
         const blink = () => { box.classList.add("blink"); at(130, () => box.classList.remove("blink")); };
         at(420, () => {   // 小DeepSeek 套壳上线：说「我、我就是 Claude 呀……」   // 台词等专属音色响完再进
