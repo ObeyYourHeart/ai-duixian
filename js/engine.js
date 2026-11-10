@@ -1244,7 +1244,7 @@ window.Engine = (function () {
         const c = p.human ? (await this.ui.humanConfirm(`【DSH】万物皆插件：把一张手牌插成插件？（${p.plugins.length} / ${this.dshMax(p)}）`, true) ? ((await this.ui.humanPick(p.hand.slice(), 1, "插哪张？吐槽 → 攻击插件、奶茶 → 回血插件、其他 → 摸牌插件")) || [])[0] : null)
           : AI.plugPick(this, p);
         if (c && p.hand.includes(c)) {
-          this.takeFromHand(p, c); p.plugins.push(c); Sound.sfx("ding", 0.5); this.ui.skillNote(p, "DSH");
+          this.takeFromHand(p, c); p.plugins.push(c); Sound.sfx("ding", 0.5); this.ui.skillNote(p, "DSH", `插上【${CD[c.k].name}】插件（${p.plugins.length} / ${this.dshMax(p)}）`);   // v51 字条写清这次干了什么
           this.ui.log(p, `【DSH】把【${CD[c.k].name}】插成了插件（${p.plugins.length} / ${this.dshMax(p)}）`); this.ui.sync(); await wait(400);
         }
       }
@@ -1254,7 +1254,7 @@ window.Engine = (function () {
       const c = p.bgTask; p.bgTask = null;
       const top = Math.max(...this.players.filter((q) => q.alive).map((q) => q.hand.length));   // 2v2 跑分：榜一里有队友时不自动打（会点到自己人）
       const tieMate = c.k === "paofen" && this.mode === "team" && this.players.some((q) => q.alive && q !== p && q.hand.length === top && !this.rivals(p).includes(q));
-      if (this.ui.hzStash) this.ui.hzStash(p, "bg", false, c);              // 「🧸 Jolly 跑腿中」→ 牌飞回她面前
+      if (this.ui.hzStash) await this.ui.hzStash(p, "bg", false, c);        // 「🧸 Jolly 跑腿中」→ 牌飞回她面前（v51 等它落地再替她打出，不然同一张牌同时出现两次）
       p.hand.push(c); this.ui.sync();
       if (CD[c.k].type === "trick" && this.canUse(p, c) && !tieMate) { this.ui.skillNote(p, "Muse Code"); this.ui.log(p, `【Muse Code】Jolly 跑完腿回来了：替你打出【${CD[c.k].name}】`); await this.useCard(p, c, AI.autoTargets(this, p, c)); }
       else { this.ui.log(p, `【Muse Code】Jolly 跑完腿回来了，这件事现在办不了：【${CD[c.k].name}】收进手里`); await wait(300); }
@@ -1268,10 +1268,10 @@ window.Engine = (function () {
     async dshRun(p) {
       if (Math.random() < (this.players.length === 2 && T.dshBreak2p != null ? T.dshBreak2p : T.dshBreak)) {                                     // 开发者预览版：更新翻车
         for (const x of p.plugins) this.toDiscard(x);
-        const n = p.plugins.length; p.plugins = []; Sound.sfx("glitch_vhs", 0.6); this.ui.skillNote(p, "DSH");
+        const n = p.plugins.length; p.plugins = []; Sound.sfx("glitch_vhs", 0.6); this.ui.skillNote(p, "DSH", `更新翻车：${n} 个插件全部失效`);
         this.ui.sys(`${p.name} 的 DSH 悄悄更新了一版……${n} 个插件全部不兼容，失效了`, "bad"); this.ui.sync(); await wait(600); return;
       }
-      const c = p.plugins[rnd(p.plugins.length)]; this.ui.skillNote(p, "DSH");
+      const c = p.plugins[rnd(p.plugins.length)]; this.ui.skillNote(p, "DSH", `跑【${CD[c.k].name}】插件`);
       const dshTs = this.foesOf(p, this.rivals(p));                     // v49 抢群主里没有敌意目标时不乱打（原来会打座位号最小的人，常常是群主）——改成摸 1
       if (c.k === "tucao" && dshTs.length) {
         const ts = dshTs, t = AI.pickTarget(this, p, ts) || ts[0];
@@ -1514,13 +1514,15 @@ window.Engine = (function () {
         const pick = p.human ? ((await this.ui.humanPick(kinds.map((k, i) => ({ id: -900 - i, k })), 1, "许个愿：想要哪张牌？")) || [])[0] : { k: AI.wishPick(this, p, kinds) };
         const k = pick && pick.k, hit = k && this.deck.filter((c) => c.k === k);
         this.ui.skillNote(p, SN(p.key, "wish")); this.ui.say(p, "wish", true); Sound.sfx("spell", 0.6);
+        let fly = null;
         if (hit && hit.length) {
           const c = hit[rnd(hit.length)]; this.deck.splice(this.deck.indexOf(c), 1); p.hand.push(c);
-          this.ui.log(p, `【${SN(p.key, "wish")}】许愿要一张【${CD[k].name}】——需求收到，已经实现`); this.ui.drawAnim && this.ui.sync();
+          this.ui.log(p, `【${SN(p.key, "wish")}】许愿要一张【${CD[k].name}】——需求收到，已经实现`);
+          try { fly = this.ui.wishFly ? this.ui.wishFly(p, c) : null; } catch (e) { console.error(e); } if (!fly) this.ui.sync();   // v51 原来只 sync、没飞牌：找到的那张从牌堆正面朝上飞到她座位（动画出错也不能卡住对局）
         } else { this.ui.log(p, `【${SN(p.key, "wish")}】牌堆里没有【${k ? CD[k].name : "这张牌"}】，先随手摸 1 张`); await this.draw(p, 1, true); }
         if (T.subagent && p.hand.length > 1 && this.wishKinds().length) await this.subagent(p);   // v47 专武子代理：再找 1 张，先弃 1 张
         if (!p.uses.wish && p.ch.lines.wish_out) { await wait(500); this.ui.say(p, "wish_out", true); this.ui.log(p, "额度用完了，这局不能再许愿"); }
-        this.ui.sync(); await wait(400);
+        this.ui.sync(); await Promise.all([wait(400), fly]);            // v51 等飞牌落地（和原来的 0.4 秒重叠着等）：电脑紧接着出这张牌时，屏幕上不会同时有两张
       } else if (id === "zeroday") {
         // v37 Claude 零日漏洞：下一张吐槽谁也挡不住
         p.zeroDay = true;
@@ -1580,13 +1582,14 @@ window.Engine = (function () {
         const fresh = !(p.band && p.band.length);                         // 这是新乐队的第一首（Kimi Code 一次写 2 首时，n 直接到 2，原来的 n === 1 判断会漏掉）
         this.takeFromHand(p, c);
         (p.band = p.band || []).push(c);
+        let two = false;
         if (this.hasH(p, "swarm") && p.band.length < T.bandMax) {          // v48 Agent 集群：一次写 2 首，来 2 名乐手（扣 2 张）
           const c2 = p.hand.filter((x) => x.k !== "chongqi" && x.k !== "shuaiguo").sort((a, b) => (b.k === "tucao") - (a.k === "tucao") || AI.value(this, p, a) - AI.value(this, p, b))[0];
-          if (c2) { this.takeFromHand(p, c2); p.band.push(c2); this.ui.skillNote(p, "Kimi Code"); this.ui.log(p, "【Kimi Code】两个子 agent 并行写歌：一次写好 2 首"); }
+          if (c2) { this.takeFromHand(p, c2); p.band.push(c2); two = true; this.ui.skillNote(p, "Kimi Code"); this.ui.log(p, "【Kimi Code】两个子 agent 并行写歌：一次写好 2 首"); }
         }
         const n = p.band.length, who = ["鼓手", "吉他手", "键盘手"][n - 1] || "乐手";
         this.ui.skillNote(p, SN(p.key, "rehearse")); this.ui.say(p, "band" + Math.min(n, 3), true);
-        this.ui.band(p, n);
+        this.ui.band(p, n, two ? 2 : 1);                                  // v51 一次来 2 名乐手：两格都有新到动画（原来只有最后一格有）
         this.ui.log(p, `【${SN(p.key, "rehearse")}】把一张【${CD[c.k].name}】写成了新歌，${who}到位（乐队 ${n} / ${T.bandMax}）`);
         if (n >= T.bandMax) this.ui.sys(`🎤 ${p.name} 的乐队到齐了——新专辑随时会发布！`, "bad");
         await wait(500);
@@ -1707,9 +1710,9 @@ window.Engine = (function () {
       } else if (id === "remake") {
         // 豆包 一键成片：把这回合刚打出的牌拍成视频，再放一遍（虚拟牌，不进弃牌堆、不算出牌次数）
         const lp = p.lastPlay, ts = this.remakeTargets(p); p.remakeN = (p.remakeN || 0) + 1; if (T.remakeCounts) p.tucao++;
-        if (this.players.length === 2 && lp && lp.k === "tucao") { p.soloDuelN = (p.soloDuelN || 0) + 1; this.ui.skillNote(p, "TRAE SOLO"); this.ui.log(p, "【TRAE SOLO】SOLO 模式单挑也能重放吐槽（这局就这 1 次）"); }   // v49 单挑只有 SOLO 上线后才能重放吐槽
+        if (this.players.length === 2 && lp && lp.k === "tucao") { p.soloDuelN = (p.soloDuelN || 0) + 1; this.ui.skillNote(p, "TRAE SOLO", `单挑也能重放 1 次吐槽（照常弃 ${this.remakeCost(p)} 张）`); this.ui.log(p, "【TRAE SOLO】SOLO 模式单挑也能重放吐槽（这局就这 1 次）"); }   // v49 单挑只有 SOLO 上线后才能重放吐槽
         if (this.remakeCost(p)) this.dropRandom(p, this.remakeCost(p));
-        else if (this.hasH(p, "solo")) { this.ui.skillNote(p, "TRAE SOLO"); this.ui.log(p, "【TRAE SOLO】素材 SOLO 自己找好了，不用弃牌"); }
+        else if (this.hasH(p, "solo")) { this.ui.skillNote(p, "TRAE SOLO", "素材自己找好了，不用弃牌"); this.ui.log(p, "【TRAE SOLO】素材 SOLO 自己找好了，不用弃牌"); }
         this.ui.skill(p, SN(p.key, "remake")); this.ui.say(p, "remake", true); Sound.sfx("fanfare_short", 0.5);
         this.ui.log(p, `【${SN(p.key, "remake")}】把刚才的【${CD[lp.k].name}】拍成视频，再放一遍` + (ts.length ? `——对 ${ts.map((t) => t.name).join("、")}` : ""));
         this.ui.sync(); await wait(500);
@@ -1733,7 +1736,7 @@ window.Engine = (function () {
         const ag = this.hasH(p, "antigrav");                         // v47 Antigravity：好几个智能体一起搜
         const top = this.topCards(ag ? T.agPeek : T.searchPeek); this.see(p, top);
         if (ag) this.ui.log(p, `【Antigravity】派出 ${top.length} 个智能体一起搜`);
-        this.ui.skillNote(p, SN("gemini", "search")); this.ui.say(p, "search", true);
+        this.ui.skillNote(p, SN("gemini", "search"), ag ? `看牌堆顶 ${top.length} 张，挑 1 张收下` : null); this.ui.say(p, "search", true);   // v51 Antigravity 上线后看 5 张，字条原来还写着 3 张
         const bombAt = top.findIndex((c) => c.k === "dangji");
         if (p.human && (!T.searchPick || !top.some((c) => c.k !== "dangji"))) await this.ui.peek(top, `【${SN("gemini", "search")}】牌堆顶 ${top.length} 张（从上往下）`);   // 能挑牌时直接弹挑牌框，不再先看一遍
         let bottom = !!(top[0] && top[0].k === "dangji");

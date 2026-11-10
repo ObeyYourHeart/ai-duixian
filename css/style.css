@@ -155,10 +155,14 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 #seats { position: absolute; inset: 0; pointer-events: none; }
 .hero { position: absolute; width: 214px; height: 300px; border-radius: 20px; border: 5px solid #fff; overflow: hidden; pointer-events: auto;
   background: linear-gradient(165deg, var(--l), #ffffff 75%); box-shadow: 0 8px 20px rgba(70, 50, 140, .22); transition: box-shadow .2s, filter .3s; }
-.hero .por { position: absolute; left: 50%; top: 6px; width: 250px; transform: translateX(-50%); transition: transform .12s; }
-.hero .por img { width: 250px; display: block; }
-.hero .plate { position: absolute; left: 0; right: 0; bottom: 0; padding: 4px 8px 6px; background: linear-gradient(transparent, var(--c) 30%); color: #fff; text-align: center; }
-.hero .plate b { font-family: var(--title); font-size: 26px; display: block; line-height: 1.1; }
+/* v51 角色框露出更多立绘（用户选的样式 C）：整张底图放进框里（原来放大到 250 宽、只露头和肩），名字条和技能标签变窄，能看到腰和手里的道具 */
+/*   立绘比框宽一点（224，框内 204）：不少表情图边上有直直切断的空边（最多 24 px），原来放大到 250 时看不到，整张放进来就露出来了；
+     Kimi / GLM 的默认立绘是 9:16 画的，两边各空 45 px，单独放大到 246（.hero[data-wide]，穿皮肤时不用） */
+.hero .por { position: absolute; left: 50%; top: 0; width: var(--pw, 224px); transform: translateX(-50%); transition: transform .12s; }
+.hero[data-wide] { --pw: 246px; }
+.hero .por img { width: 100%; display: block; }
+.hero .plate { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 8px 5px; background: linear-gradient(transparent, var(--c) 58%); color: #fff; text-align: center; }
+.hero .plate b { font-family: var(--title); font-size: 21px; display: block; line-height: 1.1; text-shadow: 0 1px 3px rgba(40, 30, 80, .35); }
 .hero .plate small { font-size: 13px; opacity: .92; }
 .hero .plate small:empty { display: none; }   /* 名字下面不再放称号（用户觉得过时）；只有小DeepSeek 伪装时这里写一行提示 */
 .hero .hp { position: absolute; left: 8px; top: 8px; display: flex; gap: 2px; }
@@ -177,9 +181,9 @@ html, body { margin: 0; height: 100%; background: #cfe3ff; overflow: hidden; tou
 .hero .side.role-rebel { background: #e2525b; } .hero .side.role-spy { background: #7a5cd6; } .hero .side.unknown { background: #a7a2c2; }
 .hero .you { position: absolute; right: 8px; top: 48px; background: #ffcf3f; color: #fff; font-family: var(--title); font-size: 20px; width: 34px; height: 34px;
   border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .15); }
-.hero .stags { position: absolute; left: 6px; right: 6px; bottom: 64px; display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
-.hero .stags span { background: rgba(255, 255, 255, .94); color: var(--c); font-family: var(--title); font-size: 17px; padding: 1px 8px; border-radius: 10px; cursor: help; }
-.hero .stags.many { gap: 3px; } .hero .stags.many span { font-size: 15px; padding: 0 6px; }   /* 技能多（4 个以上）时标签小一号 */
+.hero .stags { position: absolute; left: 6px; right: 6px; bottom: 34px; display: flex; gap: 3px; justify-content: center; flex-wrap: wrap; z-index: 1; }   /* v51 贴着名字条上沿（有部署条时再抬高，见 .hero.hzp .stags）；z-index：名字条的渐变在它后面，不盖住标签下半截、也不挡点击 */
+.hero .stags span { background: rgba(255, 255, 255, .92); color: var(--c); font-family: var(--title); font-size: 14px; padding: 0 7px; border-radius: 10px; cursor: help; }
+.hero .stags.many span { font-size: 13px; padding: 0 6px; }   /* 技能多（4 个以上）时标签小一号 */
 .hero .status { position: absolute; left: 8px; top: 74px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .hero .status span { background: rgba(42, 36, 64, .82); color: #fff; font-size: 16px; font-weight: 800; padding: 2px 9px; border-radius: 9px; }
 .hero .status .ban { background: #e53340; } .hero .status .dumb { background: #8b5cf6; }
@@ -426,6 +430,12 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
   animation: arrow .55s ease-out forwards; z-index: 45; }
 @keyframes arrow { from { clip-path: inset(0 100% 0 0); opacity: 1; } 60% { clip-path: inset(0 0 0 0); opacity: 1; } to { clip-path: inset(0 0 0 0); opacity: 0; } }
 .spark { position: absolute; width: 14px; height: 14px; border-radius: 50%; animation: spark .7s ease-out forwards; }
+/* v51 Claude Code 许愿找到牌：牌从牌堆正面朝上飞来、在座位上方亮一下；穿 Fable·许愿之神时一颗流星领着、牌角别一颗小金星 */
+.wish-fly { width: 150px; height: 212px; z-index: 46; pointer-events: none; }
+.wish-fly > .card { left: 0; top: 0; cursor: default; }
+.wish-fly.glow > .card { box-shadow: 0 0 0 4px #ffd35a, 0 0 26px 8px rgba(255, 190, 70, .8); transition: box-shadow .15s; }
+.wish-fly .wf-star { position: absolute; width: 130px; left: 50%; top: 50%; margin: -45px 0 0 -65px; }   /* v51 Fable·许愿之神：领着牌飞的流星（中心对牌心，位置和朝向由 JS 按飞行方向定） */
+.wish-fly .wf-badge { position: absolute; width: 68px; right: -28px; top: -28px; }   /* 牌角别的小金星 */
 @keyframes spark { to { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; } }
 
 #toast { position: absolute; left: 50%; top: 80px; transform: translateX(-50%); background: rgba(42, 36, 64, .88); color: #fff; padding: 10px 22px; border-radius: 20px;
@@ -1019,7 +1029,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .ult.rel .ult-veil, .ult.rel.s3 .ult-veil, .ult.rel .ult-edge { opacity: 0; transition: opacity .3s; }   /* .rel.s3：要压过后面 .ult.s3 .ult-veil 的 transition */
 .ult.rel .ds-skip, .ult.out .ds-skip { opacity: 0; }                  /* 放行后点了也不会跳，「点一下跳过」先收起来 */
 .ult-veil { position: absolute; inset: 0; background: rgba(255, 255, 255, .5); animation: dvIn .15s ease-out; }
-.ult.s3 .ult-veil { background: linear-gradient(180deg, rgba(255, 255, 255, .7), color-mix(in srgb, var(--l) 70%, rgba(255, 255, 255, .6))); transition: background .3s; }
+.ult.s3 .ult-veil { background: linear-gradient(180deg, rgba(255, 255, 255, .4), color-mix(in srgb, var(--l) 70%, rgba(255, 255, 255, .6))); transition: background .3s; }   /* v51 顶部白纱 70% → 40%：原来太厚，画面发白 */
 .ult-pt { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
 .hero.ult-grey { filter: grayscale(1) brightness(1.15); opacity: .55; transition: opacity .15s; }
 .ult-band { position: absolute; left: -20%; top: 34%; width: 140%; height: 190px; transform: rotate(-9deg) translateX(-110%); animation: ubIn .6s cubic-bezier(.2, .7, .2, 1) forwards; z-index: 2; overflow: hidden;
@@ -1056,7 +1066,8 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 @keyframes drop { to { opacity: 1; transform: none; } }
 .un-sub { margin-top: 8px; font: 800 18px/1 Consolas, monospace; letter-spacing: 8px; color: #fff; background: var(--c); display: inline-block; padding: 5px 14px; border-radius: 6px; opacity: 0; animation: dvIn2 .3s ease-out .35s forwards; }
 @keyframes dvIn2 { to { opacity: 1; } }
-.ult.s5 .ult-stage { opacity: 0; transition: opacity .35s; }
+.ult.hold .ult-stage { transform: translate(-50%, -50%) scale(1.085); transition: transform var(--hold, 3s) linear; }   /* v51 等台词说完的这段：发动帧留着，镜头继续匀速慢推（--hold = 这段有多长） */
+.ult.s5 .ult-stage { opacity: 0; transition: opacity .35s, transform .35s; }
 .hero.hz-on::before { content: ""; position: absolute; inset: -5px; border-radius: 20px; padding: 3px; background: conic-gradient(from 0deg, transparent 0 60%, var(--c) 80%, #fff 85%, transparent 90%);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; animation: embSpin 6s linear infinite; opacity: .7; }
 @media (max-aspect-ratio: 1/1) { .un-big { font-size: 58px; } .ult-band { height: 140px; } .ult-stage { height: 64%; top: 40%; } .ult-name { bottom: 13%; } }
@@ -1066,9 +1077,11 @@ body.ult-on #known, body.ult-on .skpop { visibility: hidden; }
 /* v48 大招登场：三种全场特效 + 通用细节 */
 .ult-edge { position: absolute; inset: 0; pointer-events: none; z-index: 1; box-shadow: inset 0 0 120px 30px color-mix(in srgb, var(--c) 55%, transparent); opacity: 0; transition: opacity .25s; }
 .ult.s2 .ult-edge { opacity: 1; } .ult.s5 .ult-edge { opacity: 0; }
-.ult-rays { position: absolute; left: 50%; top: 40%; width: 230%; aspect-ratio: 1; transform: translate(-50%, -50%); opacity: 0; border-radius: 50%;
-  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--l) 80%, #fff) 0 6deg, transparent 6deg 18deg); -webkit-mask: radial-gradient(circle, #000 15%, transparent 62%); mask: radial-gradient(circle, #000 15%, transparent 62%); }
-.ult.hit .ult-rays { opacity: .75; animation: embSpin 9s linear infinite; transition: opacity .2s; }
+/* v51 立绘身后原来是 20 道旋转的放射光（接近集中线；动画还写错了，整层其实在往右下漂）。换成两圈同心柔光，慢慢呼吸（只动 transform / opacity；用 margin 居中，transform 留给呼吸） */
+.ult-rays { position: absolute; left: 50%; top: 40%; width: 170%; aspect-ratio: 1; margin: -85% 0 0 -85%; opacity: 0; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle closest-side, color-mix(in srgb, var(--l) 55%, #fff) 0, color-mix(in srgb, var(--l) 70%, transparent) 26%, transparent 41%, color-mix(in srgb, var(--c) 42%, var(--l)) 52%, transparent 64%, color-mix(in srgb, var(--c) 30%, transparent) 78%, transparent 92%); }   /* 中间一团近白的柔光托住立绘，外面两圈带主题色的光环 */
+.ult.hit .ult-rays { opacity: .8; animation: glowBreathe 2.6s ease-in-out infinite alternate; transition: opacity .2s; }
+@keyframes glowBreathe { from { transform: scale(.95); } to { transform: scale(1.06); } }
 .ult-ring.r2 { border-width: 4px; } .ult.hit .ult-ring.r2 { animation: ringOut 1.1s cubic-bezier(.1, .7, .3, 1) .12s forwards; }
 .ult-ghost { opacity: 0; }
 .ult.hit .ult-ghost { animation: ghost .7s ease-out forwards; }
@@ -1090,12 +1103,19 @@ body.ult-on #known, body.ult-on .skpop { visibility: hidden; }
 @keyframes uaCol { to { transform: translateX(-50%) scaleX(1); } }
 .ult.descend .ult-stage { transform: translate(-50%, -95%) scale(.96); }
 .ult.descend.s3 .ult-stage { transform: translate(-50%, -50%) scale(1.04); transition: opacity .25s, transform .55s cubic-bezier(.2, .9, .3, 1.05); }
+.ult.descend.s3.hold .ult-stage { transform: translate(-50%, -50%) scale(1.085); transition: transform var(--hold, 3s) linear; }   /* v51 小DeepSeek 套壳上线也要有等台词时的镜头慢推（上一条优先级更高，会把 .ult.hold 压掉） */
+.ult.descend.s3.s5 .ult-stage { transition: opacity .35s, transform .35s; }
 /* B 终端接管 */
 .ub-tint { position: absolute; inset: 0; z-index: 1; background: color-mix(in srgb, var(--c) 30%, rgba(255, 255, 255, .45)); animation: dvIn .15s; }
 .ult.ub-shatter .ub-tint { opacity: .2; transition: opacity .3s; }
 .ug-tint { position: absolute; inset: 0; z-index: 1; background: color-mix(in srgb, var(--c) 18%, rgba(255, 255, 255, .7)); animation: dvIn .15s; }   /* v50 神级皮肤专属开场 */
 .ug-cv { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
 .ult.ug-out .ug-cv { opacity: 0; transform: scale(1.08); transition: opacity .3s, transform .3s; }
+.ug-back { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }   /* v51 Fable·许愿之神：放大的星环（神环）在立绘身后（薄纱之上、立绘之下） */
+.ult.hold .ug-back { transform: scale(1.043); transition: transform var(--hold, 3s) linear; }   /* 神环留在立绘身后，停留时跟着立绘慢慢推近（立绘这一段从 1.04 推到 1.085，也就是再放大 4.3%） */
+.ult.s5 .ug-back { opacity: 0; transition: opacity .35s; }
+.ult.ug-fable .ult-emb { display: none; }   /* Fable·许愿之神：身后是她自己的神环（.ug-back），不再叠通用的橙色纹章 */
+.ult.ug-fable .ult-ring { border-width: 3px; border-color: #F1C35A; box-shadow: 0 0 22px #FFE2A0; } .ult.ug-fable .ult-ring.r2 { border-width: 1.5px; }   /* Fable·许愿之神：冲击时扩散的两圈环用细金线（默认是 10 px 的粗主题色环） */
 .ult.ug-out .ug-tint { opacity: .25; transition: opacity .3s; }
 .ub-rain { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
 .ult.ub-shatter .ub-rain { opacity: 0; transform: scale(1.15); transition: opacity .35s, transform .35s; }
@@ -1157,7 +1177,9 @@ body.ult-on #known, body.ult-on .skpop { visibility: hidden; }
 @keyframes hzShine { to { transform: translateX(260%); } }
 .hero .hzbar.on b { color: #fff; max-width: none; } .hero .hzbar.on em { color: #fff8dc; letter-spacing: 2px; }
 .hero .status .hz { display: none; }
-.hero.hzp .plate { padding-bottom: 22px; }                  /* 部署条放进名牌底部 */
+.hero.hzp .plate { padding-bottom: 21px; }                  /* 部署条放进名牌底部 */
+.hero.hzp .stags { bottom: 50px; }                          /* v51 名字条变窄后，技能标签跟着贴到它上沿 */
+.hero.disguised .stags { bottom: 52px; } .hero.disguised.hzp .stags { bottom: 68px; }   /* 小DeepSeek 套壳时名字下面多一行提示，标签再抬高一行（原来会压到名字上） */
 .hero .hzbar { font-size: 10px; background: rgba(255, 255, 255, .9); }
 .hero .hzbar.on em { font-size: 8px; letter-spacing: 1px; opacity: .9; }       /* ONLINE 比技能名小 */
 .hero .hzbar.on b { font-size: 11px; }

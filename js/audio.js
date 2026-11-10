@@ -82,5 +82,9 @@ window.Sound = (function () {
   // 设置面板拖音量条：音乐实时变，音效 / 配音下一声生效
   function setVol(k, v) { S[k] = Math.max(0, Math.min(1, v)); save(); if (k === "musicVol" && bgm && S.music) bgm.volume = level(); }
   function hush(charKey) { const a = voices[charKey]; if (a) a.pause(); }   // v39 跳过对线特写：掐掉那句配音
-  return { S, DEF, music, track, hold, sfx, voice, hush, toggleSfx, setVol };
+  // v51 这个角色正在放的是不是 name 这一句、还剩多少毫秒（上线演出等台词说完用：慢网上配音会晚起播）。她已经换了别的话就返回 0，不替别的台词干等
+  function left(charKey, name) { const a = voices[charKey]; return a && !a.paused && !a.ended && isFinite(a.duration) && a.src.indexOf(name + ".mp3") >= 0 ? Math.max(0, (a.duration - a.currentTime) * 1000) : 0; }
+  // v51 先把一个音效下载好放进池子、不播：神皮开场的专属音是逐拍对着画面做的，等到第一次播才开始下载，整段声音会比画面晚（线上慢网尤其明显）
+  function prime(name) { if (!S.sfx || (pools[name] && pools[name].length)) return; const a = new Audio(); a.preload = "auto"; a.src = src(`assets/sfx/${name}.mp3`); try { a.load(); } catch (e) {} pools[name] = [a]; }
+  return { S, DEF, music, track, hold, sfx, voice, hush, left, prime, toggleSfx, setVol };
 })();

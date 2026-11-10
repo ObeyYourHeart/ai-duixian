@@ -451,7 +451,7 @@ window.Main = (function () {
       <ul class="ru-list">
         <li><b>部署进度</b>：你自己<b>主动打出</b>的每张牌 +1（吐槽、奶茶、锦囊、装备都算，被限流退回手里的吐槽也算）。被逼出来的【反驳】【已读不回】【甩锅】【回滚】、拆宕机用的【重启】不算，技能也不算（Muse【代办】替你打出的那张锦囊算 1 张）。名牌上方的细条就是进度。</li>
         <li><b>满格张数每人不同</b>，单挑和乱斗也不同（见下表）；2v2、抢群主、全明星沿用乱斗的张数，个别人 2v2 单独定。</li>
-        <li><b>上线</b>：放一段约 3 秒的大招演出，点一下或按 Esc 跳过；你自己上线时，配乐换成 Harness 曲（第 3 轮「吵上头」之后照旧放激烈的曲子）。</li>
+        <li><b>上线</b>：放一段大招演出，等她把上线台词说完才收（约 5–8 秒；关了配音约 3 秒），点一下或按 Esc 跳过；你自己上线时，配乐换成 Harness 曲（第 3 轮「吵上头」之后照旧放激烈的曲子）。</li>
         <li>【Codex】回手、【DSH】跑插件在被封号的回合也照样结算；DSH 的吐槽插件只有【反驳】挡得住。</li>
       </ul>
       <h3>每个人的 Harness</h3><div class="ru-modes">${keys.filter((k) => CH[k].harness).map((k) => { const c = CH[k], h = c.harness; return `<div style="--c:${c.color}"><b>${c.name} · ${h.name}</b><span>${h.desc}<br><small>满格：${hzNeed(k)}</small></span></div>`; }).join("")}</div>`],
