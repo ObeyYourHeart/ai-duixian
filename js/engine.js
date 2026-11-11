@@ -32,7 +32,8 @@ window.Engine = (function () {
     errandLook: 5, errandLook2p: 4, errandPick: "best", errandPick2p: "first", haggleTake: 2, haggleGive: 1, confirmPaofen: false, confirmOthers: true,   // v29：新卡（跑分、钓鱼、加密）让囤牌的 Muse 乱斗掉到 28，补两条：多人局代办挑翻到的最好的锦囊（单挑仍第一张）、确认卡也拦热搜 / 刷屏 → 乱斗 36 / 单挑 48 / 2v2 52；砍价不还牌 42 / 69、心态 5 是 46 / 63，都太猛   // Muse：代办最多往下翻几张找能用的锦囊（v28 单挑只翻 3：57% → 53%；v29 新卡让囤牌的她成了跑分榜一，单挑回到翻 4 补一点）、挑第一张还是挑最好的（"best" 单挑 65 太强）；砍价拿几张、还 1 张
     remakeCost: 1, remakeCost2p: 2, remakeTucao2p: false, remakeMax: 0, fakeRate: 0, fakeRate2p: 0,   // v29：以假乱真删掉（技能表里也去掉了；它和嘻嘻抱歉互相拆台，一局只触发 0.3 次）   // 豆包 Seedance：一键成片随机弃几张；以假乱真让反驳失效的概率（单挑：弃 2 张、不能重放吐槽——不然单挑 58–61%，现在 53%；乱斗 35）
     remakeKinds: ["tucao"],                               // 一键成片只重放吐槽（能复制锦囊太强；重放奶茶回两次血也太肉：乱斗 37 → 34）；单挑不能用（remakeTucao2p false，允许时单挑 60%）
-    buyN: 1, buyCost: 0, buyComp: 1, factRate: 0.5, factTricks: true, factTucao: true,                   // Grok 挥金（已换成核实）；核实判定为假的概率
+    buyN: 1, buyCost: 0, buyComp: 0, buyDad: true, buyPay: 0, buyPay2p: 1, buildFee: 0,   // v56 收购「记爸爸账上」：对方不再补牌（buyComp 原 1）；用过收购，下回合开始爸爸不补牌（buyDad）；单挑先交 buyPay2p 张自己的牌当钱；Grok Build 第二单不交订阅费（buildFee 原 1）。sim：单挑 52→54 / 3 人 34→37 / 2v2 50→54
+    factRate: 0.5, factTricks: true, factTucao: true,                   // Grok 挥金（已换成核实）；核实判定为假的概率
     stealAll: false, stealN: 1, stealClaude: 2,           // GLM 借鉴
     eggDraw: 2, eggSteal: 1, eggLate: 3,                  // v31 GLM 毒鸡蛋（原名糖衣）：对手收补偿摸几张、GLM 下回合开始孵化借回几张、AI 只剩最后 1 次时第几轮起才用（次数在 data.js：每局 3 次）
     fansN: 1, fansLow: 2, fans: { doubao: [1, 1] }, fansOnce: true, paintKinds: ["naicha", "tucao", "fanbo"],       // 豆包 应援：[摸, 只剩 1 点心态时摸]
@@ -540,7 +541,11 @@ window.Engine = (function () {
         this.ui.sync();
       }
       const gFloor = this.mode === "team" || this.mode === "id5" ? T.grokFloorTeam : T.grokFloor;
-      if (p.key === "grok" && p.hand.length < gFloor) {              // Grok 千金：爸爸送的
+      const dadSpent = p.dadSpent; p.dadSpent = false;               // v56 上回合用过【收购】：账记在爸爸那儿，这回合爸爸不补牌
+      if (p.key === "grok" && p.hand.length < gFloor && dadSpent && T.buyDad) {
+        this.ui.skillNote(p, SN("grok", "rich")); this.ui.say(p, "dad_skip", true);
+        this.ui.log(p, `【${SN("grok", "rich")}】上回合【${SN("grok", "buy")}】刷的是爸爸的卡——这回合爸爸不补牌了`); await wait(400);
+      } else if (p.key === "grok" && p.hand.length < gFloor) {      // Grok 千金：爸爸送的
         this.ui.skillNote(p, SN("grok", "rich")); this.ui.say(p, "dad", true);
         await this.draw(p, gFloor - p.hand.length, true);
         this.ui.log(p, `【${SN("grok", "rich")}】爸爸又送来了一点`);
@@ -1407,9 +1412,10 @@ window.Engine = (function () {
     artifactKinds(p) { return Object.keys(EQ_SLOT).filter((k) => !CD[k].owner && !this.equips(p).some((e) => e.k === k) && (this.deck.some((c) => c.k === k) || this.discard.some((c) => c.k === k))); }   // Artifacts 能生成的装备：自己没装着、牌堆或弃牌堆里有
     passOn() { return T.teamPass && this.mode === "team"; }
     mate(p) { return this.alive().find((q) => q !== p && this.mode === "team" && q.team === p.team) || null; }
+    buyPay(p) { return (this.players.length === 2 ? T.buyPay2p : T.buyPay) || 0; }   // v56 收购要先交几张自己的牌当钱（单挑 1，多人局 0）
     canSkill(p, id) {
       if (id === "pass") return this.passOn() && p.alive && !p.used.pass && p.hand.length > 0 && !!this.mate(p);   // v37 2v2 递牌
-      if (id === "buy" && p.used.buy && this.hasH(p, "build") && (p.buyN || 0) < 2 && p.hand.length >= 1 && p.alive) return this.skillTargets(p, id).length > 0;   // v48 Grok Build：收购每回合 2 次，第二次交 1 张订阅费
+      if (id === "buy" && p.used.buy && this.hasH(p, "build") && (p.buyN || 0) < 2 && p.hand.length >= T.buyCost + this.buyPay(p) + (T.buildFee || 0) && p.alive) return this.skillTargets(p, id).length > 0;   // v48 Grok Build：收购每回合 2 次（v56 订阅费爸爸付，buildFee 0）
       if (!p.alive || p.used[id] || !this.hasSkill(p, id)) return false;
       if (id === "wish" && p.key === "xds") return p.disguise && this.hasH(p, "wish") && !p.wishedShell && this.wishKinds().length > 0;   // v48 小DeepSeek：套壳冒充 Claude 期间换 Claude Code，许愿一次
       if (id === "wish" && !this.hasH(p, "wish")) return false;                                                   // v48 Claude Code 要部署上线才能用
@@ -1421,7 +1427,7 @@ window.Engine = (function () {
       if (id === "wish") return (p.uses.wish || 0) > 0 && this.wishKinds().length > 0;
       if (id === "zeroday") return (p.uses.zeroday || 0) > 0 && !p.zeroDay && this.has(p, "tucao").length > 0 && p.tucao < this.limitTucao(p);
       if (id === "artifact") return p.hand.length > 0 && this.artifactKinds(p).length > 0;
-      if (id === "buy") return p.hand.length >= T.buyCost && this.skillTargets(p, id).length > 0;
+      if (id === "buy") return p.hand.length >= T.buyCost + this.buyPay(p) && this.skillTargets(p, id).length > 0;
       if (id === "polish") return p.hand.some((c) => !this.keepSafe() || (c.k !== "chongqi" && c.k !== "shuaiguo"));
       if (id === "search") return this.deck.length + this.discard.length > 0;
       if (id === "cut") return T.cutAlways || this.cutCards(p).length > 0;
@@ -1778,15 +1784,21 @@ window.Engine = (function () {
         await wait(300); await this.draw(p, out.length + T.cutExtra, true); await wait(300);
       } else if (id === "buy") {
         p.buyN = (p.buyN || 0) + 1;
-        if (p.buyN >= 2) {                                              // v48 Grok Build：第二次收购，交 1 张牌当订阅费
-          const fee = p.human ? ((await this.ui.humanPick(p.hand.slice(), 1, "Grok Build：交一张牌当订阅费")) || [])[0] : p.hand.find((x) => x.id === AI.cheapest(this, p, 1)[0]);
-          if (fee && p.hand.includes(fee)) { this.takeFromHand(p, fee); this.toDiscard(fee); }
-          this.ui.skillNote(p, "Grok Build"); this.ui.log(p, `【Grok Build】并行子代理再开一单——交了一张【${fee ? CD[fee.k].name : "牌"}】当订阅费`); this.ui.sync(); await wait(400);
+        if (p.buyN >= 2) {                                              // v48 Grok Build：第二次收购（v56 订阅费爸爸付；buildFee > 0 时仍交牌）
+          for (let k = 0; k < (T.buildFee || 0) && p.hand.length; k++) {
+            const fee = p.human ? ((await this.ui.humanPick(p.hand.slice(), 1, "Grok Build：交一张牌当订阅费")) || [])[0] : p.hand.find((x) => x.id === AI.cheapest(this, p, 1)[0]);
+            if (fee && p.hand.includes(fee)) { this.takeFromHand(p, fee); this.toDiscard(fee); }
+          }
+          this.ui.skillNote(p, "Grok Build"); this.ui.log(p, `【Grok Build】并行子代理再开一单——${T.buildFee ? `交了 ${T.buildFee} 张牌当订阅费` : "订阅费爸爸付"}`); this.ui.sync(); await wait(400);
         }
         this.dropRandom(p, T.buyCost);
         const look = !this.hasSkill(p, "roam") ? 1 : this.players.length === 2 ? T.buyLook2p : T.buyLook;   // v31 什么都敢搜（被动 roam）：先随机翻对手几张给全场看，买走最有用的
         this.ui.skill(p, SN("grok", "buy")); this.ui.say(p, look > 1 && p.ch.lines.dig && Math.random() < 0.6 ? "dig" : "buy", true); Sound.sfx("coin", 0.8);
         await wait(500);
+        for (let k = 0, n = this.buyPay(p); k < n && p.hand.length; k++) {   // v56 单挑：先交 1 张自己的牌当钱（进弃牌堆，不给对手）
+          const pay = p.human ? ((await this.ui.humanPick(p.hand.slice(), 1, "收购：单挑要自己也掏钱——交一张牌")) || [])[0] : p.hand.find((x) => x.id === AI.cheapest(this, p, 1)[0]);
+          if (pay && p.hand.includes(pay)) { this.takeFromHand(p, pay); this.toDiscard(pay); this.ui.log(p, `【${SN("grok", "buy")}】单挑得自己也掏钱——交了一张【${CD[pay.k].name}】`); this.ui.sync(); await wait(300); }
+        }
         let picks = shuffle(t.hand.slice()).slice(0, Math.max(T.buyN, look));
         if (look > 1) {
           this.ui.skillNote(p, SN("grok", "roam"));
@@ -1794,8 +1806,9 @@ window.Engine = (function () {
           picks = picks.map((c) => [c, AI.value(this, p, c)]).sort((a, b) => b[1] - a[1]).slice(0, T.buyN).map((x) => x[0]);
         }
         for (const c of picks) await this.loot(t, p, c);
-        const comp = T.buyComp;
-        this.ui.log(p, `【${SN("grok", "buy")}】${look > 1 ? "挑中了" : "随手买走了"} ${t.name} 的${picks.map((c) => `【${CD[c.k].name}】`).join("")}` + (comp && t.alive ? `，${t.name} 拿钱再摸 ${comp} 张` : ""));
+        const comp = T.buyComp, dad = T.buyDad;                         // v56 钱爸爸出：对方收到的是钱，群里不收钱（不补牌）；账记在爸爸那儿，下回合爸爸不补牌
+        if (dad) p.dadSpent = true;
+        this.ui.log(p, `【${SN("grok", "buy")}】${look > 1 ? "挑中了" : "随手买走了"} ${t.name} 的${picks.map((c) => `【${CD[c.k].name}】`).join("")}` + (comp && t.alive ? `，${t.name} 拿钱再摸 ${comp} 张` : dad ? "——记在爸爸账上（下回合爸爸不补牌）" : ""));
         if (look > 1 && t.alive && !t.disguise && t.ch.lines.dug && Math.random() < 0.5) { await wait(300); this.ui.say(t, "dug", true); }
         await wait(500);
         if (comp && t.alive) await this.draw(t, comp, true);            // 钱不是问题：付了钱，对方拿钱再摸

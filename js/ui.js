@@ -179,6 +179,7 @@ window.UI = (function () {
       if (p.napping) st += '<span>😴 补觉中</span>';
       if (p.disguise) st += '<span class="boost">🎭 冒充 Claude</span>';
       if (p.eggBy) st += '<span class="bomb">🥚 领了鸡蛋</span>';
+      if (p.dadSpent && Engine.T.buyDad && p.alive) st += '<span>💳 记爸爸账上</span>';   // v56 下回合爸爸不补牌
       if (g.players[g.cur] && g.players[g.cur].oracle === p) st += '<span class="bomb">🐚 被海螺点名</span>';
       if (g.bomb && g.bomb.holder === p) st += '<span class="bomb">💣 宕机预警</span>';
       { const hb = h.querySelector(".hzbar");                                  // v48 Harness 部署条：名牌上方一条细进度条（不再挤在状态标签里）
@@ -341,7 +342,7 @@ window.UI = (function () {
     if (ids.includes("zcode") && mine) out.push(used("steal") ? "这回合借鉴过了" : "这回合还能借鉴");
     if (ids.includes("solo") && duel) out.push((p.soloDuelN || 0) < (T.soloDuel || 0) ? `还能重放 ${T.soloDuel - (p.soloDuelN || 0)} 次吐槽` : "重放吐槽用过了");
     if (ids.includes("swarm")) { const n = (p.band || []).length; out.push(n >= T.bandMax ? "乐队到齐，等开唱" : n === T.bandMax - 1 ? "只差 1 名，下次来 1 名" : "下次排练来 2 名乐手"); }
-    if (ids.includes("build") && mine) { const n = p.buyN || 0; out.push(n >= 2 ? "这回合 2 单都开了" : n === 1 ? "这回合还能再收购 1 次（交 1 张）" : "这回合能收购 2 次（第 2 次交 1 张）"); }
+    if (ids.includes("build") && mine) { const n = p.buyN || 0; out.push(n >= 2 ? "这回合 2 单都开了" : n === 1 ? "这回合还能再收购 1 次" : "这回合能收购 2 次（订阅费爸爸付）"); }
     if (ids.includes("qoder") && mine) out.push(used("bundle") ? "这回合全家桶用过了" : "全家桶还没用");
     return out;
   }
@@ -352,6 +353,7 @@ window.UI = (function () {
     if (p.eggBy) st.push(`🥚 领了 ${p.eggBy.name} 的鸡蛋：她下回合开始会借走 ${Engine.T.eggSteal} 张（手里有【越狱】能砸碎）`);
     if (p.band && p.band.length) st.push(`🎸 乐队 ${p.band.length} / ${Engine.T.bandMax}${p.band.length >= Engine.T.bandMax ? "，随时开唱" : ""}`);
     if (p.offline) st.push("📵 断网中"); if (p.boost) st.push("🧠 深度思考中");
+    if (p.dadSpent && Engine.T.buyDad) st.push("💳 记在爸爸账上：下回合爸爸不补牌");   // v56 收购「记爸爸账上」
     return st;
   }
   function showHeroInfo(p, focus) {
@@ -637,7 +639,7 @@ window.UI = (function () {
     muse: { errand: "focus", haggle: "focus", confirm: "focus", low: "shy", gifted: "shy" } };
   const QUIET_Q = ["greet", "hurt", "low", "out", "win", "roger", "mourn"];
   const hasX = (k, e) => k === "claude" || ((window.GAME_DATA.xexpr || {})[k] || []).includes(e);
-  const HURT_KEYS = ["hurt", "hajimi", "out", "stolen", "fury", "halluc", "low", "mourn", "egged"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
+  const HURT_KEYS = ["hurt", "hajimi", "out", "stolen", "fury", "halluc", "low", "mourn", "egged", "dad_skip"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
     "polish", "wish", "zeroday", "artifact", "zuiying", "beg", "beg_gpt", "beg_claude", "claw", "dad", "maint", "long", "busy", "fed", "think", "sis", "search", "know", "cut", "plain", "pen", "pen_gpt", "paint2", "sorry", "bundle", "sale",
     "ko", "def", "guard", "qingke", "qingke_self", "pact_end", "egg", "egg_claude", "hatch"];
   // v36 皮肤专属台词：穿着某套皮肤时，<台词类>_<皮肤 id> 有内容就六成概率改说这句（Bel 皮肤的 ChatGPT 满嘴数学）
