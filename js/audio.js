@@ -16,6 +16,8 @@ window.Sound = (function () {
     menu: ["menu", "menu2", "menu3"],
     battle: ["bgm", "battle2", "battle3", "battle4", "battle5", "battle6", "battle7", "battle8", "battle9"], rage: ["rage"], harness: ["harness"], win: ["win"], lose: ["lose"],
   };
+  const HZ_SONG = ["claude", "claude_g2", "claude_m1", "gpt", "gemini", "gemini_g1", "deepseek", "deepseek_g1", "xds", "glm", "doubao", "qwen", "minimax", "muse", "kimi", "grok"];   // v55 有角色曲的角色（带皮肤后缀的是那套皮肤专属的曲子）
+  const hzSong = (n) => (HZ_SONG.indexOf(n) >= 0 ? n : HZ_SONG.indexOf(n.split("_")[0]) >= 0 ? n.split("_")[0] : "");   // 这套皮肤没有专属曲就用角色默认那首；角色也没有就返回空
   const level = () => S.musicVol * (duck ? 0.45 : 1) * (held ? 0.2 : 1);
   function fade(a, to, ms, done) {
     const from = a.volume, t0 = performance.now(), id = a._fade = (a._fade || 0) + 1;   // 同一台又开始新的渐变：旧的这条自己停下
@@ -32,10 +34,10 @@ window.Sound = (function () {
   // v48 大招：时停时 0.15 秒内把 BGM 压到约 −14 dB（×0.2），放开时恢复
   function hold(on) { held = !!on; if (bgm) fade(bgm, level(), on ? 150 : 250); }
   function track(next, hard) {
-    if (next === "harness" && kind === "rage") { if (held) hold(false); return; }              // v48 吵上头的 rage 曲优先，不被 Harness 曲换掉
+    if (next.indexOf("harness") === 0 && kind === "rage") { if (held) hold(false); return; }   // v48 吵上头的 rage 曲优先，不被 Harness 曲换掉（v55 角色曲 harness_<角色> 也一样）
     if (next === kind && bgm) { if (S.music && bgm.paused) bgm.play().catch(() => {}); return; }
     kind = next;
-    const list = TRACKS[next] || TRACKS.battle;
+    const list = TRACKS[next] || (next.indexOf("harness_") === 0 && hzSong(next.slice(8)) ? ["hz_" + hzSong(next.slice(8))] : next.indexOf("harness") === 0 ? TRACKS.harness : TRACKS.battle);   // v55 角色曲：玩家上线后换成她自己的曲子 assets/music/hz_<角色>[_皮肤].mp3；没有角色曲的仍用共用的 Harness 曲
     const old = bgm, a = old === decks[0] ? decks[1] : decks[0];
     const pool = list.length > 1 ? list.filter((n) => n !== lastPick) : list;   // 曲库多了：不连着放同一首
     lastPick = pool[Math.floor(Math.random() * pool.length)];

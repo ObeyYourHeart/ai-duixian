@@ -1039,7 +1039,8 @@ window.UI = (function () {
   }
   function luckyStar(x, s, fill) { x.fillStyle = fill; x.beginPath(); for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? s * 0.45 : s; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); } x.closePath(); x.fill(); }   // 五角星（四角星是 Gemini 的标志，不用）
   function hzKey(p) { return p.key === "xds" && p.disguise ? "xds_cl" : p.key; }
-  function thName(p) { const g = godId(p); return "th_" + hzKey(p) + (g ? "_" + g : ""); }   // v54 角色主题乐句的文件名：th_<角色>[_神皮]（小DeepSeek 套壳是 th_xds_cl）
+  const TH_SKIN = ["claude_m1"];                                      // v55 不是神皮、但有自己专属背景曲的皮肤：上线乐句要单独一条（移到那首曲子的调上）
+  function thName(p) { const sk = !p.disguise && window.Settings ? Settings.skinOf(p.key) : "", g = godId(p) || (TH_SKIN.indexOf(p.key + "_" + sk) >= 0 ? sk : ""); return "th_" + hzKey(p) + (g ? "_" + g : ""); }   // v54 角色主题乐句的文件名：th_<角色>[_神皮]（小DeepSeek 套壳是 th_xds_cl）
   // v51 大招立绘用的是竖屏布局吗：和 CSS 的 @media (max-aspect-ratio: 1/1) 同一个条件（正方形屏幕也算），JS 里的爆开中心 / 神环跟着它走
   function ultNarrow() { return !!(window.matchMedia && matchMedia("(max-aspect-ratio: 1/1)").matches); }
   // 纹章：画一次到离屏 canvas，演出时只转 CSS transform
@@ -1490,7 +1491,7 @@ window.UI = (function () {
       // v49 收尾只执行一次、结束时补一次：原来收尾嵌在 2.6 秒的定时器里，早点跳过（或慢机上 3 秒的结束定时器先到）就丢了「部署成功」和换曲
       //   电脑上线不切 Harness 曲，只放一声短乐句（玩家自己上线才换曲）；!g：已经退回首页就别再切曲
       const th = thName(p);                                              // v54 角色主题乐句：开场第一帧播起，引子 → 白闪落点 → 垫在台词下面的余韵，收束和弦落在 Harness 曲进来之前
-      const tail = (ms) => { if (tailed || !g) return; tailed = true; if (Sound.sfxFade) Sound.sfxFade(th, ms > 0 ? ms : 1800); Sound.sfx("deploy_ok", 0.8); seatOn(); if (p.human) Sound.track("harness", "soft"); else Sound.sfx("harness_sting", 0.5); };   // 乐句的尾音和 Harness 曲的淡入叠着过渡；被跳过时（ms = 300）很快收掉
+      const tail = (ms) => { if (tailed || !g) return; tailed = true; if (Sound.sfxFade) Sound.sfxFade(th, ms > 0 ? ms : 1800); Sound.sfx("deploy_ok", 0.8); seatOn(); if (p.human) Sound.track("harness_" + p.key + (window.Settings && Settings.skinOf(p.key) ? "_" + Settings.skinOf(p.key) : ""), "soft"); else Sound.sfx("harness_sting", 0.5); };   // 乐句的尾音和 Harness 曲的淡入叠着过渡；被跳过时（ms = 300）很快收掉
       const line = () => { if (said || !g) return 0; said = true; let ms = 0; if (p.ch.lines[lk]) { ms = +say(p, lk, true) || 0; if (ms) lastSay.t = Math.max(lastSay.t || 0, performance.now() + ms - 900); } return voiceOn ? ms : 0; };   // 返回这句配音多长（没开配音返回 0）   // v51 神皮上线必说自己的专属台词（原来走 skinKey 只有六成概率）   // v49 上线台词也只说一次、跳过时补上（原来 1.8 秒前跳过就不说了；小DS 套壳的大招跳过后 套壳 就一句话都没有）   // 小DeepSeek 套壳上线说「我、我就是 Claude 呀……」   // 说完之前别人的闲话先不插嘴
       const done = () => {
         if (over) return; over = true; timers.forEach(clearTimeout); pt.stop();
