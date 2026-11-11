@@ -537,7 +537,7 @@ window.Main = (function () {
       const done = () => { e.preventDefault(); e.stopImmediatePropagation(); };
       if (!$("#rules").classList.contains("hidden")) { closeRules(); done(); return; }
       if ($("#report")) { $("#report .rp-x").click(); done(); return; }
-      if ($("#modal").classList.contains("hidden") && UI.skipDeploy()) { done(); return; }   // v48 上线演出：Esc 跳过（v49 按「真的跳了」判断：原来查旧类名永远不中，Esc 会落到应答框变成「不出」；设置等窗口开着时先关窗口）   // v43 战报卡：Esc 只关战报，回到结算框
+      if ($("#modal").classList.contains("hidden") && UI.skipDeploy()) { done(); return; }   // v48 上线演出：Esc 跳过（v56 改成不能跳，演出挡着时 Esc 只吞掉；v49 按「真的跳了」判断：原来查旧类名永远不中，Esc 会落到应答框变成「不出」；设置等窗口开着时先关窗口）   // v43 战报卡：Esc 只关战报，回到结算框
       const md = $("#modal");
       if (!md.classList.contains("hidden")) {
         if ($("#modal-close").style.display !== "none") md.classList.add("hidden");

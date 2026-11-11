@@ -1023,7 +1023,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 
 /* v48 大招演出 */
 .ult { position: absolute; inset: 0; z-index: 72; pointer-events: none; overflow: hidden; }
-.ult:not(.lite) { pointer-events: auto; cursor: pointer; }
+.ult:not(.lite) { pointer-events: auto; }                       /* v56 不能跳过：照样挡住点击，但不再显示手形光标 */
 .ult.out { opacity: 0; transition: opacity .3s; pointer-events: none; }
 .ult.rel { pointer-events: none; cursor: auto; }                      /* v49 电脑上线放行后：罩子不再吃点击，薄纱先淡掉，底下的对局看得见 */
 .ult.rel .ult-veil, .ult.rel.s3 .ult-veil, .ult.rel .ult-edge { opacity: 0; transition: opacity .3s; }   /* .rel.s3：要压过后面 .ult.s3 .ult-veil 的 transition */

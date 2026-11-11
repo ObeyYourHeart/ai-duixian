@@ -961,10 +961,10 @@ window.UI = (function () {
   }
   // v48 上线演出（改版：以立绘为主）：
   //   玩家自己上线——浅色薄纱上大立绘居中，镜头慢推（整张等比放大，不扭曲）→ 切到第 2 帧 + 身后光点散开 + 配音 + 眨眼；
-  //   旁边全息小屏打部署命令，「XX 上线！」章在一侧。点一下 / Esc 跳过。电脑上线——只用第 2 帧，半屏切入约 1 秒（同技能切入）
-  let deploySkip = null, deployCur = null;   // deploySkip：现在能跳的那场；deployCur：还没收尾的那场（v49 同一时间只留一场）
+  //   旁边全息小屏打部署命令，「XX 上线！」章在一侧。v56 不能跳过，要完整播完，点屏幕 / Esc 都不收。电脑上线——只用第 2 帧，半屏切入约 1 秒（同技能切入）
+  let deploySkip = null, deployCur = null, deployEnd = null;   // deploySkip：现在挡着对局的那场（v56 只用来吞 Esc，不再能跳）；deployCur：还没收尾的那场（v49 同一时间只留一场）；deployEnd：它彻底演完的 Promise
   let hzPre = [];                                                       // v49 每个座位预载好的上线立绘（差 1 格时建，演完换成 1 = 不再预载）
-  function skipDeploy() { if (!deploySkip) return false; deploySkip(); return true; }   // v49 返回跳没跳：Esc 按它判断（原来查旧类名 .dshow 永远查不到，Esc 还会落到应答框变成「不出」）
+  function skipDeploy() { return !!deploySkip; }   // v56 演出不能跳过：演出挡着对局时 Esc 只吞掉（返回 true），不让它落到底下的应答框变成「不出」（v49 原来这里会把演出收掉）
   const HZ_BLINK = ["claude", "gemini", "deepseek", "doubao", "kimi", "grok", "qwen", "xds", "xds_cl", "minimax", "muse"];   // 有眨眼帧的（GPT / GLM 合成不自然，不眨）
   // v50 神级皮肤（g1）开大招：换成神皮造型的上线立绘 + 专属开场 + 专属台词（deploy_g1）
   // v51 一人可以有不止一套神皮（Claude 第二套 g2「Fable·许愿之神」）：GOD 按角色列出神皮 id，godId 返回现在穿的那套（不是神皮返回 ""）
@@ -1463,7 +1463,7 @@ window.UI = (function () {
   }
   function deployShow(p, cmd, name) {
     if (!(Engine.speed > 0)) return Promise.resolve(false);
-    if (deployCur) deployCur();                                         // v49 上一场还没收尾（电脑上线提前放行时会出现）：先收掉，同一时间只留一场——不然两场会互相拆掉压 BGM、灰座位这些状态
+    if (deployCur && deployEnd) return deployEnd.then(() => deployShow(p, cmd, name));   // v56 上一场还没收尾（电脑上线提前放行时会出现）：等它演完再开这一场（v49 原来是把上一场提前收掉）——同一时间只留一场，不然两场会互相拆掉压 BGM、灰座位这些状态
     const key = hzKey(p), sp = 1, hero = heroes[p.i];   // 大招固定 3 秒，不跟加速   // 玩家自己的大招固定时长，不跟加速
     const tc = key === "xds_cl" ? window.GAME_DATA.chars.claude : p.ch;   // 小DeepSeek 套壳时用 Claude 的橙色
     const box = el("div", "ult"); box.style.setProperty("--c", tc.color); box.style.setProperty("--l", tc.light || "#fff");
@@ -1479,15 +1479,16 @@ window.UI = (function () {
     const fb = `onerror="this.onerror=null;this.src='${portrait(p.key, "pose")}'"`;   // v49 上线立绘没下载到（或还没画）就用全身立绘兜底，不让大招出现空白
     box.innerHTML = `<div class="ult-veil"></div><canvas class="ult-pt"></canvas><div class="ult-stage"><div class="ult-rays"></div><div class="ult-emb"></div><div class="ult-ring"></div><div class="ult-ring r2"></div><img class="ult-ghost" src="${hzImg(p, "b")}" alt="" ${fb}>
       <img class="ult-a" src="${hzImg(p, "a")}" alt="" ${fb}><img class="ult-b" src="${hzImg(p, "b")}" alt="" ${fb}>${HZ_BLINK.includes(key) && !godSkin(p) ?`<img class="ult-bl" src="${hzImg(p, "b_blink")}" alt="">` : ""}</div>
-      <div class="ult-flash"></div><div class="ult-edge"></div><div class="ds-skip">点一下跳过</div>`;
+      <div class="ult-flash"></div><div class="ult-edge"></div>`;   // v56 去掉「点一下跳过」
     const gid = godId(p), ek = gid && ULT[key + "_" + gid] ? key + "_" + gid : key;   // 神级皮肤有自己的纹章 / 粒子就换上
     try { box.querySelector(".ult-emb").appendChild(emblem(ek, tc.color, 640)); } catch (e) { console.error(e); }   // v51 装饰出错不能卡住对局：纹章 / 粒子画不出来就不画（原来抛错时罩子留在屏幕上，整局点不动）
     let pt; try { pt = particles(box.querySelector(".ult-pt"), ek, tc.color); } catch (e) { console.error(e); pt = { gather() {}, burst() {}, home() {}, drift() {}, stop() {} }; }
     const others = heroes.filter((h, k) => h && k !== p.i);
     // v51 演出完整播完、上线台词说完整：原来固定 3 秒就收，台词（2.7–5.9 秒）才说到一半，对局接着走、她的下一句话还会把它打断。
-    //   现在技能名砸下之后发动帧留在屏幕上（镜头慢推、身边飘粒子、再眨一次眼），等台词说完 0.3 秒才收尾；玩家和电脑一样。关了配音就照旧 3 秒。点一下 / Esc 仍可跳过
+    //   现在技能名砸下之后发动帧留在屏幕上（镜头慢推、身边飘粒子、再眨一次眼），等台词说完 0.3 秒才收尾；玩家和电脑一样。关了配音就照旧 3 秒。v56 不能跳过
     const lk = key === "xds_cl" && p.ch.lines.wish ? "wish" : gid && (p.ch.lines["deploy_" + gid] || []).length ? "deploy_" + gid : "deploy";
     const voiceOn = !!(Sound.S && Sound.S.sfx && Sound.S.voiceVol > 0), LINE_AT = 1820, outAt = (ms) => Math.min(9000, Math.max(2600, LINE_AT + ms + 300));   // 收尾开始的时刻（毫秒，从演出开始算）
+    let endRes; deployEnd = new Promise((r) => { endRes = r; });
     return new Promise((res) => {
       let over = false, tailed = false, said = false;
       // v49 收尾只执行一次、结束时补一次：原来收尾嵌在 2.6 秒的定时器里，早点跳过（或慢机上 3 秒的结束定时器先到）就丢了「部署成功」和换曲
@@ -1500,9 +1501,9 @@ window.UI = (function () {
         if (deploySkip === done) deploySkip = null; if (deployCur === done) deployCur = null;
         line(); if (!tailed && Sound.sfxFade) Sound.sfxFade(th, 300); tail(300); hzPre[p.i] = 1;                                         // 预载的立绘用完了，放掉（每张解码后约 4 MB）
         others.forEach((h) => h.classList.remove("ult-grey")); seatOn(); Sound.hold(false); document.body.classList.remove("ult-on");
-        box.classList.add("out"); box.style.pointerEvents = "none"; setTimeout(() => box.remove(), 350); res(true);
+        box.classList.add("out"); box.style.pointerEvents = "none"; setTimeout(() => box.remove(), 350); res(true); endRes();
       };
-      deploySkip = deployCur = done; box.onclick = (e) => { e.stopPropagation(); done(); };
+      deploySkip = deployCur = done; box.onclick = (e) => { e.stopPropagation(); };   // v56 点了不跳（只挡住，免得点到底下的牌）
       // ① 时停 0.3 s
       Sound.hold(true); Sound.sfx("ult_charge", 0.7); others.forEach((h) => h.classList.add("ult-grey"));
       pt.gather(hc.x, hc.y, 45);
