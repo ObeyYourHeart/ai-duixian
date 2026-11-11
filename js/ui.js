@@ -629,7 +629,7 @@ window.UI = (function () {
     // v41 其余角色各 2 张新表情（GAME_DATA.xexpr 里登记了、图真的有才换）
     deepseek: { think: "focus", quant: "focus", opensrc: "focus", sig: "focus", fury: "angry", def: "angry", guard: "angry", guard_xds: "angry", pelted: "angry", dug: "angry" },
     xds: { bigeat: "eat", fed: "eat", heal: "eat", gifted: "eat", beg: "plead", beg_gpt: "plead", beg_claude: "plead", busy: "plead" },
-    gemini: { hajimi: "pout", dug: "pout", plain: "pout", pretrain: "pout", fish: "pout", guard: "pout", search: "focus", know: "focus", pen: "focus", paint: "focus", paint2: "focus" },
+    gemini: { hajimi: "pout", dug: "pout", plain: "pout", pretrain: "pout", fish: "pout", guard: "pout", search: "focus", pen: "focus", paint: "focus", paint2: "focus", jiqi: "jiqi", know: "jiqi", gifted: "jiqi" },   // v59 极其猫（半眯眼 :3）
     grok: { def: "angry", guard: "angry", guard_kimi: "angry", egged: "angry", pelted: "angry", dare: "angry", gifted: "shy", kimi: "shy", glm: "shy" },
     glm: { nap: "sleepy", low: "sleepy", maint: "sleepy", boom: "sleepy", guard: "awake", guard_kimi: "awake", steal: "awake", zcode: "awake", hatch: "awake" },
     doubao: { fans: "stream", sig: "stream", remake: "stream", seedance: "stream", vs_gemini: "pout", dug: "pout", pelted: "pout", guard: "pout" },
@@ -975,7 +975,7 @@ window.UI = (function () {
   function hzImg(p, f) { const k = p.key === "xds" && p.disguise ? "xds_cl" : p.key, gid = godId(p); if (gid && f !== "b_blink") return A(`assets/img/hz_${k}_${gid}_${f}.webp`); return A(`assets/img/hz_${k}_${k === "xds_cl" && f === "a" ? "b" : f}.webp`); }
   // v48 大招演出：玩家自己上线约 3 秒（时停 → 斜切眼部特写 → 纹章 + 爆发 → 技能名砸下 → 光点回座位），点一下 / Esc 跳过；
   //   电脑上线简版约 1.5 秒（斜切 + 技能名）。不震屏、不用集中线；立绘不扭曲，只动镜头 / UI / 两帧；粒子用 canvas，CSS 只动 transform / opacity
-  const HZ_EYE = { claude: [335, 92], gpt: [345, 202], gemini: [353, 230], deepseek: [324, 187], glm: [340, 147], doubao: [337, 163], kimi: [344, 127],
+  const HZ_EYE = { claude: [335, 92], gpt: [345, 202], gemini: [372, 200], deepseek: [324, 187], glm: [340, 147], doubao: [337, 163], kimi: [344, 127],
     grok: [380, 154], qwen: [405, 162], xds: [348, 352], xds_cl: [364, 374], minimax: [360, 220], muse: [360, 220] };   // 发动帧（720×1080）两眼中点，斜切光带里的眼部特写用
   const ULT = {                                                       // 专属纹章 / 粒子 / 音色
     minimax: { glyph: "conch", part: "carrot", sfx: "ult_minimax" }, muse: { glyph: "jolly", glyph2: "todo", part: "todo", sfx: "ult_muse" },   // v49 MiniMax Code 海螺螺线 + 小胡萝卜 / Muse Code Jolly 兜帽 + 待办框
