@@ -974,7 +974,7 @@ window.UI = (function () {
   // v48 大招演出：玩家自己上线约 3 秒（时停 → 斜切眼部特写 → 纹章 + 爆发 → 技能名砸下 → 光点回座位），点一下 / Esc 跳过；
   //   电脑上线简版约 1.5 秒（斜切 + 技能名）。不震屏、不用集中线；立绘不扭曲，只动镜头 / UI / 两帧；粒子用 canvas，CSS 只动 transform / opacity
   const HZ_EYE = { claude: [335, 92], gpt: [345, 202], gemini: [353, 230], deepseek: [324, 187], glm: [226, 216], doubao: [342, 216], kimi: [344, 127],
-    grok: [382, 256], qwen: [405, 162], xds: [348, 352], xds_cl: [364, 374], minimax: [360, 220], muse: [360, 220] };   // 发动帧（720×1080）两眼中点，斜切光带里的眼部特写用
+    grok: [380, 154], qwen: [405, 162], xds: [348, 352], xds_cl: [364, 374], minimax: [360, 220], muse: [360, 220] };   // 发动帧（720×1080）两眼中点，斜切光带里的眼部特写用
   const ULT = {                                                       // 专属纹章 / 粒子 / 音色
     minimax: { glyph: "conch", part: "carrot", sfx: "ult_minimax" }, muse: { glyph: "jolly", glyph2: "todo", part: "todo", sfx: "ult_muse" },   // v49 MiniMax Code 海螺螺线 + 小胡萝卜 / Muse Code Jolly 兜帽 + 待办框
     claude: { glyph: "flower", part: "petal", sfx: "ult_claude" }, gpt: { glyph: "cloud", part: "feather", sfx: "ult_gpt" },
