@@ -146,8 +146,9 @@ window.Props = (function () {
     if (src && src !== t) t.lastHurtBy = src;
     if (!src || !t.alive || !aiCan() || Math.random() > 0.22) return;
     const by = g.alive().filter((q) => q !== t && q !== src && !q.human);
-    const fr = by.filter((q) => g.hostility(q, t) < 0 || ["friend", "mentor"].includes(g.relation(q, t)));
-    const rv = by.filter((q) => g.hostility(q, t) > 1.2);
+    const team = g.mode === "team";                                     // v73.2 与 onOut 对齐：组队模式先看阵营，防止敌方交好/师徒误给对面送好意道具（会触发“掩护”暗号！）
+    const fr = by.filter((q) => team ? q.team === t.team : g.hostility(q, t) < 0 || ["friend", "mentor"].includes(g.relation(q, t)));
+    const rv = by.filter((q) => team ? q.team !== t.team : g.hostility(q, t) > 1.2);
     if (fr.length && (Math.random() < 0.5 || !rv.length)) { const q = rnd(fr); aiSend(g, q, t, pickKind(q, false), 900); }
     else if (rv.length) { const q = rnd(rv); aiSend(g, q, t, pickKind(q, true), 900); }
   }

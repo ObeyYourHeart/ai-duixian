@@ -148,7 +148,7 @@ window.UI = (function () {
       if (p.role === "lord" || p.human || p.revealed) return { text: Engine.ROLE[p.role], cls: "role-" + p.role };
       return { text: "？", cls: "unknown" };
     }
-    if (g.mode === "ffa" || g.mode === "duel") {
+    if (!g.watch && (g.mode === "ffa" || g.mode === "duel")) {
       if (p.human) return null;
       const r = g.relation(p, g.human);
       if (r === "ally") return { text: "盟友", cls: "ally" };
@@ -178,6 +178,9 @@ window.UI = (function () {
       if (p.boost) st += '<span class="boost">🧠 深度思考中</span>';
       if (p.napping) st += '<span>😴 补觉中</span>';
       if (p.disguise) st += '<span class="boost">🎭 冒充 Claude</span>';
+      if (p.inMeta) st += '<span class="boost">🥽 泡元宇宙</span>';
+      if (p.oweTo && p.oweTo.alive) st += '<span>🤝 拿人手短</span>';
+      if (p.alignedBy && p.alignedBy.alive) st += '<span>✨ 已对齐</span>';
       if (p.eggBy) st += '<span class="bomb">🥚 领了鸡蛋</span>';
       if (p.dadSpent && Engine.T.buyDad && p.alive) st += '<span>💳 记爸爸账上</span>';   // v56 下回合爸爸不补牌
       if (g.players[g.cur] && g.players[g.cur].oracle === p) st += '<span class="bomb">🐚 被海螺点名</span>';
@@ -213,11 +216,11 @@ window.UI = (function () {
     const bl = g.bombsLeft();
     put($("#bombs"), String(bl));
     put($("#risk"), g.deck.length ? ` ${PORTRAIT ? "" : "下张 "}${Math.round(bl / g.deck.length * 100)}%` : "");   // 竖屏顶栏窄，只写百分比
-    const kn = g.human.alive ? g.known(g.human, 5) : [];
+    const kn = !g.watch && g.human.alive ? g.known(g.human, 5) : [];
     let last = kn.length; while (last > 0 && !kn[last - 1]) last--;
-    const kb = $("#known"), math = g.human.alive && g.hasSkill(g.human, "math") ? g.bombSpots() : null;   // ChatGPT 演算：宕机在第几张
+    const kb = $("#known"), math = !g.watch && g.human.alive && g.hasSkill(g.human, "math") ? g.bombSpots() : null;   // ChatGPT 思维链：宕机在第几张（观战模式不显示）
     kb.classList.toggle("hidden", !last && !(math && math.length));
-    const kh = math && math.length ? '<span class="kt">🧮 演算</span>' + `<span class="kc boom">宕机在第 ${math.join("、")} 张</span>` +
+    const kh = math && math.length ? '<span class="kt">🧮 思维链</span>' + `<span class="kc boom">宕机在第 ${math.join("、")} 张</span>` +
       kn.slice(0, last).map((c, i) => c && c.k !== "dangji" ? `<span class="kc">${i + 1}. ${CD[c.k].name}</span>` : "").join("")
       : last ? '<span class="kt">👁 你看过的牌堆顶</span>' + kn.slice(0, last).map((c, i) => `<span class="kc${c && c.k === "dangji" ? " boom" : c ? "" : " unk"}">${i + 1}. ${c ? CD[c.k].name : "？"}</span>`).join("") : null;
     if (kh != null && kb._s !== kh) { kb._s = kh; kb.innerHTML = kh; }
@@ -311,18 +314,23 @@ window.UI = (function () {
     if (s.id === "dumb" && p.dumb) out.push("现在降智中");
     if (s.id === "codex" && p.cloud) out.push(`云端在跑【${CD[p.cloud.k].name}】`);                       // v47 harness 技能
     if (s.id === "dsh") out.push(`插件 ${(p.plugins || []).length} / ${g.dshMax ? g.dshMax(p) : 2}${(p.plugins || []).length ? "：" + p.plugins.map((c) => CD[c.k].name).join("、") : ""}`);
-    if (s.id === "fact" && p.used && p.used.fact) out.push("这轮核实过");
-    if (s.id === "fans" && p.used && p.used.fans) out.push("这轮刷过礼物");
+    if (s.id === "fact" && p.factRound === g.round) out.push("这轮求证过");
+    if (s.id === "fans" && p.fansRound === g.round) out.push("这轮刷过礼物");
     if (s.id === "disguise" && p.disguise) out.push("伪装中");
     if (s.id === "nap" && p.napping) out.push("睡着了");
+    if (s.id === "meta") out.push(p.inMeta ? "正在元宇宙睡觉" : (p.uses && p.uses.meta > 0 ? "还没进过元宇宙" : "已进过元宇宙"));
+    if (s.id === "combo") {
+      if (g.cur === p.i) out.push(p.comboRed ? "红剑这回合已出" : "下一张吐槽红剑必穿闪避");
+      if (g.players.length > 2) out.push(p.comboBlueR === g.round ? "蓝剑这轮已触发" : "蓝剑这轮还能挡牌摸 1");
+    }
     if (s.id === "egg") { const on = g.players.filter((q) => q.eggBy === p).map((q) => q.name); out.push(on.length ? `蛋挂在 ${on.join("、")} 身上，下回合孵化` : "还没挂蛋"); }
     if (s.id === "magic" && p.oracle && g.cur === p.i) out.push(`海螺点了 ${p.oracle.name}`);
-    if (s.id === "confirm") out.push(p.confirmRound === g.round ? "这轮已经婉拒过了" : "下一张冲她的单体锦囊会被婉拒");
+    if (s.id === "confirm") out.push(p.confirmRound === g.round ? "这轮已经婉拒过了" : "下一张冲她的单体锦囊 / 热搜 / 刷屏会被婉拒");
     if (s.id === "busy" && g.players.length > 2) out.push(p.busyRound === g.round && p.busyHits >= Engine.T.busyAt ? "这轮已经繁忙过了" : p.busyRound === g.round && p.busyHits === Engine.T.busyAt - 1 ? "下一张吐槽必挡" : "这轮还没人吐槽她");
     if (s.id === "remake") out.push(p.lastPlay ? (g.remakeTargets(p) ? `能重放【${CD[p.lastPlay.k].name}】` : `【${CD[p.lastPlay.k].name}】放不了`) : "这回合还没出牌");
     if (s.id === "rehearse") out.push(`乐队 ${(p.band || []).length} / ${Engine.T.bandMax}`);
-    if (s.id === "live") out.push((p.band || []).length >= Engine.T.bandMax ? "乐队到齐，能开唱" : `还差 ${Engine.T.bandMax - (p.band || []).length} 名乐手`);
-    if (s.id === "math" && p.human && g.bombSpots) { const sp = g.bombSpots(); if (sp.length) out.push(`宕机在第 ${sp.join("、")} 张`); }
+    if (s.id === "live") { const need = Engine.T.liveMin || Engine.T.bandMax, n = (p.band || []).length; out.push(n >= Engine.T.bandMax ? "乐队到齐，全员开唱" : n >= need ? `已有 ${n} 名乐手，能开唱（到齐更划算）` : `还差 ${need - n} 名乐手就能开唱`); }
+    if (s.id === "math" && !g.watch && p.human && g.bombSpots) { const sp = g.bombSpots(); if (sp.length) out.push(`宕机在第 ${sp.join("、")} 张`); }
     return out;
   }
   function hzState(p) {                                                 // v49 详情卡 Harness 一栏的当前状态（Codex / DSH 原来写在技能状态里，v48 挪出技能表后就看不到了）
@@ -344,12 +352,15 @@ window.UI = (function () {
     if (ids.includes("swarm")) { const n = (p.band || []).length; out.push(n >= T.bandMax ? "乐队到齐，等开唱" : n === T.bandMax - 1 ? "只差 1 名，下次来 1 名" : "下次排练来 2 名乐手"); }
     if (ids.includes("build") && mine) { const n = p.buyN || 0; out.push(n >= 2 ? "这回合 2 单都开了" : n === 1 ? "这回合还能再收购 1 次" : "这回合能收购 2 次（订阅费爸爸付）"); }
     if (ids.includes("qoder") && mine) out.push(used("bundle") ? "这回合全家桶用过了" : "全家桶还没用");
+    if (ids.includes("stack") && mine) out.push(used("gift") ? "这回合已翻牌送出" : "这回合【拿去用吧】翻牌堆顶 2 张送 1 留 1");
     return out;
   }
   function heroStatus(p) {
     const st = [];
     if (p.banned) st.push("🚫 封号中"); if (p.muted) st.push("🔇 禁言中"); if (p.dumb) st.push("❓ 降智中");
     if (p.napping) st.push("😴 补觉中"); if (p.disguise) st.push("🎭 正在冒充 Claude"); if (p.inMeta) st.push("🥽 泡在元宇宙：下个回合前不能被吐槽、单体锦囊指定");
+    if (p.oweTo && p.oweTo.alive) st.push(`🤝 拿人手短：对 ${p.oweTo.name} 的下一张【吐槽】没好意思说出口`);
+    if (p.alignedBy && p.alignedBy.alive) st.push(`✨ 已和 ${p.alignedBy.name} 对齐：下个回合前互不吐槽`);
     if (p.eggBy) st.push(`🥚 领了 ${p.eggBy.name} 的鸡蛋：她下回合开始会借走 ${Engine.T.eggSteal} 张（手里有【越狱】能砸碎）`);
     if (p.band && p.band.length) st.push(`🎸 乐队 ${p.band.length} / ${Engine.T.bandMax}${p.band.length >= Engine.T.bandMax ? "，随时开唱" : ""}`);
     if (p.offline) st.push("📵 断网中"); if (p.boost) st.push("🧠 深度思考中");
@@ -666,13 +677,14 @@ window.UI = (function () {
     const q = pos(p);
     const old = document.querySelector(`.bubble[data-p="${p.i}"]`); if (old) old.parentElement.remove();
     const wrap = el("div"); wrap.style.position = "absolute"; wrap.style.zIndex = 40;
-    const b = el("div", "bubble " + (p.human ? "up" : "down"), text);
+    const lowSeat = p.human || p.i === 0;   // v73.2 斗蛐蛐 0 号位也在底部，气泡同样向上弹，避免贴着 882px 下边缘被裁掉
+    const b = el("div", "bubble " + (lowSeat ? "up" : "down"), text);
     b.dataset.p = p.i; b.style.setProperty("--c", p.ch.color); b.style.position = "relative";
     wrap.appendChild(b);
-    if (p.human) { wrap.style.left = q.x + 20 + "px"; wrap.style.top = q.y - 14 + "px"; wrap.style.transform = "translateY(-100%)"; }
+    if (lowSeat) { wrap.style.left = q.x + 20 + "px"; wrap.style.top = q.y - 14 + "px"; wrap.style.transform = "translateY(-100%)"; }
     else { wrap.style.left = Math.max(8, Math.min(q.x + 6, SW - 330)) + "px"; wrap.style.top = q.y + HERO_H * seatScale(p) + 14 + "px"; }
     $("#fx").appendChild(wrap);
-    if (!p.human) { const l = Math.min(parseFloat(wrap.style.left), SW - 180); wrap.style.left = l + "px"; wrap.style.maxWidth = SW - l - 8 + "px"; }   // v50 气泡别出屏：按剩余宽度限宽（不读 offsetWidth，读一次就要整页重排，说一句卡一下）
+    if (!lowSeat) { const l = Math.min(parseFloat(wrap.style.left), SW - 180); wrap.style.left = l + "px"; wrap.style.maxWidth = SW - l - 8 + "px"; }   // v50 气泡别出屏：按剩余宽度限宽（不读 offsetWidth，读一次就要整页重排，说一句卡一下）
     const xe = (XEXPR[p.key] || {})[base];
     if (xe && hasX(p.key, xe) && !p.disguise && !(window.Settings && Settings.skinOf(p.key))) expr(p, xe, base === "low" || base === "mourn" ? 2200 : 1700);   // v37 角色专属表情（穿皮肤时没有这几张，照旧用得意 / 受伤）
     else if (base === "exposed") expr(p, "exposed", 1800);
@@ -756,7 +768,7 @@ window.UI = (function () {
   }
   // ---------------------------------------------------------------- 互动道具：抛物线飞过去，砸中后按种类出效果（盖章、弹窗、糊脸、落地、带电、火箭、烟花）
   const PROP_SFX = { dislike: ["stamp", 0.5], error: ["glitch_vhs", 0.35], gpu: ["spell2", 0.4], like: ["ding", 0.45], ban: ["stamp_thick", 0.7], nuke: ["bomb", 0.3],
-    rice: ["plop", 0.5], fish: ["pop_small", 0.5], banana: ["slap2", 0.5], rocket: ["whoosh_cartoon", 0.5], carrot: ["whoosh_cartoon", 0.5], croc: ["boing", 0.45], pillow: ["boing", 0.45], carnival: ["yay", 0.35], scroll: ["paper", 0.6], takeout: ["notify", 0.45] };
+    rice: ["plop", 0.5], fish: ["pop_small", 0.5], banana: ["slap2", 0.5], rocket: ["whoosh_cartoon", 0.5], carrot: ["whoosh_cartoon", 0.5], croc: ["boing", 0.45], pillow: ["boing", 0.45], carnival: ["yay", 0.35], scroll: ["paper", 0.6], takeout: ["notify", 0.45], slipper: ["pop_small", 0.5] };
   const ERRORS = ["服务器繁忙，请稍后再试", "网络开小差了，请重试", "请求太频繁，请稍后", "内容生成失败，请重新生成", "Error 500：内部错误"];
   function throwProp(from, to, kind) {
     if (!g || !heroes[to.i]) return;
@@ -1683,17 +1695,17 @@ window.UI = (function () {
   function whyNot(me, c) {
     if (c.k === "fanbo") return "【反驳】要在被吐槽时才能打出";
     if (c.k === "yidu") return "【已读不回】要在锦囊对你生效时才能打出";
-    if (c.k === "tucao") return me.dumb ? "降智中，这回合不能吐槽" : "这回合已经吐槽过了";
+    if (c.k === "tucao") return me.dumb ? "降智中，这回合不能吐槽" : me.tucao >= g.limitTucao(me) ? "这回合已经吐槽过了" : "现在没有能吐槽的对手（对方泡在元宇宙或已对齐）";
     if (c.k === "naicha") return "心态是满的，先留着奶茶吧";
-    if (c.k === "baipiao" || c.k === "chehui") return "对手都没有牌";
+    if (c.k === "baipiao" || c.k === "chehui") return "没有可选的对手，或对手都没有牌";
     if (c.k === "shuaiguo") return "【甩锅】要在被吐槽时才能打出";
     if (c.k === "jiaban") return "已经在深度思考了";
     if (c.k === "dangji") return "场上已经有一张【宕机】了";
     if (c.k === "paofen") return "跑分榜一得是对手：现在手牌最多的不是对手（打出这张后你自己少 1 张）";   // v69 具体原因
     if (c.k === "zhengliu") return "弃牌堆里还没有能捡回来的锦囊";
     if (c.k === "zhuru") return g.alive().length < 3 ? "至少 3 人在场才能用【提示词注入】" : "没有可以注入的对手";
-    if (c.k === "tiaocao") return "对手都没有手牌，没法跳槽换牌";
-    if (c.k === "duiqi") return "能对齐的对手都已经对齐过了";
+    if (c.k === "tiaocao") return "对手都没有手牌（或暂时选不了），没法跳槽换牌";
+    if (c.k === "duiqi") return "没有能对齐的对手（已对齐或泡在元宇宙里）";
     return "现在不能用";
   }
   function onSkillBtn(s) {
@@ -1705,7 +1717,7 @@ window.UI = (function () {
     if (s.target) {
       const ts = g.skillTargets(me, s.id);
       if (ts.length === 1 && s.id === "copy") { act(() => g.doSkill(me, s.id, { target: ts[0] })); return; }
-      skillMode = s.id; showTargets(ts); hint(`【${s.name}】👉 ${s.id === "bundle" ? "点一位角色，送她一张牌" : s.id === "qingke" ? "点一位角色（也可以点自己），给她点一杯奶茶" : "点一位对手"}${SET().keys ? "（或按她头上的数字）" : ""}<br><small>${s.desc}</small>`); sync();
+      skillMode = s.id; showTargets(ts); hint(`【${s.name}】👉 ${s.id === "bundle" ? "点一位角色，送她一张牌" : s.id === "gift" ? "点一位角色（队友、盟友或对手），白送她一张牌" : s.id === "qingke" ? "点一位角色（也可以点自己），给她点一杯奶茶" : "点一位对手"}${SET().keys ? "（或按她头上的数字）" : ""}<br><small>${s.desc}</small>`); sync();
       return;
     }
     act(() => g.doSkill(me, s.id, {}));
@@ -1726,7 +1738,10 @@ window.UI = (function () {
     if (!selected) return;
     const c = me.hand.find((x) => x.id === selected);
     if (!c || CD[c.k].target !== "one") return;
-    if (!g.targetsFor(me, c).includes(p)) { toast("她没有手牌"); return; }
+    if (!g.targetsFor(me, c).includes(p)) {
+      const why = p.inMeta ? "她在元宇宙里，这轮选不了她" : me.alignedBy === p && (c.k === "tucao" || c.k === "dantiao") ? "已经和她对齐了，这轮先不动手" : c.k === "duiqi" && p.alignedBy === me ? "已经和她对齐过了" : g.mode === "team" && p.team === me.team ? "不能对队友用" : c.k === "zhuru" ? "她没有能注入去吐槽的对象" : c.k === "baipiao" || c.k === "chehui" ? "她没有手牌和装备" : c.k === "tiaocao" ? "她没有手牌" : "不能选她";
+      toast(why); return;
+    }
     act(() => g.useCard(me, c, [p]));
   }
   function toggle(arr, id) { const i = arr.indexOf(id); if (i >= 0) arr.splice(i, 1); else arr.push(id); }
@@ -1836,8 +1851,9 @@ window.UI = (function () {
     });
     return { row, wraps };
   }
-  function openModal(body) { $("#modal-close").style.display = "none"; $("#modal").classList.remove("hidden"); }
-  function closeModal() { $("#modal").classList.add("hidden"); $("#modal-close").style.display = ""; }
+  let modalBusy = false;
+  function openModal(body) { modalBusy = true; $("#modal-close").style.display = "none"; $("#modal").classList.remove("hidden"); }
+  function closeModal() { modalBusy = false; $("#modal").classList.add("hidden"); $("#modal-close").style.display = ""; }
   const DPOS = (i) => (i === 0 ? "最上面" : `第 ${i + 1} 张`);
   function peek(cards, title, label) {                 // label：每张牌上方的小标（默认按牌堆位置；安全审计看手牌时传空）
     return new Promise((res) => {
@@ -1905,10 +1921,11 @@ window.UI = (function () {
       let done = false, mo = null;
       const back = (e) => { if (e.target === md) fin(picked.slice()); };
       const fin = (v) => {
-        if (done) return; done = true;
+        if (done) return; done = true; modalBusy = false;
         if (mo) mo.disconnect(); md.removeEventListener("click", back);
         md.classList.add("hidden"); $("#modal-close").style.display = ""; res(v);
       };
+      modalBusy = true;
       const body = $("#modal-body"); body.innerHTML = `<h2>${title}</h2>` + (can ? `<p class="pk-hint">关掉窗口就按默认替你挑</p>` : "");
       const row = el("div", "pickrow");
       for (const c of cards) {
@@ -2012,7 +2029,7 @@ window.UI = (function () {
       const q = pool[Math.floor(Math.random() * pool.length)]; if (q) scene = [{ p: by(q.i), text: q.text }];
     }
     const MODE = { ffa: "群聊混战", team: game.nation ? "全明星赛" : "2v2 组队", id5: "身份局" };
-    return { w, title, round: game.round, mode: MODE[game.mode] || "对局", mvp: mvp && mvp.stats.dmg ? mvp : null, feud, guard, busy: busy && busy.stats.used ? busy : null, poor: poor && poor.stats.taken >= 3 ? poor : null, scene,
+    return { w, title, round: game.round, mode: game.watch ? "斗蛐蛐" : MODE[game.mode] || "对局", mvp: mvp && mvp.stats.dmg ? mvp : null, feud, guard, busy: busy && busy.stats.used ? busy : null, poor: poor && poor.stats.taken >= 3 ? poor : null, scene,
       wimg: w.disguise ? portrait("xds_cl", "cheer") : portrait(w.key, "win") };
   }
   const rpWarm = [];                                                 // 预解码的图留个引用，免得被回收
@@ -2037,10 +2054,10 @@ window.UI = (function () {
     $("#modal").appendChild(box); $("#modal").classList.add("rp-open");   // v50 战报开着时把底下的结算框藏起来，少画一层全屏
     box.onclick = (e) => { if (e.target === box) closeReport(); };
     box.querySelector(".rp-x").onclick = closeReport; box.querySelector("#rp-close").onclick = closeReport;
-    box.querySelector("#rp-save").onclick = () => saveReport(d).catch(() => toast("这个浏览器存不了图，截个屏吧"));
+    box.querySelector("#rp-save").onclick = () => saveReport(d).catch(() => rpToast("这个浏览器存不了图，截个屏吧"));
   }
   function closeReport() { const r = $("#report"); if (r) r.remove(); const m = $("#modal"); if (m) m.classList.remove("rp-open"); }
-  function toast(t) { const e = el("div", "rp-toast", t); ($("#report") || $("#modal")).appendChild(e); setTimeout(() => e.remove(), 2200); }
+  function rpToast(t) { const e = el("div", "rp-toast", t); ($("#report") || $("#modal")).appendChild(e); setTimeout(() => e.remove(), 2200); }
   // 存图：画在 1080×1440 的画布上（和卡片同样的内容，亮底）
   function loadImg(src) { return new Promise((r, j) => { const im = new Image(); im.onload = () => r(im); im.onerror = j; im.src = src; }); }
   async function saveReport(d) {
@@ -2099,7 +2116,7 @@ window.UI = (function () {
     }
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "AI娘对线战报.png"; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    toast("战报已保存");
+    rpToast("战报已保存");
   }
 
   function bindButtons() {
@@ -2162,10 +2179,13 @@ window.UI = (function () {
     clearInterval(blinkTimer);
     if (drag) { if (drag.ghost) drag.ghost.remove(); stopDrag(); }
     clearTimeout(autoT); clearTimeout(nudgeT); g = null; mode = null; playResolve = null; respondResolve = null; discardResolve = null; hoverId = null; hidePrompt();
-    busy = false; actTok++; selected = null; skillMode = null;   // 出牌结算到一半退出：旧局的 act 永远等不到结束，不重置的话之后每一局都出不了牌
+    busy = false; actTok++; selected = null; skillMode = null; modalBusy = false;   // 出牌结算到一半退出：旧局的 act 永远等不到结束，不重置的话之后每一局都出不了牌
+    closeReport(); hideHeroInfo();
+    const md = $("#modal"); if (md) md.classList.add("hidden");
+    const mc = $("#modal-close"); if (mc) mc.style.display = "";
     const tip = $("#ctip"); if (tip) tip.className = "hidden";
   }
 
-  return { skinKey, attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, clash, lean, skillNote, band, banner, rage, news, phase, toast,
+  return { skinKey, attach, detach, layout, sync, log, sys, say, showCard, damage, heal, out, setTurn, drawAnim, steal, skill, clash, lean, skillNote, band, banner, rage, news, phase, toast, modalBusy: () => modalBusy,
     deploy, skipDeploy, hzStash, wishFly, humanPlay, humanRespond, humanDiscard, humanPick, humanConfirm, humanChoose, humanBomb, humanPlace, peek, humanArrange, disguise, gameOver, bindButtons, cardEl, portrait, expr, throwProp, asset: A };
 })();

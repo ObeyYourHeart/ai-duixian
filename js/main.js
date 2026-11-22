@@ -513,16 +513,17 @@ window.Main = (function () {
       <ul class="ru-list">
         <li><b>部署进度</b>：你自己<b>主动打出</b>的每张牌 +1（吐槽、奶茶、锦囊、装备都算，被限流退回手里的吐槽也算）。被逼出来的【反驳】【已读不回】【甩锅】【回滚】、拆宕机用的【重启】不算，技能也不算（Muse【代办】替你打出的那张锦囊算 1 张）。名牌上方的细条就是进度。</li>
         <li><b>满格张数每人不同</b>，单挑和乱斗也不同（见下表）；2v2、抢群主、全明星沿用乱斗的张数，个别人 2v2 单独定。</li>
-        <li><b>上线</b>：放一段大招演出，等她把上线台词说完才收（约 5–8 秒；关了配音约 3 秒），点一下或按 Esc 跳过；你自己上线时，配乐换成 Harness 曲（第 3 轮「吵上头」之后照旧放激烈的曲子）。</li>
+        <li><b>上线</b>：放一段大招演出，等她把上线台词说完才收（约 5–8 秒；关了配音约 3 秒）；你自己上线时，配乐换成 Harness 曲（第 3 轮「吵上头」之后照旧放激烈的曲子）。</li>
         <li>【Codex】回手、【DSH】跑插件在被封号的回合也照样结算；DSH 的吐槽插件只有【反驳】挡得住。</li>
       </ul>
       <h3>每个人的 Harness</h3><div class="ru-modes">${keys.filter((k) => CH[k].harness).map((k) => { const c = CH[k], h = c.harness; return `<div style="--c:${c.color}"><b>${c.name} · ${h.name}</b><span>${h.desc}<br><small>满格：${hzNeed(k)}</small></span></div>`; }).join("")}</div>`],
     ["modes", "游戏模式", () => `<h2>游戏模式</h2><div class="ru-modes">
       <div><b>三人乱斗</b><span>你和两个电脑，最后留在群里的人当群主。先手第一回合只摸 1 张，最后出手的人第一回合摸 4 张（抵消先手优势）。</span></div>
       <div><b>单挑</b><span>一对一，把她踢出群就赢。先手第一回合只摸 1 张，后手第一回合摸 4 张。</span></div>
-      <div><b>2v2</b><span>座位是 你—对手—对手—队友，把对面两人都踢出群就赢。每人多 2 点心态（打得久一点，才配合得起来）；每回合可以【递牌】：把 1 张手牌递给队友；单体牌和点名技能不能对队友用；先手第一回合多摸 1 张。</span></div>
-      <div><b>抢群主（5 人）</b><span>随机身份：<b>群主</b>公开、多 2 点心态、先手，要和暗中的<b>管理员</b>一起踢掉<b>黑粉</b>和<b>潜水党</b>；两个<b>黑粉</b>要把群主踢出群；<b>潜水党</b>先帮群主清掉黑粉，最后单挑踢掉群主自己当群主——她暗中每回合多摸 1 张；只剩她和群主时「冒泡」亮身份，心态 +1、摸 2 张。除了群主，身份退群后才翻开。踢掉黑粉奖励摸 3 张；群主踢了自己的管理员要弃光手牌。</span></div>
-      <div><b>全明星赛（6 人）</b><span><b>中国队</b>（${keys.filter((k) => CH[k].nation === "cn").map((k) => CH[k].name).join("、")}）对阵<b>美国队</b>（${keys.filter((k) => CH[k].nation === "us").map((k) => CH[k].name).join("、")}），3v3。你选谁就进她的国家队，再到组队页自己挑两个队友、三个对手（也可以随机补满）；座位 你—敌—友—敌—敌—友，把对面三人都踢出群就赢。中国队第一回合每人多摸 1 张（两队胜率五五开）。宿敌分到一队也得先一致对外。</span></div></div>`],
+      <div><b>2v2</b><span>座位是 你—对手—对手—队友，把对面两人都踢出群就赢。每人多 2 点心态（打得久一点，才配合得起来）；每回合可以【递牌】：把 1 张手牌递给队友；单体牌和点名技能不能对队友用。</span></div>
+      <div><b>抢群主（5 人）</b><span>随机身份：<b>群主</b>公开、多 2 点心态、先手，要和暗中的<b>管理员</b>一起踢掉<b>黑粉</b>和<b>潜水党</b>；两个<b>黑粉</b>要把群主踢出群；<b>潜水党</b>先帮群主清掉黑粉，最后单挑踢掉群主自己当群主——只剩她和群主时「冒泡」亮身份，心态 +1、摸 2 张。除了群主，身份退群后才翻开。踢掉黑粉奖励摸 3 张；群主踢了自己的管理员要弃光手牌。</span></div>
+      <div><b>全明星赛（6 人）</b><span><b>中国队</b>（${keys.filter((k) => CH[k].nation === "cn").map((k) => CH[k].name).join("、")}）对阵<b>美国队</b>（${keys.filter((k) => CH[k].nation === "us").map((k) => CH[k].name).join("、")}），3v3。你选谁就进她的国家队，再到组队页自己挑两个队友、三个对手（也可以随机补满）；座位 你—敌—友—敌—敌—友，把对面三人都踢出群就赢。中国队第一回合每人多摸 1 张（两队胜率五五开）。宿敌分到一队也得先一致对外。</span></div>
+      <div><b>🍿 斗蛐蛐（4–6 人，观战）</b><span>挑 4–6 位 AI娘 上场自由混战，开局押注一位冠军，看她们自己对线到最后 1 人留场；观战时可以切 2× 加速、随时给场上的 AI娘 扔道具助威或添乱，也能花掉底栏的「全场起哄」牌给局势拱火。</span></div></div>`],
     ["props", "👍 互动与暗号", () => {
       const P = window.Props, icon = (k) => `<img src="${UI.asset(`assets/img/prop_${k}.webp`)}" alt="">`;
       return `<h2>👍 互动与暗号</h2>
@@ -568,14 +569,17 @@ window.Main = (function () {
   window.showCredits = credits;
   // v36 台词图鉴：选人页点「🎙 台词」，按场合列出她所有配过音的台词，点一句播一句
   const LINE_GROUP = [["皮肤台词", "skin"], ["开场", ["greet", "allstar"]],   // v71 皮肤专属台词（xxx_<皮肤id>）放最前面单独一组，免得被技能组按前缀吃掉
-    ["出手", ["attack", "trick", "ko", "sig", "roger", "def"]], ["技能", null],
+    ["出手 / 回应", ["attack", "trick", "ko", "sig", "roger", "def", "dodge", "heal", "guard", "guard_", "gifted", "fed"]], ["技能 / 上线", null],
     ["挨打", ["hurt", "low", "hajimi", "pelted", "egged", "stolen", "exposed", "dug"]], ["宕机", ["boom", "reboot"]], ["赢 / 退群", ["win", "out", "mourn", "pact_end"]],
     ["突发事件", ["ev_"]], ["对别人说", "@"], ["其他", "*"]];
+  const SKILL_EXTRA = ["deploy", "band", "burst", "dad", "dig", "hatch", "chem_", "sis", "claw", "sorry", "zuiying", "know", "plain", "jiqi", "seedance", "long", "bigeat", "ad", "caught", "avatar"];
   function lineBook(k) {
     const c = CH[k], L = c.lines || {}, V = window.VOICES || {}, used = new Set(), skillIds = new Set(c.skills.map((s) => s.id)), skinIds = (window.Settings ? Settings.skinsOf(k) : []).map((s) => s.id);
     const groups = LINE_GROUP.map(([title, keys]) => {
       const pick = Object.keys(L).filter((lk) => !used.has(lk) && (
-        keys === "*" ? true : keys === "skin" ? skinIds.some((sid) => lk.endsWith("_" + sid)) : keys === "@" ? !!CH[lk] || lk.startsWith("vs_") : keys === null ? skillIds.has(lk) || c.skills.some((s) => lk.startsWith(s.id)) : keys.some((x) => x.endsWith("_") ? lk.startsWith(x) : lk === x)));
+        keys === "*" ? true : keys === "skin" ? skinIds.some((sid) => lk.endsWith("_" + sid)) : keys === "@" ? !!CH[lk] || lk.startsWith("vs_")
+          : keys === null ? skillIds.has(lk) || c.skills.some((s) => lk.startsWith(s.id)) || SKILL_EXTRA.some((x) => x.endsWith("_") ? lk.startsWith(x) : lk.startsWith(x))
+          : keys.some((x) => x.endsWith("_") ? lk.startsWith(x) : lk === x)));
       pick.forEach((lk) => used.add(lk));
       const rows = pick.flatMap((lk) => L[lk].map((t, i) => [lk, i, t])).filter(([lk, i]) => V[`${k}_${lk}${i}`]);
       return rows.length ? `<h3>${title} <small>${rows.length}</small></h3>` + rows.map(([lk, i, t]) => `<button class="lb-row" data-l="${lk}" data-i="${i}">${CH[lk] ? `<em>@${CH[lk].name}</em> ` : ""}${t}</button>`).join("") : "";
@@ -634,7 +638,7 @@ window.Main = (function () {
     applySpeed = paintSpeed;
     Settings.on((k) => { if (!k || k === "speed") paintSpeed(); if (game && !game.over) UI.sync(); });
     sp.onclick = () => { Settings.set("speed", (Settings.S.speed + 1) % Settings.SPEEDS.length); Sound.sfx("click", 0.5); UI.toast(`速度：${Settings.SPEEDS[Settings.S.speed].name}`); };
-    $("#tb-set").onclick = () => { Sound.sfx("click", 0.5); Settings.open(); };
+    $("#tb-set").onclick = () => { if (UI.modalBusy && UI.modalBusy()) { UI.toast("请先完成当前选牌"); return; } Sound.sfx("click", 0.5); Settings.open(); };
     // 全屏：首页右上角和对局工具栏都有；iPhone 不支持网页全屏，就教她“添加到主屏幕”
     const paintFull = () => {
       const on = Settings.fsOn();

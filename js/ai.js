@@ -159,7 +159,7 @@ window.AI = (function () {
     for (let guard = 0; out.length < n && guard < 24; guard++) {
       i = g.nextAlive(i); const q = g.players[i];
       let d = q.offline || q.banned ? 0 : 2 + (g.hasSkill(q, "think") ? Engine.T.thinkDraw : 0);
-      if (q.key === "grok" && !q.dadSpent && q.turnN >= 1 && g.dadBonus) d += g.dadBonus(q);   // v73 首富千金：上回合没收购，回合开始爸爸送牌
+      if (!q.banned && q.key === "grok" && !q.dadSpent && q.turnN >= 1 && g.dadBonus) d += g.dadBonus(q);   // v73.2 被封号跳过回合，爸爸这回合不会送牌
       for (let k = 0; k < d && out.length < n; k++) out.push(q);
       if (i === p.i && !d) break;
     }
@@ -293,27 +293,36 @@ window.AI = (function () {
       const t = biggest(g, p, g.skillTargets(p, "maint"));
       if (t && (t.hand.length >= 3 || r() < 0.4)) return { skill: "maint", target: t };
     }
-    // 4. 控场
+    // 4. 控场（统一走 g.targetsFor，自动遵守泡元宇宙 / 已对齐 / 队友保护 / 偷拆装备等引擎规则）
+    const valid = (c, fn) => c ? foes(g, p, g.targetsFor(p, c)).filter(fn || (() => true)) : [];
     if (H("jinyan").length) {
-      const t = richest(enemies.filter((q) => !q.banned && !q.muted), p) || richest(enemies, p);
+      const ts = valid(H("jinyan")[0]);
+      const t = richest(ts.filter((q) => !q.banned && !q.muted), p) || richest(ts, p);
       if (t) return use(H("jinyan")[0], [t]);
     }
-    const rich = enemies.filter((q) => q.hand.length > 0);
-    if (rich.length && H("baipiao").length) return use(H("baipiao")[0], [richest(rich, p)]);
-    if (rich.length && H("chehui").length) return use(H("chehui")[0], [richest(rich, p)]);
+    if (H("baipiao").length) {
+      const ts = valid(H("baipiao")[0]);
+      const t = richest(ts.filter((q) => q.hand.length > 0), p) || ts[0];
+      if (t) return use(H("baipiao")[0], [t]);
+    }
+    if (H("chehui").length) {
+      const ts = valid(H("chehui")[0]);
+      const t = richest(ts.filter((q) => q.hand.length > 0), p) || ts[0];
+      if (t) return use(H("chehui")[0], [t]);
+    }
     if (H("duanwang").length) {
-      const t = richest(enemies.filter((q) => !q.offline && !q.banned), p);
+      const t = richest(valid(H("duanwang")[0], (q) => !q.offline && !q.banned), p);
       if (t) return use(H("duanwang")[0], [t]);
     }
     if (H("dangji").length && !g.bomb && p.hp >= 2) return use(H("dangji")[0]);
     // v37 提示词注入：让对手去打别人——被打的最好也是对手（2v2 里逼她打自己队友）
     if (H("zhuru").length && g.canUse(p, H("zhuru")[0])) {
-      const t = enemies.filter((q) => { const v = g.injectVictim(p, q); return v && v !== p && foes(g, p, [v]).length; }).sort((a, b) => b.hand.length - a.hand.length)[0];
+      const t = valid(H("zhuru")[0], (q) => { const v = g.injectVictim(p, q); return v && v !== p && foes(g, p, [v]).length; }).sort((a, b) => b.hand.length - a.hand.length)[0];
       if (t) return use(H("zhuru")[0], [t]);
     }
     // v37 对齐：心态快见底时，跟最想打你的那个对齐
     if (H("duiqi").length && p.hp <= 2) {
-      const t = enemies.filter((q) => q.alignedBy !== p && q.hand.length > 0).sort((a, b) => threat(g, a, p) - threat(g, b, p))[0];
+      const t = valid(H("duiqi")[0], (q) => q.hand.length > 0).sort((a, b) => threat(g, b, p) - threat(g, a, p))[0];
       if (t) return use(H("duiqi")[0], [t]);
     }
     // v37 2v2 递牌：队友快没牌了、自己牌多，递一张她最用得上的
@@ -326,13 +335,14 @@ window.AI = (function () {
     if (aoeOk && g.canSkill(p, "shoot") && (enemies.length >= 2 || H("tucao").length >= 2 || p.tucao >= g.limitTucao(p))) return { skill: "shoot" };
     // 6. 单挑：自己吐槽多 或 对方手牌少
     if (H("dantiao").length) {
-      const t = enemies.filter((q) => g.canHit(p, q)).sort((x, y) => (x.hand.length + (p.hits[x.i] || 0) * 2) - (y.hand.length + (p.hits[y.i] || 0) * 2))[0];
+      const t = valid(H("dantiao")[0]).sort((x, y) => (x.hand.length + (p.hits[x.i] || 0) * 2) - (y.hand.length + (p.hits[y.i] || 0) * 2))[0];
       if (t && (H("tucao").length >= 2 || t.hand.length <= 1 || (t.hp <= 1 && H("tucao").length >= 1))) return use(H("dantiao")[0], [t]);
     }
     // 6a. 截图 + 深度思考：准备好再吐槽
     const canT = H("tucao").length && p.tucao < g.limitTucao(p);
     if (canT && H("jietu").length && !p.evidence) {
-      const t = pickTarget(g, p, enemies.filter((q) => q.hand.length > 0)) || pickTarget(g, p, enemies);
+      const ts = valid(H("jietu")[0]);
+      const t = pickTarget(g, p, ts.filter((q) => q.hand.length > 0)) || pickTarget(g, p, ts);
       if (t) return use(H("jietu")[0], [t]);
     }
     if (canT && H("jiaban").length && !p.boost) return use(H("jiaban")[0]);
@@ -341,17 +351,17 @@ window.AI = (function () {
     if (g.canSkill(p, "sale") && !p.sale && H("tucao").length >= (g.round >= Engine.T.rageRound ? 3 : 2) && p.tucao === 0) return { skill: "sale" };
     // v29 试验：跳槽——对手手牌比自己多 2 张以上就换；跑分——榜一全是对手才质疑；钓鱼——对面没人会拿牌时才兑掉摸 1
     if (H("tiaocao").length) {
-      const t = richest(enemies.filter((q) => q.hand.length > 0), p);
+      const t = richest(valid(H("tiaocao")[0], (q) => q.hand.length > 0), p);
       if (t && t.hand.length >= 3 && t.hand.length >= p.hand.length + 1 && !g.encrypted(t)) return use(H("tiaocao")[0], [t]);   // 对方至少 3 张、比自己多就换（+2 时一局只用 0.07 次）
     }
     if (H("paofen").length && g.canUse(p, H("paofen")[0])) {
-      const top = g.paofenTop(p), kings = g.alive().filter((q) => q.hand.length === top && q !== p);   // v69 自己按打出后的手牌数算
+      const top = g.paofenTop(p, H("paofen")[0]), kings = g.alive().filter((q) => q.hand.length === top && q !== p);   // v69 自己按打出后的手牌数算
       if (kings.length && kings.every((q) => enemies.includes(q))) return use(H("paofen")[0]);
     }
     if (H("diaoyu").length && p.hand.length >= 4 && !enemies.some((q) => ["steal", "buy", "haggle", "beg"].some((s) => g.hasSkill(q, s)))) return use(H("diaoyu")[0]);
     // ChatGPT 六边形（hexaAttack）：没吐槽、反驳有富余时，拿一张反驳当吐槽打（至少留 1 张保命）
     if (Engine.T.hexaAttack && g.hasSkill(p, "hexa") && !H("tucao").length && H("fanbo").length >= 2 && p.tucao < g.limitTucao(p)) {
-      const t = pickTarget(g, p, others); if (t) return use(H("fanbo")[0], [t]);
+      const t = pickTarget(g, p, others.filter((q) => g.canHit(p, q))); if (t) return use(H("fanbo")[0], [t]);
     }
     // v37 零日漏洞：有人心态见底、或者对面手里反驳多，先挖漏洞再吐槽
     if (g.canSkill(p, "zeroday") && enemies.some((q) => g.canHit(p, q) && (q.hp <= 2 || q.hand.length >= 3))) return { skill: "zeroday" };
