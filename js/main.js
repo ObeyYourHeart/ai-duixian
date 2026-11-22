@@ -288,10 +288,72 @@ window.Main = (function () {
   // 模式下面一句话说清楚玩法
   const MODE_DESC = { 2: "单挑：一对一，把她踢出群就赢。", 3: "三人乱斗：你和两个电脑，最后留在群里的人当群主。",
     4: "2v2：座位是 你—对手—对手—队友，把对面两人都踢出群就赢。", 5: "抢群主：5 人随机身份（群主 / 管理员 / 黑粉 / 潜水党），各有各的胜利条件。只有群主是明牌：黑粉开局会潜伏几轮装路人，潜水党先帮群主踢黑粉、再反水——看谁对谁出手，猜身份。",
-    6: "全明星赛：中国队对阵美国队，3v3。选好你的角色，下一页自己挑队友和对手。" };
+    6: "全明星赛：中国队对阵美国队，3v3。选好你的角色，下一页自己挑队友和对手。",
+    7: "斗蛐蛐：挑 4–6 位 AI娘 上场、押一位今日冠军，全员电脑自己打。你在场外看戏、扔道具，还能撒红包、塞宕机、爆个料。" };
   function modeDesc() { const e = $("#mode-desc"); if (e) e.textContent = MODE_DESC[players] || ""; $("#scr-select").classList.toggle("nation-on", players === 6); }   // 全明星赛：角色格上标国家队
 
+  // ---------------------------------------------------------------- v71 斗蛐蛐（观战押注）
+  let wSel = [], wBet = null, watchOn = false, wSpeed = 1;
+  const WT_USE = { red: 2, bomb: 1, leak: 2 };
+  function watchSetup() {
+    watchOn = false; document.body.classList.remove("watching");
+    if (!wSel.length && pickKey) wSel = [pickKey];
+    const tiles = keys.map((k) => { const c = CH[k], i = wSel.indexOf(k), on = i >= 0, bet = wBet === k;
+      return `<button class="wt-pick${on ? " on" : ""}${bet ? " bet" : ""}" data-k="${k}" style="--c:${c.color};--l:${c.light}"><img src="${UI.portrait(k, "avatar")}" alt=""><b>${c.name}</b>${bet ? "<i>👑</i>" : on ? "<i>✓</i>" : ""}</button>`; }).join("");
+    $("#wt-roster").innerHTML = tiles;
+    $("#wt-line").innerHTML = `<span>上场 <b>${wSel.length}</b> / 6</span>${wSel.map((k) => `<img src="${UI.portrait(k, "avatar")}" alt="" title="${CH[k].name}" class="${k === wBet ? "bet" : ""}">`).join("")}` +
+      `<span class="wt-bet">押注：${wBet ? `👑 <b>${CH[wBet].name}</b>` : "<em>还没押——点上场的人再点一下</em>"}</span>`;
+    const ok = wSel.length >= 4 && wSel.length <= 6 && wBet && wSel.includes(wBet);
+    $("#wt-go").disabled = !ok; $("#wt-go").textContent = ok ? "开打！" : wSel.length < 4 ? `再挑 ${4 - wSel.length} 位` : "先押一位";
+    $("#wt-roster").querySelectorAll(".wt-pick").forEach((b) => { b.onclick = () => {
+      const k = b.dataset.k; Sound.sfx("click", 0.5);
+      if (!wSel.includes(k)) { if (wSel.length >= 6) { UI.toast("最多 6 位上场"); return; } wSel.push(k); }
+      else if (wBet !== k) wBet = k;
+      else { wSel = wSel.filter((x) => x !== k); wBet = null; }
+      watchSetup();
+    }; });
+    show("scr-watch");
+  }
+  function watchRandom() {
+    const n = 4 + Math.floor(Math.random() * 3); wSel = keys.slice().sort(() => Math.random() - 0.5).slice(0, n); wBet = wSel[Math.floor(Math.random() * n)];
+    Sound.sfx("click", 0.5); watchSetup();
+  }
+  function watchBar() {
+    const b = $("#watchbar"); if (!game || !game.watch) { b.classList.add("hidden"); return; }
+    const u = game.watchUse;
+    b.innerHTML = `<div class="wb-bet"><img src="${UI.portrait(wBet, "avatar")}" alt=""><span>押注<b>${CH[wBet].name}</b></span></div>
+      <div class="wb-sp"><button data-s="1" class="${wSpeed === 1 ? "on" : ""}">1×</button><button data-s="2" class="${wSpeed === 2 ? "on" : ""}">2×</button></div>
+      <button class="wb-do" data-k="red" ${u.red ? "" : "disabled"} title="随机一半的人各抢到 1 张牌">🧧 撒红包 <small>${u.red}</small></button>
+      <button class="wb-do" data-k="bomb" ${u.bomb ? "" : "disabled"} title="往牌堆随机位置塞一张宕机">💣 塞宕机 <small>${u.bomb}</small></button>
+      <button class="wb-do" data-k="leak" ${u.leak ? "" : "disabled"} title="随机两人互相记仇，下回合优先互怼">📰 爆个料 <small>${u.leak}</small></button>
+      <button class="wb-quit" title="退出观战">退出</button>`;
+    b.classList.remove("hidden");
+    b.querySelectorAll(".wb-sp button").forEach((x) => { x.onclick = () => { wSpeed = +x.dataset.s; Sound.sfx("click", 0.4); applySpeed(); watchBar(); }; });
+    b.querySelectorAll(".wb-do").forEach((x) => { x.onclick = () => {
+      const k = x.dataset.k; if (!game || game.over || !game.watchUse[k]) return;
+      game.watchUse[k]--; game.watchDo(k); Sound.sfx("click", 0.5); UI.toast({ red: "🧧 红包备好了，下一回合开始时撒出去", bomb: "💣 宕机已经偷偷塞进牌堆……下一回合开始生效", leak: "📰 料已经放出去了，下一回合开始发酵" }[k]); watchBar();
+    }; });
+    b.querySelector(".wb-quit").onclick = () => { Sound.sfx("click", 0.5); quitGame(); watchSetup(); };
+  }
+  function watchStart() {
+    lastOpp = null; watchOn = true; wSpeed = 1;
+    try { localStorage.setItem("duixian_mode", 7); } catch (e) {}
+    show("scr-game"); Sound.track("battle"); newBg(); UI.detach(); applySpeed();
+    const order = wSel.slice().sort(() => Math.random() - 0.5);
+    game = window.__game = new Engine.Game(order, UI, { mode: "ffa", watch: { bet: wBet } });
+    for (const p of game.players) p.human = false;                       // 全员电脑：0 号座位也不是你
+    game.watchUse = { ...WT_USE };
+    document.body.classList.add("watching");
+    UI.attach(game); watchBar();
+    game.run().catch((e) => console.error(e));
+  }
+  function quitGame() {
+    if (game) { game.over = true; game.ui = new Proxy({}, { get: () => () => new Promise(() => {}) }); }
+    UI.detach(); document.body.classList.remove("watching"); $("#watchbar").classList.add("hidden"); watchOn = false; applySpeed();
+  }
+
   function start(sameOpp) {
+    document.body.classList.remove("watching"); $("#watchbar").classList.add("hidden"); watchOn = false;
     let opp, teams;
     const NAT = (k) => CH[k].nation, shuf = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
     if (players === 6) {
@@ -329,8 +391,8 @@ window.Main = (function () {
     return (window.VOICES || {})[`${k}_greet_${sid}${i}`] ? ["greet_" + sid, i, L[i]] : null;
   }
   // v36 快速开局：用首页的看板娘 + 上次玩的模式（没玩过就三人乱斗）直接开一局，跳过选人页
-  const MODE_NAME = { 2: "单挑", 3: "三人乱斗", 4: "2v2", 5: "抢群主", 6: "全明星赛" };
-  function lastMode() { let m = 3; try { m = +localStorage.getItem("duixian_mode") || 3; } catch (e) {} return MODE_NAME[m] ? m : 3; }
+  const MODE_NAME = { 2: "单挑", 3: "三人乱斗", 4: "2v2", 5: "抢群主", 6: "全明星赛", 7: "斗蛐蛐" };
+  function lastMode() { let m = 3; try { m = +localStorage.getItem("duixian_mode") || 3; } catch (e) {} return MODE_NAME[m] && m !== 7 ? m : 3; }   // 快速开始不进斗蛐蛐
   function quickSub(kb) { const e = $("#quick-sub"); if (e) e.textContent = `${CH[kb].name} · ${MODE_NAME[lastMode()]}`; }
   function quick() {
     pickKey = Lobby.kb(); players = lastMode();
@@ -444,8 +506,8 @@ window.Main = (function () {
         <div class="ru-ch1"><img src="${UI.portrait(k, "avatar")}" alt=""><div><b>${c.name}</b><span>${"❤".repeat(c.hp)}</span></div></div>
         <div class="ru-sks">${c.skills.filter((s) => !s.harness || !c.harness).map((s) => `<div class="ru-sk" title="${s.desc}"><b>${s.name}</b><em class="${s.type}">${s.type === "active" ? "主动" : "被动"}</em><span>${s.short || s.desc}</span></div>`).join("")}
           ${c.harness ? `<div class="ru-sk hz" title="${c.harness.desc}"><b>${c.harness.name}</b><em class="hz">Harness</em><span>${c.harness.short}（${hzNeed(k)}上线）</span></div>` : ""}</div></div>`; }).join("")}</div>
-      <h3>人物关系</h3><ul class="ru-list">${(D.relations || []).map(([a, b, t, note]) => `<li><b class="rel ${t}">${{ ally: "盟友", friend: "交好", rival: "宿敌" }[t]}</b>${CH[a].name} × ${CH[b].name}——${note}</li>`).join("")}</ul>
-      <p class="ru-note">三人乱斗和单挑里：盟友在场上还有别人时互不吐槽，只剩她俩时「协议到期」；宿敌会优先针对对方；交好的下手轻一点。</p>`],
+      <h3>人物关系</h3><ul class="ru-list">${(D.relations || []).map(([a, b, t, note]) => `<li><b class="rel ${t}">${{ ally: "盟友", friend: "交好", rival: "宿敌", mentor: "师徒" }[t]}</b>${CH[a].name} × ${CH[b].name}——${note}</li>`).join("")}</ul>
+      <p class="ru-note">三人乱斗和单挑里：盟友在场上还有别人时互不吐槽，只剩她俩时「协议到期」；宿敌会优先针对对方；交好、师徒之间下手轻一点。</p>`],
     ["harness", "🚀 Harness", () => `<h2>🚀 Harness <small>每位 AI娘 自带的编程工具</small></h2>
       <p class="ru-lead">每个人都带着自家真实的终端编程 harness（Claude Code、Codex、Antigravity……）。开局是「部署中」，<b>攒够牌就上线</b>，上线后她的某个技能升级一小步，整局生效、破防也不掉。</p>
       <ul class="ru-list">
@@ -460,7 +522,7 @@ window.Main = (function () {
       <div><b>单挑</b><span>一对一，把她踢出群就赢。先手第一回合只摸 1 张，后手第一回合摸 4 张。</span></div>
       <div><b>2v2</b><span>座位是 你—对手—对手—队友，把对面两人都踢出群就赢。每人多 2 点心态（打得久一点，才配合得起来）；每回合可以【递牌】：把 1 张手牌递给队友；单体牌和点名技能不能对队友用；先手第一回合多摸 1 张。</span></div>
       <div><b>抢群主（5 人）</b><span>随机身份：<b>群主</b>公开、多 2 点心态、先手，要和暗中的<b>管理员</b>一起踢掉<b>黑粉</b>和<b>潜水党</b>；两个<b>黑粉</b>要把群主踢出群；<b>潜水党</b>先帮群主清掉黑粉，最后单挑踢掉群主自己当群主——她暗中每回合多摸 1 张；只剩她和群主时「冒泡」亮身份，心态 +1、摸 2 张。除了群主，身份退群后才翻开。踢掉黑粉奖励摸 3 张；群主踢了自己的管理员要弃光手牌。</span></div>
-      <div><b>全明星赛（6 人）</b><span><b>中国队</b>（DeepSeek、小DeepSeek、GLM、Seedance、Kimi、Qwen、MiniMax）对阵<b>美国队</b>（Claude、ChatGPT、Gemini、Grok、Muse），3v3。你选谁就进她的国家队，再到组队页自己挑两个队友、三个对手（也可以随机补满）；座位 你—敌—友—敌—敌—友，把对面三人都踢出群就赢。中国队阵容大，第一回合每人多摸 1 张。宿敌分到一队也得先一致对外。</span></div></div>`],
+      <div><b>全明星赛（6 人）</b><span><b>中国队</b>（${keys.filter((k) => CH[k].nation === "cn").map((k) => CH[k].name).join("、")}）对阵<b>美国队</b>（${keys.filter((k) => CH[k].nation === "us").map((k) => CH[k].name).join("、")}），3v3。你选谁就进她的国家队，再到组队页自己挑两个队友、三个对手（也可以随机补满）；座位 你—敌—友—敌—敌—友，把对面三人都踢出群就赢。中国队第一回合，按座位顺序前两位各多摸 1 张（两队胜率五五开）。宿敌分到一队也得先一致对外。</span></div></div>`],
     ["props", "👍 互动与暗号", () => {
       const P = window.Props, icon = (k) => `<img src="${UI.asset(`assets/img/prop_${k}.webp`)}" alt="">`;
       return `<h2>👍 互动与暗号</h2>
@@ -505,14 +567,15 @@ window.Main = (function () {
   }
   window.showCredits = credits;
   // v36 台词图鉴：选人页点「🎙 台词」，按场合列出她所有配过音的台词，点一句播一句
-  const LINE_GROUP = [["开场", ["greet", "allstar"]], ["出手", ["attack", "trick", "ko", "sig", "roger", "def"]], ["技能", null],
+  const LINE_GROUP = [["皮肤台词", "skin"], ["开场", ["greet", "allstar"]],   // v71 皮肤专属台词（xxx_<皮肤id>）放最前面单独一组，免得被技能组按前缀吃掉
+    ["出手", ["attack", "trick", "ko", "sig", "roger", "def"]], ["技能", null],
     ["挨打", ["hurt", "low", "hajimi", "pelted", "egged", "stolen", "exposed", "dug"]], ["宕机", ["boom", "reboot"]], ["赢 / 退群", ["win", "out", "mourn", "pact_end"]],
     ["突发事件", ["ev_"]], ["对别人说", "@"], ["其他", "*"]];
   function lineBook(k) {
-    const c = CH[k], L = c.lines || {}, V = window.VOICES || {}, used = new Set(), skillIds = new Set(c.skills.map((s) => s.id));
+    const c = CH[k], L = c.lines || {}, V = window.VOICES || {}, used = new Set(), skillIds = new Set(c.skills.map((s) => s.id)), skinIds = (window.Settings ? Settings.skinsOf(k) : []).map((s) => s.id);
     const groups = LINE_GROUP.map(([title, keys]) => {
       const pick = Object.keys(L).filter((lk) => !used.has(lk) && (
-        keys === "*" ? true : keys === "@" ? !!CH[lk] || lk.startsWith("vs_") : keys === null ? skillIds.has(lk) || c.skills.some((s) => lk.startsWith(s.id)) : keys.some((x) => x.endsWith("_") ? lk.startsWith(x) : lk === x)));
+        keys === "*" ? true : keys === "skin" ? skinIds.some((sid) => lk.endsWith("_" + sid)) : keys === "@" ? !!CH[lk] || lk.startsWith("vs_") : keys === null ? skillIds.has(lk) || c.skills.some((s) => lk.startsWith(s.id)) : keys.some((x) => x.endsWith("_") ? lk.startsWith(x) : lk === x)));
       pick.forEach((lk) => used.add(lk));
       const rows = pick.flatMap((lk) => L[lk].map((t, i) => [lk, i, t])).filter(([lk, i]) => V[`${k}_${lk}${i}`]);
       return rows.length ? `<h3>${title} <small>${rows.length}</small></h3>` + rows.map(([lk, i, t]) => `<button class="lb-row" data-l="${lk}" data-i="${i}">${CH[lk] ? `<em>@${CH[lk].name}</em> ` : ""}${t}</button>`).join("") : "";
@@ -546,10 +609,15 @@ window.Main = (function () {
       }
       if ($("#scr-select").classList.contains("active")) { $("#btn-back").click(); done(); return; }
       if ($("#scr-team").classList.contains("active")) { $("#tm-back").click(); done(); return; }
+      if ($("#scr-watch").classList.contains("active")) { $("#wt-back").click(); done(); return; }
     }, true);
     $("#btn-lines").onclick = () => { Sound.sfx("click", 0.5); lineBook(pickKey); };
     $("#btn-quick").onclick = () => { Sound.sfx("click"); Sound.music(Sound.S.music); quick(); };
-    $("#btn-go").onclick = () => { Sound.sfx("click"); if (players === 6) team(); else start(false); };   // 全明星赛先去组队页
+    $("#btn-go").onclick = () => { Sound.sfx("click"); if (players === 7) watchSetup(); else if (players === 6) team(); else start(false); };   // 全明星赛先去组队页；斗蛐蛐先去押注页
+    $("#wt-back").onclick = () => { Sound.sfx("click"); select(); };
+    $("#wt-rand").onclick = watchRandom;
+    $("#wt-clear").onclick = () => { wSel = []; wBet = null; Sound.sfx("click", 0.5); $("#wt-roster") && watchSetup(); };
+    $("#wt-go").onclick = () => { if (wSel.length >= 4 && wSel.length <= 6 && wBet) { Sound.sfx("click"); watchStart(); } };
     $("#tm-back").onclick = () => { Sound.sfx("click"); select(); };
     $("#tm-rand").onclick = teamRandom;
     $("#tm-clear").onclick = () => { teamMates = []; teamFoes = []; Sound.sfx("click", 0.5); team(); };
@@ -561,7 +629,7 @@ window.Main = (function () {
     });
     // 速度四档：工具栏点一下换档，设置面板里也能选
     const sp = $("#tb-speed");
-    const paintSpeed = () => { Engine.speed = Settings.speed(); sp.textContent = Settings.SPEEDS[Settings.S.speed].name; };
+    const paintSpeed = () => { Engine.speed = Settings.speed() / (watchOn && wSpeed === 2 ? 2 : 1); sp.textContent = Settings.SPEEDS[Settings.S.speed].name; };   // v71 斗蛐蛐 2×：在当前档位上再快一倍
     paintSpeed();
     applySpeed = paintSpeed;
     Settings.on((k) => { if (!k || k === "speed") paintSpeed(); if (game && !game.over) UI.sync(); });
@@ -588,12 +656,11 @@ window.Main = (function () {
     let quitT = 0;
     $("#tb-quit").onclick = () => {
       if (performance.now() - quitT > 2000) { quitT = performance.now(); UI.toast("再点一次退出这一局"); return; }
-      if (game) { game.over = true; game.ui = new Proxy({}, { get: () => () => new Promise(() => {}) }); }
-      UI.detach(); title();
+      quitGame(); title();
     };
     title();
   }
 
   document.addEventListener("DOMContentLoaded", boot);
-  return { again: () => start(true), toSelect: () => select() };
+  return { again: () => (game && game.watch ? watchStart() : start(true)), toSelect: () => (game && game.watch ? watchSetup() : select()) };
 })();

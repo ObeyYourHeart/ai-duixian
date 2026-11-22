@@ -34,7 +34,10 @@ window.AI = (function () {
       case "tiaocao": return 5;
       case "zhengliu": return 5.5;
       case "paofen": return 5;
-      case "diaoyu": return 5.6;                                  // 钓鱼：留在手里当诱饵，别当垃圾先扔
+      case "diaoyu": return 5.6;
+      case "huigun": return p.hp <= 2 ? 8.8 : 7.2;                // v69 回滚：少掉 1 点心态的防守牌，别当垃圾送掉 / 插进插件
+      case "zhuru": return g.alive().length >= 3 ? 5.6 : 2;        // v69 提示词注入：至少 3 人在场才能用
+      case "duiqi": return 5.8;                                    // v69 对齐：一回合内她不能吐槽你                                  // 钓鱼：留在手里当诱饵，别当垃圾先扔
       case "yunbeifen": return g.eqIn(p, c.k) ? 3.5 : (g.bombsLeft && g.bombsLeft() ? 6 : 4);
       case "jiami": return g.eqIn(p, c.k) ? 3.5 : 6;
     }
@@ -61,7 +64,18 @@ window.AI = (function () {
     grok: (g, p, q) => q.hand.length * 0.3,                                  // 有钱任性：专挑手牌多的
     deepseek: (g, p, q) => (q.hp <= 2 ? 1.6 : 0) - (q.hp >= 4 ? 0.4 : 0),     // 量化：只做确定的买卖，专收残血
     claude: (g, p, q) => ((p.grudge && p.grudge[q.i]) || 0) * 1.2,          // 守宪法：谁先违规（打过她）谁先挨
+    // v70 补齐其他九位（权重温和：认得出打法，不改平衡；2v2 / 全明星照样只在对手里挑）
+    gpt: (g, p, q) => (q.deployed ? 0.9 : 0),                                // 红色警报：谁先上线 Harness 先打谁
+    gemini: (g, p, q) => (q.key === "gpt" ? 0.7 : 0) + (g.equips ? g.equips(q).length * 0.3 : 0),   // 追着 ChatGPT「说人话」；也偏打装备多的
+    xds: (g, p, q) => (["claude", "gpt"].includes(q.key) && foeKeys(g, p).some((k) => !["claude", "gpt"].includes(k)) ? -1.1 : 0),   // 嘴硬心软：不到只剩她们，不太打 Claude / ChatGPT
+    glm: (g, p, q) => (p.prevHits && p.prevHits[q.i] ? 1.1 : 0),            // 懒得换目标：上回合打谁，这回合还打谁
+    doubao: (g, p, q) => (g.roundTakenR === g.round && g.roundTaken ? (g.roundTaken[q.i] || 0) * 0.55 : 0),   // 蹭热度：这一轮谁挨打最多就跟风
+    kimi: (g, p, q) => ((p.grudge && p.grudge[q.i]) || 0) * 0.4,            // 记仇最久（回合末不清零，见 engine）
+    qwen: (g, p, q) => (q.key === "xds" ? -1 : 0) + (q.hp >= Math.max(...g.alive().filter((x) => x !== p).map((x) => x.hp)) ? 0.6 : 0),   // 大家长：护着小鲸鱼，偏打心态最高的
+    minimax: (g, p, q) => (["claude", "gpt", "gemini", "grok", "muse"].includes(q.key) ? 0.5 : q.key === "doubao" ? 0.7 : 0),   // 看不惯闭源又贵的，宿敌 Seedance 也是
+    muse: (g, p, q) => (q.hand.length <= Math.min(...g.alive().filter((x) => x !== p).map((x) => x.hand.length)) ? 0.9 : 0),   // 实战露怯：专挑手牌最少的软柿子
   };
+  function foeKeys(g, p) { return g.alive().filter((x) => x !== p && (!g.hostility || g.hostility(p, x) > 0)).map((x) => x.key); }
   function threat(g, p, q) {
     let s = q.hand.length * 0.35 + (q.hp <= 1 ? 3 : 0) + (q.hp <= 2 ? 0.8 : 0) + r() * 2.6;
     s -= ((p.hits && p.hits[q.i]) || 0) * 2.2;
@@ -69,6 +83,7 @@ window.AI = (function () {
     if (p.mark && p.mark.i === q.i && g.round <= p.mark.until) s += 5;   // 互动道具的暗号：队友叫我集火她
     if (q.band && q.band.length) s += q.band.length * Engine.T.bandThreat;   // Kimi 的乐队快到齐了：趁她开唱前先打她
     if (g.round <= 1 && q.human) s -= 1.5;
+    if (p.oweTo === q) s -= 3;                                         // v71 收了 Llama 白送的牌：先不吐槽她（拿人手短，这一张会作废）
     const P = PERSONA[p.key]; if (P) s += P(g, p, q);
     return s + hostile(g, p, q) * 1.2;
   }
@@ -94,6 +109,25 @@ window.AI = (function () {
     const allies = os.filter((q) => g.hostility && g.hostility(p, q) < 0);
     if (allies.length) return allies.slice().sort((a, b) => a.hp - b.hp || a.hand.length - b.hand.length)[0];
     return os.slice().sort((a, b) => a.hand.length + a.hp * 0.5 + hostile(g, p, a) - (b.hand.length + b.hp * 0.5 + hostile(g, p, b)) + (r() - 0.5))[0];
+  }
+  // v71 Llama 白打工：送给谁（自己人里先送 Muse、再送心态低的；没有自己人就送给最可能来吐槽她的对手，买一次「拿人手短」）；送哪张
+  function giftTo(g, p) {
+    const os = g.others(p), mates = os.filter((q) => g.giftMate(p, q));
+    if (mates.length) return mates.slice().sort((a, b) => (b.key === "muse") - (a.key === "muse") || a.hp - b.hp || a.hand.length - b.hand.length)[0];
+    const foes = os.filter((q) => !q.oweTo && q.hand.some((c) => c.k === "tucao" || c.k === "fanbo"));
+    return foes.sort((a, b) => hostile(g, b, p) + b.hand.length * 0.3 - (hostile(g, a, p) + a.hand.length * 0.3))[0] || null;
+  }
+  function giftPick(g, p, t) {
+    const pool = p.hand.filter((c) => c.k !== "chongqi" && !(c.k === "fanbo" && g.has(p, "fanbo").length < 2));
+    if (!pool.length) return null;
+    if (g.giftMate(p, t)) return giftCard(g, p, t, pool);
+    return pool.slice().sort((a, b) => value(g, p, a) - value(g, p, b))[0];
+  }
+  function wantGift(g, p) {
+    const t = giftTo(g, p); if (!t) return null;
+    if (g.hasH(p, "stack") || g.giftMate(p, t)) return t;
+    if (!Engine.T.giftFoeAI) return null;
+    const c = giftPick(g, p, t); return c && value(g, p, c) <= 5.5 && p.hand.length >= 2 ? t : null;
   }
   function giftCard(g, p, t, cards) {
     const ally = g.hostility && g.hostility(p, t) < 0;
@@ -207,6 +241,7 @@ window.AI = (function () {
     if (g.canSkill(p, "search")) return { skill: "search" };
     if (g.canSkill(p, "pen") && g.rivals(p).filter((q) => q.alive).length >= (g.players.length === 2 ? 1 : 2) || g.canSkill(p, "pen") && g.rivals(p).some((q) => q.alive && q.hp <= 1)) return { skill: "pen" };   // 妙笔：对手多时刷一片划算；有人只剩 1 点也补一刀
     if (g.canSkill(p, "cut") && !risky(p.hand.length + 1)) return { skill: "cut" };
+    if (g.canSkill(p, "gift")) { const t = wantGift(g, p); if (t) return { skill: "gift", target: t }; }   // v71 Llama 白打工
     if (g.canSkill(p, "qingke")) { const t = treatTarget(g, p); if (t && (t !== p || p.hp <= p.maxHp - 1)) return { skill: "qingke", target: t }; }
     if (g.canSkill(p, "bundle") && !risky(3)) { if (Engine.T.bundleRandom) return { skill: "bundle" }; const t = giftTarget(g, p); if (t) return { skill: "bundle", target: t }; }
     if (g.canSkill(p, "halluc") && (Engine.T.hallucCost ? p.hand.length >= 2 : true) && p.hp >= 2) return { skill: "halluc" };
@@ -309,7 +344,7 @@ window.AI = (function () {
       if (t && t.hand.length >= 3 && t.hand.length >= p.hand.length + 1 && !g.encrypted(t)) return use(H("tiaocao")[0], [t]);   // 对方至少 3 张、比自己多就换（+2 时一局只用 0.07 次）
     }
     if (H("paofen").length && g.canUse(p, H("paofen")[0])) {
-      const top = Math.max(...g.alive().map((q) => q.hand.length)), kings = g.alive().filter((q) => q.hand.length === top && q !== p);
+      const top = g.paofenTop(p), kings = g.alive().filter((q) => q.hand.length === top && q !== p);   // v69 自己按打出后的手牌数算
       if (kings.length && kings.every((q) => enemies.includes(q))) return use(H("paofen")[0]);
     }
     if (H("diaoyu").length && p.hand.length >= 4 && !enemies.some((q) => ["steal", "buy", "haggle", "beg"].some((s) => g.hasSkill(q, s)))) return use(H("diaoyu")[0]);
@@ -356,7 +391,9 @@ window.AI = (function () {
       const want = k === "jinyan" || (k === "dantiao" && g.has(p, "tucao").length < 1) ||
         (k === "resou" && !g.has(p, "tucao").length) || (k === "shuaping" && !g.has(p, "fanbo").length) ||
         ((k === "baipiao" || k === "chehui") && (many || p.hand.length <= 2)) || (p.hp <= 1 && k !== "tuanjian") ||
-        k === "dangji" || (k === "jietu" && g.has(p, "fanbo").length > 0) || (k === "duanwang" && (many || p.hand.length <= 2));
+        k === "dangji" || (k === "jietu" && g.has(p, "fanbo").length > 0) || (k === "duanwang" && (many || p.hand.length <= 2)) ||
+        (k === "zhuru" && ctx.from && (() => { const v = g.injectVictim(ctx.from, p); return !v || (g.hostility && g.hostility(p, v) < 0) || !g.has(p, "tucao").length || many; })()) ||   // v69 注入：要我打自己人 / 手里没吐槽（不出就 −1）就挡
+        (k === "duiqi" && many);
       return want ? { card: cards[0] } : null;
     }
     return null;
@@ -377,7 +414,7 @@ window.AI = (function () {
   // v47 专武：子代理值不值得烧一张牌（手里有张不太值钱的就烧）；DSH 插哪张（多余的吐槽 > 奶茶（满血时）> 最没用的，不插重启 / 反驳）
   function wantSubagent(g, p) { const c = p.hand.find((x) => x.id === cheapest(g, p, 1)[0]); return !!c && value(g, p, c) <= 5.5; }
   function plugPick(g, p) {
-    const ok = p.hand.filter((c) => c.k !== "chongqi" && c.k !== "fanbo" && !(Engine.CD[c.k].owner === p.key));
+    const ok = p.hand.filter((c) => c.k !== "chongqi" && c.k !== "fanbo" && c.k !== "huigun" && !(Engine.CD[c.k].owner === p.key));
     const T2 = ok.filter((c) => c.k === "tucao");
     if (T2.length >= 2) return T2[0];
     const tea = ok.find((c) => c.k === "naicha"); if (tea && p.hp >= p.maxHp - 1) return tea;
@@ -416,6 +453,6 @@ window.AI = (function () {
   // 豆包：吐槽被挡后要不要弃牌接着说；GPT：没反驳时要不要弃一张硬顶
   function wantLong(g, p, t) { return p.hand.length >= 2 || t.hp <= 1; }
   function wantZuiying(g, t, p) { return t.hp <= 2 || t.hand.length >= 4; }
-  return { wantSubagent, plugPick, wishPick, artifactCost, artifactPick, passPick, paintPick, choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard, treatTarget, autoTargets,
+  return { giftTo, giftPick, wantSubagent, plugPick, wishPick, artifactCost, artifactPick, passPick, paintPick, choose, respond, discard, pick, cheapest, pickTarget, richest, value, wantLong, wantZuiying, giftTarget, giftCard, treatTarget, autoTargets,
     drawOrder, placeBomb, bombChoice, wantMoyu, arrange };
 })();

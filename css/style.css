@@ -296,6 +296,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .sys.bad { color: #e0435a; font-weight: 800; }
 .sys.good { color: #2a9d63; font-weight: 800; }
 .sys.prop { color: #6a5fb8; font-weight: 700; background: rgba(255, 255, 255, .82); }
+.sys.meme { color: #a39dbd; font-size: 12px; font-style: italic; background: rgba(255, 255, 255, .55); }   /* v70 出牌冒梗 */
 /* 互动道具 */
 #hinfo .hi-props { margin: 10px 0 4px; padding: 8px 8px 6px; border-radius: 16px; background: var(--l); }
 #hinfo .hp-row { display: flex; justify-content: space-between; gap: 4px; }
@@ -754,7 +755,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .ru-flow span { font-size: 15px; font-weight: 700; color: #5d5680; }
 .ru-list { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; font-size: 17px; line-height: 1.55; color: #3d3566; max-width: 1000px; }
 .ru-list b.rel { color: #fff; border-radius: 8px; padding: 0 8px; margin-right: 8px; font-size: 14px; }
-.ru-list b.rel.ally { background: var(--good); } .ru-list b.rel.friend { background: #6c9cf0; } .ru-list b.rel.rival { background: var(--bad); }
+.ru-list b.rel.ally { background: var(--good); } .ru-list b.rel.friend { background: #6c9cf0; } .ru-list b.rel.rival { background: var(--bad); } .ru-list b.rel.mentor { background: #9b7bff; }
 .ru-note { font-size: 15px; color: #6b6585; font-weight: 700; }
 .ru-chars { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 12px; }
 .ru-ch { background: #fff; border-radius: 18px; padding: 12px 14px; border-left: 6px solid var(--c); display: flex; flex-direction: column; gap: 8px; }
@@ -1117,7 +1118,8 @@ body.ult-on #known, body.ult-on .skpop { visibility: hidden; }
 .ult.hold .ug-back { transform: scale(1.043); transition: transform var(--hold, 3s) linear; }   /* 神环留在立绘身后，停留时跟着立绘慢慢推近（立绘这一段从 1.04 推到 1.085，也就是再放大 4.3%） */
 .ult.s5 .ug-back { opacity: 0; transition: opacity .35s; }
 .ult.ug-fable .ult-emb { display: none; }   /* Fable·许愿之神：身后是她自己的神环（.ug-back），不再叠通用的橙色纹章 */
-.ult.ug-fable .ult-ring { border-width: 3px; border-color: #F1C35A; box-shadow: 0 0 22px #FFE2A0; } .ult.ug-fable .ult-ring.r2 { border-width: 1.5px; }   /* Fable·许愿之神：冲击时扩散的两圈环用细金线（默认是 10 px 的粗主题色环） */
+.ult.ug-fable .ult-ring { border-width: 3px; border-color: #F1C35A; box-shadow: 0 0 22px #FFE2A0; } .ult.ug-fable .ult-ring.r2 { border-width: 1.5px; }   /* Fable·许愿之神：冲击时扩散的两圈环用细金线（默认是 10 px 的粗主题色环） */
+
 .ult.ug-moon .ult-ring { border-color: #DDE1F5; box-shadow: 0 0 22px #EEF0FF; }   /* v53 Kimi 月之暗面·月相之神：冲击环用细银线（同样不叠通用纹章，身后是月相神环） */
 .ult.ug-out .ug-tint { opacity: .25; transition: opacity .3s; }
 .ub-rain { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
@@ -1200,3 +1202,32 @@ body.ult-on #scr-game .btn, body.ult-on #scr-game .icon { backdrop-filter: none;
 #stage.tiny .mode-switch, #stage.portrait .mode-switch, #stage.tiny #lobby-chat, #stage.portrait #lobby-chat, #stage.tiny .tm-side, #stage.portrait .tm-side { backdrop-filter: none; -webkit-backdrop-filter: none; }
 #stage.tiny .btn, #stage.tiny .icon, #stage.portrait .btn, #stage.portrait .icon { background-color: rgba(255, 255, 255, .8); }
 #stage.tiny #lobby-chat, #stage.portrait #lobby-chat, #stage.tiny .tm-side, #stage.portrait .tm-side, #stage.tiny .mode-switch, #stage.portrait .mode-switch, #stage.tiny .subtitle .msg, #stage.portrait .subtitle .msg { background-color: rgba(255, 255, 255, .88); }
+
+/* v71 斗蛐蛐：押注页 + 牌桌上的观战面板（亮色、不抖屏） */
+#scr-watch.active { display: flex; } #scr-watch { flex-direction: column; align-items: center; padding: 26px 30px 24px; gap: 14px; }
+.wt-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; background: rgba(255, 255, 255, .82); border-radius: 18px; padding: 8px 18px; min-height: 64px; font-size: 20px; font-weight: 800; color: #4a5a90; }
+.wt-line img { width: 48px; height: 48px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(60, 50, 140, .18); }
+.wt-line img.bet { border-color: #ffb020; box-shadow: 0 0 0 3px #ffe08a; }
+.wt-line .wt-bet { margin-left: 10px; } .wt-line .wt-bet b { color: #e08a00; } .wt-line .wt-bet em { font-style: normal; color: #9aa0c0; font-size: 16px; }
+.wt-roster { flex: 1; min-height: 0; width: 100%; max-width: 1180px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; align-content: start; overflow-y: auto; }
+.wt-pick { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px 10px; border-radius: 20px; border: 3px solid #fff; background: rgba(255, 255, 255, .78); cursor: pointer; font: inherit; box-shadow: 0 4px 12px rgba(60, 50, 140, .12); }
+.wt-pick img { width: 92px; height: 92px; border-radius: 50%; border: 4px solid var(--c); background: var(--l); }
+.wt-pick b { font-family: var(--title); font-weight: normal; font-size: 22px; color: #3d3566; }
+.wt-pick.on { background: var(--l); border-color: var(--c); }
+.wt-pick.bet { border-color: #ffb020; box-shadow: 0 0 0 4px #ffe08a, 0 4px 12px rgba(60, 50, 140, .12); }
+.wt-pick i { position: absolute; top: 6px; right: 8px; font-style: normal; font-size: 22px; background: #fff; border-radius: 50%; width: 34px; height: 34px; line-height: 34px; text-align: center; color: var(--c); box-shadow: 0 2px 6px rgba(0, 0, 0, .12); }
+#wt-go:disabled { opacity: .55; cursor: default; }
+body.watching #hand, body.watching #actions, body.watching #prompt { display: none !important; }
+#watchbar { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 22px;
+  background: rgba(255, 255, 255, .9); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 6px 20px rgba(60, 50, 140, .18); white-space: nowrap; }
+#watchbar.hidden { display: none; }
+.wb-bet { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 800; color: #6b6585; }
+.wb-bet img { width: 46px; height: 46px; border-radius: 50%; border: 3px solid #ffb020; } .wb-bet b { display: block; font-family: var(--title); font-weight: normal; font-size: 22px; color: #e08a00; }
+.wb-sp { display: flex; background: #eef0fb; border-radius: 14px; padding: 3px; }
+.wb-sp button { border: 0; background: none; font: inherit; font-weight: 800; font-size: 17px; color: #6b6585; padding: 6px 12px; border-radius: 11px; cursor: pointer; }
+.wb-sp button.on { background: #fff; color: #5a4aa8; box-shadow: 0 1px 4px rgba(60, 50, 140, .18); }
+.wb-do, .wb-quit { border: 0; font: inherit; font-weight: 800; font-size: 17px; padding: 9px 14px; border-radius: 14px; cursor: pointer; background: #fff3d6; color: #a0620a; }
+.wb-do small { font-size: 13px; background: #fff; border-radius: 9px; padding: 0 6px; margin-left: 2px; }
+.wb-do:disabled { opacity: .45; cursor: default; }
+.wb-quit { background: #eef0fb; color: #5a5680; }
+#stage.portrait #watchbar { flex-wrap: wrap; justify-content: center; white-space: normal; width: calc(100% - 40px); bottom: 40px; }

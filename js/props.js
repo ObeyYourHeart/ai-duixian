@@ -21,6 +21,7 @@ window.Props = (function () {
     takeout: { name: "外卖", owner: "qwen", bad: false, icon: "🧋", fx: "land", cap: "您的外卖到了", verb: (a, b) => `${a} 给 ${b} 点了一份外卖` },
     carrot: { name: "胡萝卜火箭", owner: "minimax", bad: true, icon: "🥕", fx: "rocket", cap: "胡萝卜火箭，送你上天！", verb: (a, b) => `${a} 冲 ${b} 发射了一枚胡萝卜火箭` },
     croc: { name: "洞洞鞋", owner: "muse", bad: true, icon: "👟", fx: "stamp", cap: "接住我的洞洞鞋！", verb: (a, b) => `${a} 冲 ${b} 扔了一只洞洞鞋` },
+    slipper: { name: "羊驼拖鞋", owner: "llama", bad: false, icon: "🦙", fx: "land", hearts: true, cap: "羊驼拖鞋，送你一只～", verb: (a, b) => `${a} 把一只羊驼拖鞋塞给了 ${b}` },   // v71 Llama：好意道具
   };
   const COMMON = ["dislike", "error", "gpu", "like"];
   const SIG = {};
@@ -92,7 +93,7 @@ window.Props = (function () {
     if (from.human && !t.human) {                                     // 乱斗 / 单挑：记仇 / 手下留情（有上下限，刷不爆）
       t.propMood = t.propMood || {};
       const old = t.propMood[from.i] || 0, nw = Math.max(-0.9, Math.min(1.2, old + (bad ? 0.35 : -0.3)));
-      t.propMood[from.i] = nw; t.grudge[from.i] = (t.grudge[from.i] || 0) + (nw - old);
+      t.propMood[from.i] = nw;   // v69 不再写进 grudge（grudge 每回合清空，上限顶满后再扔就没效果）：hostility 直接读 propMood，回合末衰减
     }
   }
 
@@ -120,6 +121,21 @@ window.Props = (function () {
     return true;
   }
 
+  // v71 斗蛐蛐：场外观众扔道具（没有座位，从屏幕下方飞出去）；冷却比平时短
+  function watch(g, t, kind) {
+    if (!g || !KINDS[kind] || !t.alive || !COMMON.includes(kind)) return false;
+    const n = now();
+    mine = mine.filter((x) => n - x < 12000);
+    if (mine.length >= 12) { UI.toast("扔太快啦，歇一下～"); return false; }
+    if (mine.length && n - mine[mine.length - 1] < 350) return false;
+    mine.push(n);
+    const K = KINDS[kind];
+    UI.throwProp(null, t, kind);
+    UI.sys(`${K.icon} ${K.verb("场外观众", t.name)}`, "prop");
+    setTimeout(() => react(g, t, kind, false), 700);
+    return true;
+  }
+
   // 电脑自己扔：挨打时宿敌落井下石、朋友送算力安慰；有人退群时送一下或补一刀；全场至少隔 4 秒
   const aiCan = () => aiOn() && now() - aiT > 4000;
   function aiSend(g, from, to, kind, delay) {
@@ -138,10 +154,12 @@ window.Props = (function () {
   function onOut(g, t, src) {
     if (!aiCan() || Math.random() > 0.5) return;
     const by = g.alive().filter((q) => !q.human);
-    const fr = by.filter((q) => ["ally", "friend", "mentor"].includes(g.relation(q, t))), rv = by.filter((q) => g.relation(q, t) === "rival");
+    const team = g.mode === "team";                                     // v69 2v2 / 全明星：先看同队 / 敌队，再看关系（和护短的 close 一样）
+    const fr = by.filter((q) => team ? q.team === t.team : ["ally", "friend", "mentor"].includes(g.relation(q, t)));
+    const rv = by.filter((q) => team ? q.team !== t.team : g.relation(q, t) === "rival");
     if (fr.length) { const q = rnd(fr); aiSend(g, q, t, pickKind(q, false), 1400); }
     else if (rv.length) { const q = rnd(rv); aiSend(g, q, t, pickKind(q, true), 1400); }
-    else if (src && src.alive && by.some((q) => q !== src)) aiSend(g, rnd(by.filter((q) => q !== src)), src, "like", 1400);
+    else if (src && src.alive) { const cheer = by.filter((q) => q !== src && (!team || q.team === src.team)); if (cheer.length) aiSend(g, rnd(cheer), src, "like", 1400); }
   }
   // 电脑回合开始：2v2 里有时先砸一下这回合要打的人（就是她的暗号，之后真的会集火她）；别的模式偶尔扔一个
   function onAiTurn(g, p) {
@@ -160,5 +178,5 @@ window.Props = (function () {
     else if (foe) aiSend(g, p, foe, pickKind(p, true), 200);
   }
 
-  return { KINDS, COMMON, SIG, kindsFor, meaning, human, onHit, onOut, onAiTurn };
+  return { KINDS, COMMON, SIG, kindsFor, meaning, human, watch, onHit, onOut, onAiTurn };
 })();

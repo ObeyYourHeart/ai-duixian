@@ -360,7 +360,8 @@ window.UI = (function () {
     if (!g) return;
     infoP = p; infoFocus = focus || null;
     const box = $("#hinfo"), me = g.human;
-    const rel = p !== me && (g.mode === "ffa" || g.mode === "duel") ? g.relation(p, me) : null;
+    const watch = !!g.watch;                                            // v71 斗蛐蛐：没有「你」，关系一栏不显示，道具是场外观众扔的
+    const rel = !watch && p !== me && (g.mode === "ffa" || g.mode === "duel") ? g.relation(p, me) : null;
     const relRow = rel ? ((window.GAME_DATA.relations || []).find(([a, b]) => (a === p.key && b === me.key) || (a === me.key && b === p.key)) || [])[3] : "";
     const side = g.mode === "team" && p !== me ? (g.nation ? `${((window.GAME_DATA.nations || {})[p.ch.nation] || {}).name} · ` : "") + (p.team === me.team ? "队友" : "对手") : g.mode === "id5" ? (p.role === "lord" || p.human || p.revealed ? Engine.ROLE[p.role] : "身份未知") : "";
     const st = heroStatus(p);
@@ -368,8 +369,8 @@ window.UI = (function () {
       <div class="hi-stat"><span>❤ 心态 ${Math.max(0, p.hp)} / ${p.maxHp}</span><span>🂠 手牌 ${p.hand.length}（上限 ${g.handLimit(p)}）</span>${g.equips(p).map((eq) => `<span>${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`).join("")}${p.cloud ? "<span>☁ 云端任务跑着</span>" : ""}${p.plugins && p.plugins.length ? `<span>🔌 插件：${p.plugins.map((c) => CD[c.k].name).join("、")}</span>` : ""}${p.clip ? "<span>🎞 素材 1 条</span>" : ""}${p.bgTask ? "<span>🧸 Jolly 跑腿中</span>" : ""}${side ? `<span>${side}</span>` : ""}${p.alive ? "" : "<span>已退群</span>"}</div>
       ${st.length ? `<div class="hi-st">${st.join(" · ")}</div>` : ""}
       ${rel ? `<div class="hi-rel ${rel}"><b>${REL_NAME[rel]}</b>${relRow}</div>` : ""}
-      ${p !== me && window.Props ? `<div class="hi-props"><div class="hp-row">${Props.kindsFor(me).map((k) => `<button class="hp-b${Props.KINDS[k].owner ? " sig" : ""}" data-k="${k}" title="${Props.KINDS[k].name}${Props.KINDS[k].owner ? "（你的专属）" : ""}"><img src="${A(`assets/img/prop_${k}.webp`)}" alt=""><span>${Props.KINDS[k].name}</span></button>`).join("")}</div>
-        <div class="hp-note">${Props.meaning(g, me, p)}</div></div>` : ""}
+      ${(watch || p !== me) && window.Props ? `<div class="hi-props"><div class="hp-row">${(watch ? Props.COMMON : Props.kindsFor(me)).map((k) => `<button class="hp-b${Props.KINDS[k].owner ? " sig" : ""}" data-k="${k}" title="${Props.KINDS[k].name}${Props.KINDS[k].owner ? "（你的专属）" : ""}"><img src="${A(`assets/img/prop_${k}.webp`)}" alt=""><span>${Props.KINDS[k].name}</span></button>`).join("")}</div>
+        <div class="hp-note">${watch ? "场外道具：扔给谁，谁就会出声回应你——只是看个热闹。" : Props.meaning(g, me, p)}</div></div>` : ""}
       ${p.ch.harness ? `<div class="hi-hz${p.deployed ? " on" : ""}"><div class="hi-sk1"><b>Harness · ${p.ch.harness.name}</b><em>${p.deployed ? "已上线" : `部署 ${p.deploy || 0} / ${g.deployNeed(p)}`}</em>${hzState(p).map((x) => `<i>${x}</i>`).join("")}</div>
         <div class="hi-short">${p.ch.harness.short}</div><div class="hi-desc">${p.ch.harness.desc}<br><small>每打出 1 张牌部署进度 +1，满格上线，整局生效。</small></div></div>` : ""}
       <div class="hi-skills">${p.ch.skills.filter((s) => !s.harness || !p.ch.harness).map((s) => {
@@ -384,7 +385,7 @@ window.UI = (function () {
     box.innerHTML = html;
     box.className = "";
     box.querySelector(".hi-x").onclick = (ev) => { ev.stopPropagation(); hideHeroInfo(); };
-    box.querySelectorAll(".hp-b").forEach((b) => { b.onclick = (ev) => { ev.stopPropagation(); if (Props.human(g, me, p, b.dataset.k)) hideHeroInfo(); }; });
+    box.querySelectorAll(".hp-b").forEach((b) => { b.onclick = (ev) => { ev.stopPropagation(); if (watch ? Props.watch(g, p, b.dataset.k) : Props.human(g, me, p, b.dataset.k)) hideHeroInfo(); }; });
     // 放在角色旁边：右边放得下就放右边，不然放左边；上下不出屏
     const w = box.offsetWidth, h = box.offsetHeight;
     let x = q.x + HERO_W * sc + 14;
@@ -407,7 +408,8 @@ window.UI = (function () {
   function renderTip() {
     const tip = $("#ctip"); if (!tip || !g) return;
     const me = g.human;
-    const id = drag && drag.on ? null : hoverId != null ? hoverId : selected;
+    const lock = selected != null && mode === "play" && me.hand.some((x) => x.id === selected);   // v69 选中一张牌期间提示框锁定它：去点上面【出牌】时擦过相邻牌，不会换成那张、按钮也不会消失
+    const id = drag && drag.on ? null : lock ? selected : hoverId != null ? hoverId : selected;
     const c = id != null && me.hand.find((x) => x.id === id);
     const ce = c && document.querySelector(`#hand .card[data-id="${c.id}"]`);
     if (!c || !ce) { tip.className = "hidden"; return; }
@@ -615,7 +617,7 @@ window.UI = (function () {
   function onlooker(t) {
     if (!g || Math.random() > 0.5) return;
     const near = g.alive().filter((q) => q !== t && !exprBusy[q.i]);
-    const fr = near.filter((q) => (g.mode === "team" && q.team === t.team) || ["ally", "friend"].includes(g.relation(q, t)));
+    const fr = near.filter((q) => (g.mode === "team" && q.team === t.team) || ["ally", "friend", "mentor"].includes(g.relation(q, t)));   // v69 加师徒
     const ri = near.filter((q) => g.relation(q, t) === "rival" || (g.mode === "team" && q.team !== t.team));
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
     if (fr.length && Math.random() < 0.55) expr(pick(fr), "hurt", 1100);
@@ -636,7 +638,8 @@ window.UI = (function () {
     kimi: { recall: "focus", burst: "focus", band1: "focus", ad: "shy", caught: "shy", egged: "shy" },
     qwen: { bundle: "cheer", luckybag: "cheer", qingke: "cheer", qingke_self: "cheer", heal: "cheer", guard: "stern", guard_xds: "stern", xds: "cheer" },
     minimax: { magic: "focus", edge: "focus", sig: "focus", guard: "stern", guard_glm: "stern", pelted: "stern" },
-    muse: { errand: "focus", haggle: "focus", confirm: "focus", low: "shy", gifted: "shy" } };
+    muse: { errand: "focus", haggle: "focus", confirm: "focus", low: "shy", gifted: "shy" },
+    llama: { greet: "sleepy", heal: "sleepy", low: "sleepy", dizzy: "sleepy", roger: "sleepy", tears: "tears", mourn: "tears", boom: "tears", gifted: "smug", gift: "smug" } };   // v71 Llama：犯困 / 委屈擦泪
   const QUIET_Q = ["greet", "hurt", "low", "out", "win", "roger", "mourn"];
   const hasX = (k, e) => k === "claude" || ((window.GAME_DATA.xexpr || {})[k] || []).includes(e);
   const HURT_KEYS = ["hurt", "hajimi", "out", "stolen", "fury", "halluc", "low", "mourn", "egged", "dad_skip"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",
@@ -753,11 +756,11 @@ window.UI = (function () {
   }
   // ---------------------------------------------------------------- 互动道具：抛物线飞过去，砸中后按种类出效果（盖章、弹窗、糊脸、落地、带电、火箭、烟花）
   const PROP_SFX = { dislike: ["stamp", 0.5], error: ["glitch_vhs", 0.35], gpu: ["spell2", 0.4], like: ["ding", 0.45], ban: ["stamp_thick", 0.7], nuke: ["bomb", 0.3],
-    rice: ["plop", 0.5], fish: ["pop_small", 0.5], banana: ["slap2", 0.5], rocket: ["whoosh_cartoon", 0.5], croc: ["boing", 0.45], pillow: ["boing", 0.45], carnival: ["yay", 0.35], scroll: ["paper", 0.6], takeout: ["notify", 0.45] };
+    rice: ["plop", 0.5], fish: ["pop_small", 0.5], banana: ["slap2", 0.5], rocket: ["whoosh_cartoon", 0.5], carrot: ["whoosh_cartoon", 0.5], croc: ["boing", 0.45], pillow: ["boing", 0.45], carnival: ["yay", 0.35], scroll: ["paper", 0.6], takeout: ["notify", 0.45] };
   const ERRORS = ["服务器繁忙，请稍后再试", "网络开小差了，请重试", "请求太频繁，请稍后", "内容生成失败，请重新生成", "Error 500：内部错误"];
   function throwProp(from, to, kind) {
     if (!g || !heroes[to.i]) return;
-    const K = Props.KINDS[kind], a = center(from), b = center(to), fx = $("#fx");
+    const K = Props.KINDS[kind], a = from ? center(from) : { x: SW / 2, y: SH - 60 }, b = center(to), fx = $("#fx");   // v71 from = null：斗蛐蛐的场外观众，从屏幕下方扔
     const it = el("img", "prop-fly"); it.src = A(`assets/img/prop_${kind}.webp`);
     it.style.left = a.x + "px"; it.style.top = a.y + "px"; fx.appendChild(it);
     const dx = b.x - a.x, dy = b.y - a.y, lift = Math.min(260, 90 + Math.hypot(dx, dy) * 0.25), spin = K.bad && kind !== "error" && kind !== "ban" ? 540 : 0;
@@ -976,9 +979,9 @@ window.UI = (function () {
   // v48 大招演出：玩家自己上线约 3 秒（时停 → 斜切眼部特写 → 纹章 + 爆发 → 技能名砸下 → 光点回座位），点一下 / Esc 跳过；
   //   电脑上线简版约 1.5 秒（斜切 + 技能名）。不震屏、不用集中线；立绘不扭曲，只动镜头 / UI / 两帧；粒子用 canvas，CSS 只动 transform / opacity
   const HZ_EYE = { claude: [335, 92], gpt: [345, 202], gemini: [372, 200], deepseek: [324, 187], glm: [340, 147], doubao: [337, 163], kimi: [344, 127],
-    grok: [380, 154], qwen: [405, 162], xds: [348, 352], xds_cl: [364, 374], minimax: [360, 220], muse: [360, 220] };   // 发动帧（720×1080）两眼中点，斜切光带里的眼部特写用
+    grok: [380, 154], qwen: [405, 162], xds: [348, 352], xds_cl: [364, 374], minimax: [360, 220], muse: [360, 220], llama: [369, 184] };   // 发动帧（720×1080）两眼中点，斜切光带里的眼部特写用
   const ULT = {                                                       // 专属纹章 / 粒子 / 音色
-    minimax: { glyph: "conch", part: "carrot", sfx: "ult_minimax" }, muse: { glyph: "jolly", glyph2: "todo", part: "todo", sfx: "ult_muse" },   // v49 MiniMax Code 海螺螺线 + 小胡萝卜 / Muse Code Jolly 兜帽 + 待办框
+    minimax: { glyph: "conch", part: "carrot", sfx: "ult_minimax" }, muse: { glyph: "jolly", glyph2: "todo", part: "todo", sfx: "ult_muse" }, llama: { glyph: "inf", glyph2: "wool", glyph0: "zz", part: "wool", sfx: "ult_llama" },   // v71 Llama Stack：外圈 ∞、内圈毛线绒团、中心 z；粒子奶油绒团 + 睡意泡泡   // v49 MiniMax Code 海螺螺线 + 小胡萝卜 / Muse Code Jolly 兜帽 + 待办框
     claude: { glyph: "flower", part: "petal", sfx: "ult_claude" }, gpt: { glyph: "cloud", part: "feather", sfx: "ult_gpt" },
     gemini: { glyph: "star", part: "stardust", sfx: "ult_gemini" }, deepseek: { glyph: "whale", part: "bubble", sfx: "ult_deepseek" },
     xds: { glyph: "whale", part: "bubble", sfx: "ult_deepseek" }, xds_cl: { glyph: "flower", part: "petal", sfx: "ult_claude" },
@@ -1071,7 +1074,8 @@ window.UI = (function () {
       x.lineWidth = 2; x.beginPath(); x.moveTo(-13.5, 8.6); x.quadraticCurveTo(-7, 5.6, 0, 9.2); x.quadraticCurveTo(7, 5.6, 13.5, 8.6); x.stroke(); x.restore(); };
     const sun = () => { x.beginPath(); for (let k = 0; k < 24; k++) { const a = -Math.PI / 2 + k * Math.PI / 12, rr = k % 2 ? 8.6 : (k % 4 ? 12.5 : 16); x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } x.closePath(); x.fill();   // v51 中心的金阳（神冠 / 胸针的太阳）：十二个尖、长短相间，中间抠一圈宝石
       x.save(); x.globalCompositeOperation = "destination-out"; x.lineWidth = 1.5; x.beginPath(); x.arc(0, 0, 5, 0, 7); x.stroke(); x.restore(); };
-    const GL = { flower, star, cloud, film, whale, coin, hex, conch, jolly, todo, star5, book, sun, inf: glyphText("∞"), code: glyphText("</>"), note: glyphText("♪"), check: glyphText("✓") };
+    const wool = () => { x.beginPath(); x.arc(-6, 2, 6.5, 0, 7); x.arc(6, 2, 6.5, 0, 7); x.arc(0, -5, 7.5, 0, 7); x.fill(); };   // v71 Llama：一团羊毛绒
+    const GL = { flower, star, cloud, film, whale, coin, hex, conch, jolly, todo, star5, book, sun, wool, zz: glyphText("z"), inf: glyphText("∞"), code: glyphText("</>"), note: glyphText("♪"), check: glyphText("✓") };
     const G = GL[U.glyph] || flower, G2 = GL[U.glyph2] || G, G0 = GL[U.glyph0] || G;   // glyph2：内圈换一种图案；glyph0：中心换一种（v51）
     x.globalAlpha = .95; motif(G, 8, r * 0.72, 1.5 * size / 600); motif(G2, 12, r * 0.34, 1 * size / 600);
     x.globalAlpha = 1; x.scale(3 * size / 600, 3 * size / 600); G0();
@@ -1104,6 +1108,10 @@ window.UI = (function () {
           { const im = wishSprites().pages[q.pi], w = s * 2.6, h = w * im.height / im.width, fl = Math.cos(q.life * 5 + q.ph);
             x.scale(Math.abs(fl) < 0.12 ? 0.12 : fl, 1); x.drawImage(im, -w / 2, -h / 2, w, h); }
           break;
+        case "wool":                                                    // v71 Llama：奶油色羊毛绒团 / 睡意泡泡（q.alt）
+          if (q.alt) { x.strokeStyle = color; x.lineWidth = 1.6; x.beginPath(); x.arc(0, 0, s * 0.55, 0, 7); x.stroke(); break; }
+          x.fillStyle = "#fbf4e8"; x.beginPath(); x.arc(-s * 0.4, s * 0.15, s * 0.5, 0, 7); x.arc(s * 0.4, s * 0.15, s * 0.5, 0, 7); x.arc(0, -s * 0.3, s * 0.58, 0, 7); x.fill();
+          x.strokeStyle = color; x.globalAlpha *= 0.5; x.lineWidth = 1; x.stroke(); break;
         case "todo":                                                    // v49 Muse：白色小待办卡 + 蓝色短条
           if (q.alt) { x.fillRect(-s * 0.9, -s * 0.18, s * 1.8, s * 0.36); break; }
           x.fillStyle = "#fff"; x.fillRect(-s, -s * 0.75, s * 2, s * 1.5); x.strokeStyle = color; x.lineWidth = 1.5; x.strokeRect(-s, -s * 0.75, s * 2, s * 1.5); x.strokeRect(-s * 0.72, -s * 0.32, s * 0.56, s * 0.56);
@@ -1162,7 +1170,7 @@ window.UI = (function () {
     return t;
   }
   // v48 大招登场（全场特效，三种试样：A 领域展开 / B 终端接管 / C 三连斜切；window.ULT_STYLE 选，默认 A）
-  const GLY = { claude: "✿", gpt: "☁", gemini: "✦", deepseek: "◉", xds: "◉", xds_cl: "✿", glm: "</>", doubao: "▶", kimi: "♪", grok: "$", qwen: "✓", minimax: "〰", muse: "☑" };   // v49 MiniMax 声波 / Muse 待办框
+  const GLY = { claude: "✿", gpt: "☁", gemini: "✦", deepseek: "◉", xds: "◉", xds_cl: "✿", glm: "</>", doubao: "▶", kimi: "♪", grok: "$", qwen: "✓", minimax: "〰", muse: "☑", llama: "∞" };   // v49 MiniMax 声波 / Muse 待办框
   function ultIntro(box, p, key, tc, name, at, hc, fx) {
     // 小DeepSeek 穿 Claude 的衣服：换成 Claude 的圣女领域展开（橙色法阵 + 光柱降临）
     const style = key === "xds_cl" ? "A" : godSkin(p) ? "G" : (window.ULT_STYLE || "B"), W = fx.width, H = fx.height, add = (cls, html = "") => { const e = el("div", cls, html); box.appendChild(e); return e; };
@@ -1486,7 +1494,8 @@ window.UI = (function () {
     const others = heroes.filter((h, k) => h && k !== p.i);
     // v51 演出完整播完、上线台词说完整：原来固定 3 秒就收，台词（2.7–5.9 秒）才说到一半，对局接着走、她的下一句话还会把它打断。
     //   现在技能名砸下之后发动帧留在屏幕上（镜头慢推、身边飘粒子、再眨一次眼），等台词说完 0.3 秒才收尾；玩家和电脑一样。关了配音就照旧 3 秒。v56 不能跳过
-    const lk = key === "xds_cl" && p.ch.lines.wish ? "wish" : gid && (p.ch.lines["deploy_" + gid] || []).length ? "deploy_" + gid : "deploy";
+    const sid = !p.disguise && window.Settings ? Settings.skinOf(p.key) || "" : "";   // v71 任何皮肤（小克老师、化学课代表……）配了 deploy_<皮肤id> 就必播，收尾也按它的时长
+    const lk = key === "xds_cl" && p.ch.lines.wish ? "wish" : sid && (p.ch.lines["deploy_" + sid] || []).length ? "deploy_" + sid : "deploy";
     const voiceOn = !!(Sound.S && Sound.S.sfx && Sound.S.voiceVol > 0), LINE_AT = 1820, outAt = (ms) => Math.min(9000, Math.max(2600, LINE_AT + ms + 300));   // 收尾开始的时刻（毫秒，从演出开始算）
     let endRes; deployEnd = new Promise((r) => { endRes = r; });
     return new Promise((res) => {
@@ -1680,6 +1689,11 @@ window.UI = (function () {
     if (c.k === "shuaiguo") return "【甩锅】要在被吐槽时才能打出";
     if (c.k === "jiaban") return "已经在深度思考了";
     if (c.k === "dangji") return "场上已经有一张【宕机】了";
+    if (c.k === "paofen") return "跑分榜一得是对手：现在手牌最多的不是对手（打出这张后你自己少 1 张）";   // v69 具体原因
+    if (c.k === "zhengliu") return "弃牌堆里还没有能捡回来的锦囊";
+    if (c.k === "zhuru") return g.alive().length < 3 ? "至少 3 人在场才能用【提示词注入】" : "没有可以注入的对手";
+    if (c.k === "tiaocao") return "对手都没有手牌，没法跳槽换牌";
+    if (c.k === "duiqi") return "能对齐的对手都已经对齐过了";
     return "现在不能用";
   }
   function onSkillBtn(s) {
@@ -1739,7 +1753,8 @@ window.UI = (function () {
     mode = "respond"; selected = null; clearTimeout(autoT);
     const c0 = opt.cards[0], swap = c0 && c0.k !== opt.kind;            // GPT 六边形：没有这张，就拿另一张顶上
     const btns = [[swap ? `用${CD[c0.k].name}当${d.name}` : `打出${d.name}`, () => finishRespond({ card: c0 }), true], ["不出", () => finishRespond(null)]];
-    const auto = opt.kind === "yidu" || opt.kind === "shuaiguo" ? () => finishRespond(null) : () => finishRespond({ card: opt.cards[0] });
+    const mateInject = opt.kind === "tucao" && opt.ctx.inject && opt.ctx.victim && p.team != null && opt.ctx.victim.team === p.team && p.hp >= 2;   // v69 被注入去打队友：倒计时默认不执行（心态还够）
+    const auto = opt.kind === "yidu" || opt.kind === "shuaiguo" || mateInject ? () => finishRespond(null) : () => finishRespond({ card: opt.cards[0] });
     showPrompt(text, btns, timerMs(), auto, "respond");
     sync();
     return new Promise((res) => { respondResolve = res; });
@@ -1907,7 +1922,7 @@ window.UI = (function () {
     if (!g) return;
     const me = game.human, w = game.winner;
     const winners = game.winners || [w];
-    const won = winners.includes(me);
+    const bet = game.watch && game.watch.bet, won = bet ? !!w && w.key === bet : winners.includes(me);   // v71 斗蛐蛐：押中就算赢
     const winMs = (w && say(w, "win", true)) || 1800;
     // v39 结算补刀：赢家说完，输家里跟她有斗嘴台词的（宿敌优先）不服气地接一句，显示在结算框里
     const pairs = (window.GAME_DATA.pairs || []).filter((pr) => w && pr[2] === w.key && pr[0] !== w.key && (!g.skinOk || g.skinOk(pr)));
@@ -1932,14 +1947,14 @@ window.UI = (function () {
     } else {
       const order = [w, ...game.alive().filter((p) => p !== w), ...game.outOrder.slice().reverse()].filter((v, i, a) => v && a.indexOf(v) === i);
       rank = order.map((p, i) => `<div><span>${i === 0 ? "👑 群主" : `第 ${i + 1} 名`}</span><img src="${portrait(p.key, "avatar")}" alt="">${p.name}${stat(p)}</div>`).join("");
-      title = won ? "你成了群主！" : `${w.name} 成了群主`;
-      sub = won ? "全群都被你怼服了。" : me.alive ? "" : "你破防退群了……下次再来！";
+      title = won && !bet ? "你成了群主！" : `${w.name} 成了群主`;
+      sub = bet ? (won ? `🎉 押中了！今日冠军就是 ${w.name}。` : `没押中……你押的是 ${window.GAME_DATA.chars[bet].name}，下一局再赌一把。`) : won ? "全群都被你怼服了。" : me.alive ? "" : "你破防退群了……下次再来！";
     }
     $("#modal-body").innerHTML = `<div class="result"><img src="${w.disguise ? portrait("xds_cl", "cheer") : portrait(w.key, "win")}" alt="">
       <div class="rr"><div class="rt">${title}</div>
       <p>${sub}</p>
       <div class="rank">${rank}</div>
-      <div class="rbtn"><button class="btn primary" id="btn-again">再来一局</button><button class="btn" id="btn-change">换角色</button><button class="btn" id="btn-report">本局战报</button></div></div></div>`;
+      <div class="rbtn"><button class="btn primary" id="btn-again">再来一局</button><button class="btn" id="btn-change">${bet ? "换一拨人" : "换角色"}</button><button class="btn" id="btn-report">本局战报</button></div></div></div>`;
     $("#modal-close").style.display = "none";
     $("#modal").classList.remove("hidden");
     if (sore && !w.disguise) {
