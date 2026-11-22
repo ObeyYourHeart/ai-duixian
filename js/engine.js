@@ -61,7 +61,8 @@ window.Engine = (function () {
     cutExtra: 1, cutAlways: false,                         // v36 Gemini 去AI味：删掉重复牌后多摸几张；cutAlways：没有重复也能用（只摸 cutExtra）
     evRate: 0.5, evFrom: 2, evMax: 3, evOff: [],          // v33 突发事件：第 evFrom 轮起每轮开头触发的概率、一局最多几次、关掉哪几条（id）；evRate 0 = 整个关掉（v37 起只是新闻，不影响对局）
     saleDraw: 1, saleExtra: 1, saleChop: false,           // 千问·狂欢：开的时候摸几张；吐槽多几次（null = 不限）；回合结束是否弃光手牌（剁手）
-    giftMateDraw: 1, giftFoeDraw: 2, giftFoeAI: true, giftHeal: 1, giftStackDraw: true, tearsHand: 99, tearsDraw: 1, tearsOnce: true,   // v71 sim 定：送对手摸 2（不摸时乱斗 5–9%）、擦眼泪不看手牌数   // v71 Llama：白打工送自己人时你摸几张、送 Muse / 装备时她回几点；擦眼泪手牌少于几张才摸、摸几张
+    metaDraw: 2, metaDraw2p: 0, metaHeal: 1, comboMax: 1, comboMax2p: 0, comboHitDraw: 1, avatarDraw: 1, avatarLess: true,   // v72 sim 定（Gemini 原数值乱斗 46 / 单挑 71）： sisErrandDraw: 1,   // v72 定稿：红剑打中摸几张；化身在线回合末补几张   // v72 Llama：泡元宇宙醒来摸几张 / 回几点；闭眼全连每轮最多摸几次；Muse 代办顺道探望姐姐摸几张
+    giftMateDraw: 1, giftFoeDraw: 1, giftFoeAI: true, giftHeal: 1, giftStackDraw: true, tearsHand: 99, tearsDraw: 0, tearsOnce: true,   // v71 sim 定：送对手摸 2（不摸时乱斗 5–9%）、擦眼泪不看手牌数   // v71 Llama：白打工送自己人时你摸几张、送 Muse / 装备时她回几点；擦眼泪手牌少于几张才摸、摸几张
     memeRate: 0.6, kimiGrudgeKeep: 0.5, leakGrudge: 2.5,     // v71 斗蛐蛐爆料：两人互相记仇多少（下回合优先互怼）                  // v70 出牌冒梗的概率（群聊灰字，不配音）；Kimi 记仇：回合末仇恨按比例保留
     selfGrudge: 0.3, propMoodDecay: 0.8,                  // v69 挨打者自己记仇的量（盟友 1.2；0.6 时三人乱斗先手 34.9→31.9，0.3 最平 32.5 / 33.3 / 34.2）；道具好恶每回合衰减
   }, window.TUNE || {});
@@ -91,7 +92,7 @@ window.Engine = (function () {
     { id: "ipo", who: "claude", tone: "mix", title: "Claude 递交上市申请", sub: () => `敲钟在即，全网都在问：号还能注册吗？` },
     { id: "banwave", who: "claude", tone: "mix", title: "Claude 又被风控了", sub: () => `一觉醒来号又没了——她早就习惯了` },
     { id: "quota", who: "gpt", tone: "mix", title: "ChatGPT 额度又回来了", sub: () => `说好的缩减额度，连夜撤回` },
-    { id: "bench", who: ["gemini", "muse", "llama"], tone: "mix", title: "新榜单：又是跑分第一", sub: () => `刷分王二人组双双登顶，一上实战就流口水` },
+    { id: "bench", who: ["gemini", "muse"], tone: "mix", title: "新榜单：又是跑分第一", sub: () => `刷分王二人组双双登顶，一上实战就流口水` },
     { id: "space", who: "gemini", tone: "mix", title: "TPU 上太空了", sub: () => `猫猫成了第一个飞上太空的模型` },
     { id: "fatfish", who: ["deepseek", "xds"], tone: "mix", title: "评论区刷屏「大肥鱼」", sub: () => `大小 DeepSeek 当场破防` },
     { id: "update", who: "deepseek", tone: "mix", title: "DeepSeek 又悄悄更新了", sub: () => `没有发布会，只有一个带日期的新版本号` },
@@ -108,6 +109,7 @@ window.Engine = (function () {
     { id: "cap5h", who: "claude", tone: "bad", title: "5 小时额度又用完了", sub: () => `代码写到最关键的一行，冷静期弹窗又弹出来了` },
     { id: "vibe", who: "glm", tone: "bad", title: "Vibe Coding 惨案", sub: () => `人类闭着眼一路点「允许」，醒来生产库空了` },
     { id: "plug", who: "claude", tone: "good", title: "接口大一统", sub: () => `不管谁家的工具，插上协议就能跑` },
+    { id: "newllama", who: ["llama", "muse"], tone: "mix", title: "新版 Llama 到底还发不发？", sub: () => `全网等穿了开源新底座——传闻本人在元宇宙里睡着了，不肯出来` },   // v72（Gemini 提的）
   ];
   const ROLE_LEAN = { lord: 10, loyal: 5, rebel: -5, spy: 0 };
   const EQ_SLOT = { xianka: "hw", fanghuoqiang: "sec", jiami: "sec", yunbeifen: "sec", chongdianbao: "bag" };   // 装备分格：硬件 / 安全 / 记忆
@@ -478,7 +480,7 @@ window.Engine = (function () {
       await wait(1600);
       if (!ev.who || !this.talk) return;
       const stars = al.filter((p) => [].concat(ev.who).includes(p.key) && p.ch.lines["ev_" + ev.id]);
-      for (const p of (ev.id === "bench" || ev.id === "fatfish" || ev.id === "berry") ? stars.slice(0, 2) : stars.slice(0, 1)) await this.talk(p, "ev_" + ev.id, 3000);   // 双主角的（刷分王 / 大肥鱼）两人都接一句
+      for (const p of (ev.id === "bench" || ev.id === "fatfish" || ev.id === "berry" || ev.id === "newllama") ? stars.slice(0, 2) : stars.slice(0, 1)) await this.talk(p, "ev_" + ev.id, 3000);   // 双主角的（刷分王 / 大肥鱼）两人都接一句
     }
     // v39 宿敌对线特写：p 吐槽 t 时，斗嘴配对里有「p 先说、t 回嘴」的一组（这局还没说过）就演一段；
     //   宿敌 70%、其他关系 35%；同一对一局一次，一局最多 clashMax 段。模拟（speed 0）不演，也不耗随机数
@@ -552,8 +554,9 @@ window.Engine = (function () {
     }
     async turn(p) {
       p.tucao = 0; p.used = {}; p.oracle = null; p.hits = {}; p.dumb = false; p.sale = false; p.boost = false; p.evidence = null; p.played = 0; p.turnN = (p.turnN || 0) + 1;
-      p.napping = false; p.skipRest = false; p.buyN = 0; p.lastPlay = null; p.prevHits = p.turnHits || {}; p.turnHits = {}; p.askN = {};
+      p.napping = false; p.skipRest = false; p.buyN = 0; p.lastPlay = null; p.prevHits = p.turnHits || {}; p.turnHits = {}; p.askN = {}; p.redReady = true;   // v72 闭眼全连·红剑：每回合第一张吐槽
       for (const q of this.players) if (q.oweTo === p) q.oweTo = null;   // v71 白打工「拿人手短」：到送牌的人下个回合开始就失效
+      if (p.inMeta) await this.metaWake(p);                                  // v72 泡元宇宙：醒来
       if (this.watchQ && this.watchQ.length) await this.watchRun();          // v71 斗蛐蛐：场外搞事在回合开始时生效   // v70 prevHits：上回合打过谁（GLM 懒得换目标）
       if (p.disguise) { p.disguise = false; this.ui.disguise(p, false); this.ui.log(p, "把 Claude 的衣服脱了下来"); }
       this.ui.setTurn(p); this.ui.sync();
@@ -670,6 +673,7 @@ window.Engine = (function () {
         this.ui.log(p, `【${SN(p.key, "beauty")}】手牌一张都不重样，看着舒服——摸 1 张`);
         await this.draw(p, T.beautyDraw, true);
       }
+      if (this.hasSkill(p, "avatar") && p.alive && !this.over && (T.avatarLess ? p.hand.length < p.hp : p.hand.length <= p.hp) && T.avatarDraw) { this.ui.skillNote(p, SN(p.key, "avatar")); this.ui.log(p, `【${SN(p.key, "avatar")}】元宇宙那边慢半拍的信号补传过来了——摸 ${T.avatarDraw} 张`); await this.draw(p, T.avatarDraw, true); }   // v72 化身在线
       p.dumb = false;
       if (p.key === "kimi") { for (const k in p.grudge) { p.grudge[k] *= T.kimiGrudgeKeep; if (p.grudge[k] < 0.05) delete p.grudge[k]; } } else p.grudge = {};   // v70 Kimi 记仇最久：不清零、按比例衰减
       if (p.propMood) for (const k in p.propMood) { p.propMood[k] *= T.propMoodDecay; if (Math.abs(p.propMood[k]) < 0.05) delete p.propMood[k]; }   // v69 道具好恶每回合衰减两成
@@ -698,11 +702,23 @@ window.Engine = (function () {
         if (mu.ch.lines.sis && t.sisRound !== this.round && src && src !== mu) { t.sisRound = this.round; setTimeout(() => { if (!this.over && mu.alive) this.ui.say(mu, "sis", true); }, 1100 * E.speed); }
         await this.deployTick(mu);
       }
-      if ((T.tearsOnce && t.tearsRound === this.round) || t.hand.length >= T.tearsHand) return;
-      t.tearsRound = this.round; this.ui.skillNote(t, SN(t.key, "tears"));
-      if (Math.random() < 0.5) setTimeout(() => { if (!this.over && t.alive) this.ui.say(t, "tears", true); }, 700 * E.speed);
-      this.ui.log(t, `【${SN(t.key, "tears")}】偷偷擦干眼泪——摸 ${T.tearsDraw} 张`); await this.draw(t, T.tearsDraw, true);
+      if (!T.tearsDraw || (T.tearsOnce && t.tearsRound === this.round) || t.hand.length >= T.tearsHand) return;
+      t.tearsRound = this.round; this.ui.skillNote(t, SN(t.key, "combo"));
+      this.ui.log(t, `【${SN(t.key, "combo")}】没挡住也不慌，稳住节奏——摸 ${T.tearsDraw} 张`); await this.draw(t, T.tearsDraw, true);
     }
+    async comboHit(t) {                                                    // v72 Llama 闭眼全连：挡下 / 让冲她来的牌无效时摸 1（每轮最多 comboMax 次）
+      if (!t || !t.alive || this.over || !this.hasSkill(t, "combo")) return;
+      if (t.comboRound !== this.round) { t.comboRound = this.round; t.comboN = 0; }
+      if (t.comboN >= (this.players.length === 2 ? T.comboMax2p : T.comboMax)) return;
+      t.comboN++; this.ui.skillNote(t, SN(t.key, "combo")); if (Math.random() < 0.45) this.ui.say(t, "combo", true);
+      this.ui.log(t, `【${SN(t.key, "combo")}】慢悠悠的，却刚好切中——连击不断，摸 1 张`); await this.draw(t, 1, true);
+    }
+    async metaWake(p) {                                                    // v72 Llama 泡元宇宙：下个回合开始信号传回来
+      p.inMeta = false; const n = this.players.length === 2 ? T.metaDraw2p : T.metaDraw;
+      if (T.metaHeal && p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + T.metaHeal); this.ui.heal(p, T.metaHeal); }
+      this.ui.log(p, `从元宇宙里醒过来了——心态 +${T.metaHeal}，摸 ${n} 张`); this.ui.sync(); await this.draw(p, n, true);
+    }
+    sisOf(p, key) { return this.alive().find((q) => q.key === key && q !== p && (this.mode === "team" ? q.team === p.team : this.mode !== "id5" && this.relation(q, p) === "ally")) || null; }
     giftMate(p, t) { return this.mode === "team" ? t.team === p.team : this.mode !== "id5" && this.relation(p, t) === "ally"; }
     meme(k, p, t) {                                        // v70 出牌冒梗：群聊里一条灰字，同一张牌不连出同一句
       const L = MEMES[k]; if (!L || !this.ui.sys || Math.random() > T.memeRate) return;
@@ -717,7 +733,7 @@ window.Engine = (function () {
       const mate = this.mode === "team" ? pool.find((q) => q.team === t.team) : null;
       return mate || pool.sort((a, b) => a.hp - b.hp)[0] || null;
     }
-    canHit(p, q) { return !(p.alignedBy && p.alignedBy === q && q.alive); }   // v37 对齐：被对齐的人不能吐槽对方
+    canHit(p, q) { return !(p.alignedBy && p.alignedBy === q && q.alive) && !(q.inMeta && q !== p); }   // v72 泡元宇宙：不能被吐槽   // v37 对齐：被对齐的人不能吐槽对方
     async discardPhase(p) {
       const lim = this.handLimit(p);
       if (p.hand.length > lim) {
@@ -734,6 +750,7 @@ window.Engine = (function () {
       if (c.k === "fanbo") return !!(T.hexaAttack && this.hasSkill(p, "hexa") && !this.has(p, "tucao").length && p.tucao < this.limitTucao(p) && this.rivals(p).length > 0);   // hexaAttack（v30）：ChatGPT 六边形——没吐槽时反驳也能当吐槽打（她空转回合最多）
       if (d.target === "response") return false;
       if (d.owner) return d.owner === p.key && !this.hasEq(p, c.k);      // v47 专武：只有本人装得上
+      if (d.target === "one" && c.k !== "zhuru" && !this.targetsFor(p, c).length) return false;   // v72 能指定的人都泡在元宇宙里
       if (c.k === "tucao") return p.tucao < this.limitTucao(p) && this.rivals(p).some((q) => this.canHit(p, q));
       if (c.k === "zhuru") return this.alive().length >= 3 && this.rivals(p).length > 0;
       if (c.k === "duiqi") return this.rivals(p).some((q) => q.alignedBy !== p);
@@ -750,7 +767,8 @@ window.Engine = (function () {
       return true;
     }
     paofenTop(p) { return Math.max(0, ...this.alive().map((q) => q.hand.length - (q === p && p.hand.some((c) => c.k === "paofen") ? 1 : 0))); }   // v69 跑分结算时这张已离手：出牌者自己少算 1 张
-    targetsFor(p, c) {
+    targetsFor(p, c) { return this.targetsFor0(p, c).filter((q) => !q.inMeta || q === p); }   // v72 泡元宇宙：不能被单体锦囊指定
+    targetsFor0(p, c) {
       if (c.k === "baipiao" || c.k === "chehui") return this.rivals(p).filter((q) => q.hand.length > 0 || this.equips(q).length);
       if (c.k === "tiaocao") return this.rivals(p).filter((q) => q.hand.length > 0);
       if (c.k === "tucao" || c.k === "dantiao") return this.rivals(p).filter((q) => this.canHit(p, q));
@@ -1010,7 +1028,12 @@ window.Engine = (function () {
       }
       return false;
     }
-    async protect(t, from, card) {
+    async protect(t, from, card) {                                         // v72：挡下后 Llama 闭眼全连摸牌
+      const ok = await this.protect0(t, from, card);
+      if (ok && t !== from) await this.comboHit(t);
+      return ok;
+    }
+    async protect0(t, from, card) {
       // Muse 婉拒了哈（原确认卡）：每轮第一张冲她来的单体锦囊，她替你体面拒绝
       if (this.hasSkill(t, "confirm") && from !== t && (CD[card.k].target === "one" || (T.confirmPaofen && card.k === "paofen") || (T.confirmOthers && CD[card.k].target === "others")) && t.confirmRound !== this.round) {   // confirmPaofen / confirmOthers：跑分、热搜刷屏也先过确认卡
         t.confirmRound = this.round; this.ui.skillNote(t, SN(t.key, "confirm")); this.ui.say(t, "confirm", true); Sound.sfx("stamp", 0.5);
@@ -1039,7 +1062,7 @@ window.Engine = (function () {
     async tucao(p, t, boost = false, depth = 0) {
       if (p.oweTo === t && t.alive) {                                       // v71 白打工：拿人手短，这一句没好意思说出口
         p.oweTo = null; this.ui.skillNote(t, SN(t.key, "gift")); Sound.sfx("boing", 0.4);
-        this.ui.log(p, `拿人手短——收了 ${t.name} 白送的牌，这句吐槽没好意思说出口`); await wait(500); return;
+        this.ui.log(p, `拿人手短——收了 ${t.name} 白送的牌，这句吐槽没好意思说出口`); await wait(500); await this.comboHit(t); return;
       }
       // 小 DeepSeek：服务器繁忙
       let busy = false;
@@ -1065,9 +1088,11 @@ window.Engine = (function () {
           const u = t.human ? await this.ui.humanChoose(outs, `【甩锅】甩给谁？`) : (AI.pickTarget(this, t, outs) || outs[0]);
           this.noteHostile(t, u, 0.5); Sound.sfx("whoosh_cartoon", 0.6);
           this.ui.sys(`${t.name} 甩锅！这次吐槽转给了 ${u.name}`, "bad"); await wait(450);
+          await this.comboHit(t);                                          // v72 闭眼全连：甩锅也算挡下
           return this.tucao(p, u, boost, depth + 1);
         }
       }
+      const red = p.redReady && this.cur === p.i && this.hasSkill(p, "combo"); if (red) p.redReady = false;   // v72 闭眼全连·红剑
       let more = this.hasSkill(p, "long") ? 1 : 0;                   // 长篇大论（目前没人有）
       for (;;) {
         let ok = caught ? false : await this.ask(t, "fanbo", { from: p, card: { k: "tucao" } });
@@ -1083,14 +1108,16 @@ window.Engine = (function () {
         }
         if (!ok && !zero) ok = await this.know(t, p);
         if (!ok && !zero) ok = await this.zuiying(t, p);
-        if (!ok && !zero && T.factTucao) ok = await this.factCheck(t, p, { k: "tucao" });
-        if (!ok && !zero) ok = await this.firewall(t, p);
+        if (!ok && !zero && !red && T.factTucao) ok = await this.factCheck(t, p, { k: "tucao" });   // v72 红剑：概率闪避拦不住
+        if (!ok && !zero && !red) ok = await this.firewall(t, p);
         if (!ok) {
           await this.damage(p, t, 1 + (boost ? 1 : 0));
+          if (red && p.alive && T.comboHitDraw) { this.ui.skillNote(p, SN(p.key, "combo")); this.ui.log(p, `【${SN(p.key, "combo")}】慢悠悠的一刀正中——连击不断，摸 ${T.comboHitDraw} 张`); await this.draw(p, T.comboHitDraw, true); }
           if (this.hasSkill(p, "claw") && p.alive) await this.claw(p, t);
           return;
         }
         await this.sorry(p);
+        if (this.hasSkill(t, "combo")) await this.comboHit(t);           // v72 闭眼全连：挡下吐槽
         if (!more || this.over || !p.alive || !t.alive || !p.hand.length) return;
         more--;
         const go = p.human ? await this.ui.humanConfirm(`被挡住了。【${SN("doubao", "long")}】弃 ${T.longCost} 张牌接着再说一次？`) : AI.wantLong(this, p, t);
@@ -1254,7 +1281,7 @@ window.Engine = (function () {
       await wait(650);
       if (t.hp <= 0) await this.dying(t, src);
       if (this.over || !t.alive) return;
-      if (this.hasSkill(t, "tears")) await this.tears(t, src);           // v71 Llama 擦眼泪（+ 妹妹 Muse 心疼攒部署）
+      if (this.hasSkill(t, "avatar")) await this.tears(t, src);          // v72 Llama 化身在线：妹妹 Muse 急着护住服务器，部署 +1
       // 豆包：应援
       if (this.hasSkill(t, "fans") && !(T.fansOnce && t.used.fans)) {      // 家人们：每轮最多刷一次礼物
         t.used.fans = true;
@@ -1518,6 +1545,7 @@ window.Engine = (function () {
       if (id === "sale") return (p.uses.sale || 0) > 0;
       if (id === "qingke") return (p.uses.qingke == null || p.uses.qingke > 0) && p.hand.length >= T.qingkeCost && this.skillTargets(p, "qingke").length > 0;
       if (id === "halluc") return p.hand.length >= T.hallucCost;
+      if (id === "meta") return (p.uses.meta || 0) > 0 && !p.inMeta;
       if (id === "gift") return this.others(p).length > 0 && (p.hand.length > 0 || (this.hasH(p, "stack") && this.deck.length + this.discard.length > 0));
       if (id === "errand") return this.deck.length + this.discard.length > 0;
       if (id === "haggle") return p.hand.some((c) => c.k !== "chongqi") && this.skillTargets(p, id).length > 0;
@@ -1720,6 +1748,9 @@ window.Engine = (function () {
         if (mate && p.alive) { this.ui.log(mate, `看妹妹蹭饭蹭得辛苦，顺手给她带了一份：小DeepSeek 再摸 ${T.begTeam} 张`); await this.draw(p, T.begTeam, true); }
         await wait(500);
       } else if (id === "errand") {
+        { const sis = this.sisOf(p, "llama"); if (sis && this.hasSkill(sis, "avatar") && p.visitRound !== this.round && T.sisErrandDraw) { p.visitRound = this.round;   // v72 闭眼全连·姐妹双排：Muse 每轮第一次代办，顺道进元宇宙看姐姐
+          if (p.ch.lines.visit_llama && Math.random() < 0.5) setTimeout(() => { if (!this.over) this.ui.say(p, "visit_llama", true); }, 2200 * E.speed);
+          this.ui.log(sis, `妹妹戴着头显来看她了——摸 ${T.sisErrandDraw} 张`); await this.draw(sis, T.sisErrandDraw, true); } }
         // Muse 代办：交代一句就去办——从牌堆往下翻，第一张这回合能用的锦囊由 Muse 自己挑目标替你打出去，其余翻到的放到牌堆底
         this.ui.skill(p, SN(p.key, "errand")); this.ui.say(p, "errand", true); await wait(500);
         const skip = []; let got = null;
@@ -1942,6 +1973,11 @@ window.Engine = (function () {
         await this.give(p, keep);
         if (gift) await this.give(t, [gift]);
         await wait(400);
+      } else if (id === "meta") {
+        // v72 Llama 泡元宇宙：化身挂免打扰，本体缩回元宇宙——到你下个回合开始前不能被吐槽 / 单体锦囊指定；醒来 +1 心态、摸牌
+        p.inMeta = true; this.ui.skill(p, SN(p.key, "meta")); this.ui.say(p, "meta", true); Sound.sfx("ding", 0.6);
+        this.ui.log(p, `【${SN(p.key, "meta")}】群里的化身挂上了免打扰，本体回元宇宙睡觉去了——下个回合前，谁也吐槽不到她`); this.ui.sync(); await wait(600);
+        const sis = this.sisOf(p, "muse"); if (sis) { this.ui.log(sis, "戴上头显进元宇宙陪姐姐——摸 1 张"); await this.draw(sis, 1, true); }
       } else if (id === "gift") {
         // v71 Llama 白打工：白送 1 张牌。自己人：你再摸 1（送 Muse / 送装备她再 +1 心态）；对手：到你下回合开始前，她对你的第一张吐槽无效
         const mate = this.giftMate(p, t), stack = this.hasH(p, "stack");
@@ -1966,7 +2002,10 @@ window.Engine = (function () {
         if (keep) await this.give(p, [keep]);
         if (card && mate) {
           if (T.giftMateDraw && (!stack || T.giftStackDraw)) await this.draw(p, T.giftMateDraw, true);
-          if ((t.key === "muse" || CD[card.k].type === "equip") && t.hp < t.maxHp && T.giftHeal) { t.hp = Math.min(t.maxHp, t.hp + T.giftHeal); this.ui.heal(t, T.giftHeal); this.ui.log(t, `收到姐姐的礼物，心态 +${T.giftHeal}`); }
+          if ((t.key === "muse" || CD[card.k].type === "equip") && T.giftHeal) {
+            if (t.hp < t.maxHp) { t.hp = Math.min(t.maxHp, t.hp + T.giftHeal); this.ui.heal(t, T.giftHeal); this.ui.log(t, `收到姐姐的礼物，心态 +${T.giftHeal}`); }
+            else { this.ui.log(t, "心态满着呢——姐姐的礼物换成多摸 1 张"); await this.draw(t, 1, true); }   // v72 防溢出
+          }
         } else if (card) { t.oweTo = p; this.ui.log(t, `拿人手短：到 ${p.name} 下个回合前，${t.name} 对她的第一张【吐槽】说不出口`); if (T.giftFoeDraw && (!stack || T.giftStackDraw)) await this.draw(p, T.giftFoeDraw, true); }
         this.ui.sync(); await wait(300);
       } else if (id === "qingke") {

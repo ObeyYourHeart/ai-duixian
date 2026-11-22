@@ -349,7 +349,7 @@ window.UI = (function () {
   function heroStatus(p) {
     const st = [];
     if (p.banned) st.push("🚫 封号中"); if (p.muted) st.push("🔇 禁言中"); if (p.dumb) st.push("❓ 降智中");
-    if (p.napping) st.push("😴 补觉中"); if (p.disguise) st.push("🎭 正在冒充 Claude");
+    if (p.napping) st.push("😴 补觉中"); if (p.disguise) st.push("🎭 正在冒充 Claude"); if (p.inMeta) st.push("🥽 泡在元宇宙：下个回合前不能被吐槽、单体锦囊指定");
     if (p.eggBy) st.push(`🥚 领了 ${p.eggBy.name} 的鸡蛋：她下回合开始会借走 ${Engine.T.eggSteal} 张（手里有【越狱】能砸碎）`);
     if (p.band && p.band.length) st.push(`🎸 乐队 ${p.band.length} / ${Engine.T.bandMax}${p.band.length >= Engine.T.bandMax ? "，随时开唱" : ""}`);
     if (p.offline) st.push("📵 断网中"); if (p.boost) st.push("🧠 深度思考中");
@@ -639,7 +639,7 @@ window.UI = (function () {
     qwen: { bundle: "cheer", luckybag: "cheer", qingke: "cheer", qingke_self: "cheer", heal: "cheer", guard: "stern", guard_xds: "stern", xds: "cheer" },
     minimax: { magic: "focus", edge: "focus", sig: "focus", guard: "stern", guard_glm: "stern", pelted: "stern" },
     muse: { errand: "focus", haggle: "focus", confirm: "focus", low: "shy", gifted: "shy" },
-    llama: { greet: "sleepy", heal: "sleepy", low: "sleepy", dizzy: "sleepy", roger: "sleepy", tears: "tears", mourn: "tears", boom: "tears", gifted: "smug", gift: "smug" } };   // v71 Llama：犯困 / 委屈擦泪
+    llama: { greet: "sleepy", heal: "sleepy", low: "sleepy", meta: "sleepy", roger: "sleepy", hurt: "tears", mourn: "tears", boom: "tears", gifted: "smug", gift: "smug", combo: "smug", avatar: "sleepy" } };   // v72   // v71 Llama：犯困 / 委屈擦泪
   const QUIET_Q = ["greet", "hurt", "low", "out", "win", "roger", "mourn"];
   const hasX = (k, e) => k === "claude" || ((window.GAME_DATA.xexpr || {})[k] || []).includes(e);
   const HURT_KEYS = ["hurt", "hajimi", "out", "stolen", "fury", "halluc", "low", "mourn", "egged", "dad_skip"], SMUG_KEYS = ["attack", "win", "ban", "reset", "buy", "steal", "steal_claude", "fans", "recall",

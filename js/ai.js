@@ -241,6 +241,7 @@ window.AI = (function () {
     if (g.canSkill(p, "search")) return { skill: "search" };
     if (g.canSkill(p, "pen") && g.rivals(p).filter((q) => q.alive).length >= (g.players.length === 2 ? 1 : 2) || g.canSkill(p, "pen") && g.rivals(p).some((q) => q.alive && q.hp <= 1)) return { skill: "pen" };   // 妙笔：对手多时刷一片划算；有人只剩 1 点也补一刀
     if (g.canSkill(p, "cut") && !risky(p.hand.length + 1)) return { skill: "cut" };
+    if (g.canSkill(p, "meta") && (p.hp <= 2 || (p.hp <= 3 && g.round >= 3 && g.alive().length >= 3))) return { skill: "meta" };   // v72 Llama 泡元宇宙：快撑不住了先回元宇宙躲一轮
     if (g.canSkill(p, "gift")) { const t = wantGift(g, p); if (t) return { skill: "gift", target: t }; }   // v71 Llama 白打工
     if (g.canSkill(p, "qingke")) { const t = treatTarget(g, p); if (t && (t !== p || p.hp <= p.maxHp - 1)) return { skill: "qingke", target: t }; }
     if (g.canSkill(p, "bundle") && !risky(3)) { if (Engine.T.bundleRandom) return { skill: "bundle" }; const t = giftTarget(g, p); if (t) return { skill: "bundle", target: t }; }
