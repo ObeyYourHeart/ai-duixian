@@ -464,6 +464,7 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .rc { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; font-size: 14px; }
 .rc img { width: 120px; border-radius: 12px; }
 .rc b { font-family: var(--title); font-size: 22px; }
+.modal-box .pk-hint { margin: 6px 0 0; font-size: 22px; color: #8a83a8; }   /* v73 能关掉的选牌窗口：关掉就按默认挑 */
 .pickrow { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; padding: 16px; }
 .pickrow .card { flex: none; }   /* v50 许愿一次 10 张：换行排两排，别把牌挤窄（图被裁、字被拆行） */
 .pickrow .card { position: relative; }

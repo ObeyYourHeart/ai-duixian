@@ -336,7 +336,7 @@ window.UI = (function () {
     }
     if (ids.includes("mmcode")) out.push(p.clip ? "素材库里有 1 条吐槽" : "素材库空着");
     if (ids.includes("musecode")) { const cap = duel ? T.museBgMax2p : T.museBgMax; out.push(p.bgTask ? `Jolly 在办【${CD[p.bgTask.k].name}】` : `后台还能跑 ${Math.max(0, cap - (p.bgN || 0))} 次`); }
-    if (ids.includes("codex") && p.cloud) out.push(p.human ? `云端在跑【${CD[p.cloud.k].name}】` : `云端任务跑着，下回合回来再摸 ${T.codexDraw} 张`);   // 电脑挂上去的是哪张，日志里没说：只告诉牌主
+    if (ids.includes("codex") && p.cloud) out.push(p.human ? `云端在跑【${CD[p.cloud.k].name}】` : `云端任务跑着，下回合回来再摸 ${g.codexN ? g.codexN() : T.codexDraw} 张`);   // 电脑挂上去的是哪张，日志里没说：只告诉牌主
     if (ids.includes("dsh") && g.dshMax) out.push(`插件 ${(p.plugins || []).length} / ${g.dshMax(p)}`);
     if (ids.includes("antigrav") && mine) out.push(used("search") ? "这回合搜过了" : `这回合还能搜（看 ${T.agPeek} 张）`);
     if (ids.includes("zcode") && mine) out.push(used("steal") ? "这回合借鉴过了" : "这回合还能借鉴");
@@ -353,7 +353,7 @@ window.UI = (function () {
     if (p.eggBy) st.push(`🥚 领了 ${p.eggBy.name} 的鸡蛋：她下回合开始会借走 ${Engine.T.eggSteal} 张（手里有【越狱】能砸碎）`);
     if (p.band && p.band.length) st.push(`🎸 乐队 ${p.band.length} / ${Engine.T.bandMax}${p.band.length >= Engine.T.bandMax ? "，随时开唱" : ""}`);
     if (p.offline) st.push("📵 断网中"); if (p.boost) st.push("🧠 深度思考中");
-    if (p.dadSpent && Engine.T.buyDad) st.push("💳 记在爸爸账上：下回合爸爸不补牌");   // v56 收购「记爸爸账上」
+    if (p.dadSpent && Engine.T.buyDad) st.push("💳 记在爸爸账上：下回合没零花钱");   // v56 收购「记爸爸账上」
     return st;
   }
   function showHeroInfo(p, focus) {
@@ -1897,23 +1897,37 @@ window.UI = (function () {
   }
   function doneDiscard(ids) { const r = discardResolve; discardResolve = null; mode = null; discardPick = []; hidePrompt(); hint(""); sync(); r && r(ids); }
 
-  function humanPick(cards, n, title) {
+  // opt.close（v73）：窗口能用 Esc / 关闭 / 点外面关掉——关掉时返回已经点了的牌（可能不够 n 张，调用方按默认补上）
+  function humanPick(cards, n, title, opt) {
     return new Promise((res) => {
       if (!cards.length) { res([]); return; }
-      const picked = [];
-      const body = $("#modal-body"); body.innerHTML = `<h2>${title}</h2>`;
+      const picked = [], md = $("#modal"), can = !!(opt && opt.close);
+      let done = false, mo = null;
+      const back = (e) => { if (e.target === md) fin(picked.slice()); };
+      const fin = (v) => {
+        if (done) return; done = true;
+        if (mo) mo.disconnect(); md.removeEventListener("click", back);
+        md.classList.add("hidden"); $("#modal-close").style.display = ""; res(v);
+      };
+      const body = $("#modal-body"); body.innerHTML = `<h2>${title}</h2>` + (can ? `<p class="pk-hint">关掉窗口就按默认替你挑</p>` : "");
       const row = el("div", "pickrow");
       for (const c of cards) {
         const e = cardEl(c, true);
         e.onclick = () => {
+          if (done) return;
           toggle(picked, c); e.classList.toggle("pick2", picked.includes(c));
-          if (picked.length === n) { setTimeout(() => { $("#modal").classList.add("hidden"); $("#modal-close").style.display = ""; res(picked.slice()); }, 250); }
+          if (picked.length === n) setTimeout(() => fin(picked.slice()), 250);
         };
         row.appendChild(e);
       }
       body.appendChild(row);
-      $("#modal-close").style.display = "none";
-      $("#modal").classList.remove("hidden");
+      $("#modal-close").style.display = can ? "" : "none";
+      md.classList.remove("hidden");
+      if (can) {
+        md.addEventListener("click", back);
+        mo = new MutationObserver(() => { if (md.classList.contains("hidden")) fin(picked.slice()); });   // Esc、关闭按钮都是直接把窗口藏起来
+        mo.observe(md, { attributes: true, attributeFilter: ["class"] });
+      }
     });
   }
 

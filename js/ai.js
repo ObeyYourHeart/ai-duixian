@@ -159,19 +159,19 @@ window.AI = (function () {
     for (let guard = 0; out.length < n && guard < 24; guard++) {
       i = g.nextAlive(i); const q = g.players[i];
       let d = q.offline || q.banned ? 0 : 2 + (g.hasSkill(q, "think") ? Engine.T.thinkDraw : 0);
-      const gf = g.mode === "team" || g.mode === "id5" ? Engine.T.grokFloorTeam : Engine.T.grokFloor;
-      if (q.key === "grok" && q.hand.length < gf) d += gf - q.hand.length;
+      if (q.key === "grok" && !q.dadSpent && q.turnN >= 1 && g.dadBonus) d += g.dadBonus(q);   // v73 首富千金：上回合没收购，回合开始爸爸送牌
       for (let k = 0; k < d && out.length < n; k++) out.push(q);
       if (i === p.i && !d) break;
     }
     return out;
   }
   // 拆完宕机塞回哪：塞到第一个对手要摸的位置，偶尔随便塞一下让人猜不透
+  const dodger = (g, q) => (g.mathFree ? g.mathFree(q) : false);   // v73 思维链这轮还能挪宕机
   function placeBomb(g, p) {
     const n = g.deck.length;
     if (r() < 0.12) return Math.floor(r() * Math.min(6, n + 1));
     const ord = drawOrder(g, p, 10);
-    const idx = ord.findIndex((q) => q !== p && g.hostility(p, q) > 0);
+    const idx = ord.findIndex((q) => q !== p && g.hostility(p, q) > 0 && !dodger(g, q));   // v73 ChatGPT 思维链从牌堆顶摸都会躲开
     if (idx < 0) return n;
     return Math.min(n, idx + (ord[idx + 1] === ord[idx] && r() < 0.35 ? 1 : 0));
   }
@@ -194,7 +194,7 @@ window.AI = (function () {
     const ord = drawOrder(g, p, top.length);
     const res = new Array(top.length).fill(null);
     const bombs = top.filter((c) => c.k === "dangji"), rest = top.filter((c) => c.k !== "dangji");
-    const foeSlots = top.map((_, i) => i).filter((i) => ord[i] && ord[i] !== p && g.hostility(p, ord[i]) > 0);
+    const foeSlots = top.map((_, i) => i).filter((i) => ord[i] && ord[i] !== p && g.hostility(p, ord[i]) > 0 && !dodger(g, ord[i]));
     for (const b of bombs) { const s = foeSlots.shift(); if (s != null) res[s] = b; }
     for (const b of bombs) if (!res.includes(b)) for (let i = res.length - 1; i >= 0; i--) if (!res[i]) { res[i] = b; break; }
     let j = 0; for (let i = 0; i < res.length; i++) if (!res[i]) res[i] = rest[j++];
@@ -214,7 +214,7 @@ window.AI = (function () {
     const enemies = foes(g, p, others);
     const use = (c, targets = []) => ({ card: c, targets });
     // 自己马上要摸牌，又知道顶上 n 张里有宕机、手里没重启：先别摸
-    const risky = (n) => g.knowsBomb(p, n) >= 0 && !H("chongqi").length && !g.hasSkill(p, "think");
+    const risky = (n) => g.knowsBomb(p, n) >= 0 && !H("chongqi").length && !g.hasSkill(p, "think") && !dodger(g, p);   // v73 思维链从牌堆顶摸都躲：不用怕
     // 0. 炸弹猫：先剧透看一眼，再决定摸不摸、要不要插队 / 洗牌
     const blind = g.known(p, 3).some((x) => !x);
     if (H("jutou").length && blind && g.deck.length > 2 && (H("hongbao").length || H("chadui").length || H("chongsheng").length || H("moyu").length ||
