@@ -130,22 +130,30 @@ window.UI = (function () {
     hi.className = "hidden"; infoP = null;
     relayout();
     const me = g.human;
-    const GOAL = { lord: "守住群：把黑粉和潜水党都踢出群", loyal: "暗中帮群主，踢掉黑粉和潜水党", rebel: "把群主踢出群", spy: "先装成管理员帮群主踢黑粉，黑粉清完就反水踢管理员，最后单挑群主，自己当新群主（你暗中每回合多摸 1 张；只剩你和群主时会冒泡：心态 +1、摸 2 张）" };
-    const NA = window.GAME_DATA.nations || {}, mates = g.players.filter((q) => q !== me && q.team === me.team).map((q) => q.name).join("、");
-    const goal = g.mode === "team" && g.nation ? `全明星赛：你在 <b>${(NA[me.ch.nation] || {}).name}</b>，队友 <b>${mates}</b>。`
-      : g.mode === "team" ? `你和 <b>${mates}</b> 一队。`
-      : g.mode === "id5" ? `你的身份是 <b>${Engine.ROLE[me.role]}</b>：${GOAL[me.role]}。` : "";
-    hint(`${goal}你是 <b>${me.name}</b>。<small>点任何一张角色卡，都能看她的技能和状态。</small>`);
+    if (g.watch) {
+      hint("🤖 全员电脑观战中。<small>点任何一张角色卡，都能看她的技能、状态或扔道具。</small>");
+    } else {
+      const GOAL = { lord: "守住群：把黑粉和潜水党都踢出群", loyal: "暗中帮群主，踢掉黑粉和潜水党", rebel: "把群主踢出群", spy: `先装成管理员帮群主踢黑粉，黑粉清完就反水踢管理员，最后单挑群主，自己当新群主（${Engine.T.spyDraw ? "你暗中每回合多摸 1 张；" : ""}只剩你和群主时会冒泡：心态 +1、摸 2 张）` };
+      const NA = window.GAME_DATA.nations || {}, mates = g.players.filter((q) => q !== me && q.team === me.team).map((q) => q.name).join("、");
+      const goal = g.mode === "team" && g.nation ? `全明星赛：你在 <b>${(NA[me.ch.nation] || {}).name}</b>，队友 <b>${mates}</b>。`
+        : g.mode === "team" ? `你和 <b>${mates}</b> 一队。`
+        : g.mode === "id5" ? `你的身份是 <b>${Engine.ROLE[me.role]}</b>：${GOAL[me.role]}。` : "";
+      hint(`${goal}你是 <b>${me.name}</b>。<small>点任何一张角色卡，都能看她的技能和状态。</small>`);
+    }
     sync();
     blinkStart();
   }
 
-  // 阵营 / 身份牌：2v2 标队友和对手；抢群主只亮群主、自己和退群的人，其他人是“？”
+  // 阵营 / 身份牌：2v2 标队友和对手；抢群主只亮群主、自己和退群的人，其他人是“？”（观战上帝视角全亮）
   function sideLabel(p) {
-    if (g.mode === "team" && g.nation) return p.human ? null : { text: ((window.GAME_DATA.nations || {})[p.ch.nation] || {}).name || "", cls: (p.team === g.human.team ? "ally" : "foe") + " nat-" + p.ch.nation };
-    if (g.mode === "team") return p.human ? null : p.team === g.human.team ? { text: "队友", cls: "ally" } : { text: "对手", cls: "foe" };
+    if (g.mode === "team" && g.nation) return !g.watch && p.human ? null : { text: ((window.GAME_DATA.nations || {})[p.ch.nation] || {}).name || "", cls: (p.team === g.human.team ? "ally" : "foe") + " nat-" + p.ch.nation };
+    if (g.mode === "team") {
+      if (!g.watch && p.human) return null;
+      if (g.watch) return p.team === 0 ? { text: "一队", cls: "ally" } : { text: "二队", cls: "foe" };
+      return p.team === g.human.team ? { text: "队友", cls: "ally" } : { text: "对手", cls: "foe" };
+    }
     if (g.mode === "id5") {
-      if (p.role === "lord" || p.human || p.revealed) return { text: Engine.ROLE[p.role], cls: "role-" + p.role };
+      if (g.watch || p.role === "lord" || p.human || p.revealed) return { text: Engine.ROLE[p.role], cls: "role-" + p.role };
       return { text: "？", cls: "unknown" };
     }
     if (!g.watch && (g.mode === "ffa" || g.mode === "duel")) {
@@ -374,7 +382,9 @@ window.UI = (function () {
     const watch = !!g.watch;                                            // v71 斗蛐蛐：没有「你」，关系一栏不显示，道具是场外观众扔的
     const rel = !watch && p !== me && (g.mode === "ffa" || g.mode === "duel") ? g.relation(p, me) : null;
     const relRow = rel ? ((window.GAME_DATA.relations || []).find(([a, b]) => (a === p.key && b === me.key) || (a === me.key && b === p.key)) || [])[3] : "";
-    const side = g.mode === "team" && p !== me ? (g.nation ? `${((window.GAME_DATA.nations || {})[p.ch.nation] || {}).name} · ` : "") + (p.team === me.team ? "队友" : "对手") : g.mode === "id5" ? (p.role === "lord" || p.human || p.revealed ? Engine.ROLE[p.role] : "身份未知") : "";
+    const side = g.mode === "team" && (watch || p !== me)
+      ? (g.nation ? `${((window.GAME_DATA.nations || {})[p.ch.nation] || {}).name} · ` : "") + (watch ? (p.team === 0 ? "一队" : "二队") : (p.team === me.team ? "队友" : "对手"))
+      : g.mode === "id5" ? (watch || p.role === "lord" || p.human || p.revealed ? Engine.ROLE[p.role] : "身份未知") : "";
     const st = heroStatus(p);
     const html = `<div class="hi-head"><img src="${portrait(p.key, "avatar")}" alt=""><div class="hi-nm"><b>${p.name}</b></div><button class="hi-x" title="关闭">✕</button></div>
       <div class="hi-stat"><span>❤ 心态 ${Math.max(0, p.hp)} / ${p.maxHp}</span><span>🂠 手牌 ${p.hand.length}（上限 ${g.handLimit(p)}）</span>${g.equips(p).map((eq) => `<span>${EQ_ICON[eq.k] || "🧰"} ${CD[eq.k].name}</span>`).join("")}${p.cloud ? "<span>☁ 云端任务跑着</span>" : ""}${p.plugins && p.plugins.length ? `<span>🔌 插件：${p.plugins.map((c) => CD[c.k].name).join("、")}</span>` : ""}${p.clip ? "<span>🎞 素材 1 条</span>" : ""}${p.bgTask ? "<span>🧸 Jolly 跑腿中</span>" : ""}${side ? `<span>${side}</span>` : ""}${p.alive ? "" : "<span>已退群</span>"}</div>
@@ -1953,7 +1963,7 @@ window.UI = (function () {
     if (!g) return;
     const me = game.human, w = game.winner;
     const winners = game.winners || [w];
-    const bet = game.watch && game.watch.bet, won = bet ? !!w && w.key === bet : winners.includes(me);   // v71 斗蛐蛐：押中就算赢
+    const watching = !!game.watch, bet = game.watch && game.watch.bet, won = bet ? !!w && w.key === bet : watching ? true : winners.includes(me);   // v71 斗蛐蛐：押中就算赢；自定义观战统一欢快收尾
     const winMs = (w && say(w, "win", true)) || 1800;
     // v39 结算补刀：赢家说完，输家里跟她有斗嘴台词的（宿敌优先）不服气地接一句，显示在结算框里
     const pairs = (window.GAME_DATA.pairs || []).filter((pr) => w && pr[2] === w.key && pr[0] !== w.key && (!g.skinOk || g.skinOk(pr)));
@@ -1964,28 +1974,31 @@ window.UI = (function () {
     let title, sub, rank;
     const stat = (p) => `<small>　让人破防 ${p.stats.dmg} 次 · 出牌 ${p.stats.used}</small>`;
     if (game.mode === "team" || game.mode === "id5") {
-      const tag = (p) => game.mode === "team" ? (p.team === me.team ? "我方" : "对方") : Engine.ROLE[p.role];
+      const tag = (p) => game.mode === "team" ? (watching ? (p.team === 0 ? "一队" : "二队") : (p.team === me.team ? "我方" : "对方")) : Engine.ROLE[p.role];
       const list = [...winners, ...game.players.filter((p) => !winners.includes(p))];
       rank = list.map((p) => `<div><span>${winners.includes(p) ? "🏆" : "　"} ${tag(p)}</span><img src="${portrait(p.key, "avatar")}" alt="">${p.name}${p.alive ? "" : "（退群）"}${stat(p)}</div>`).join("");
       if (game.mode === "team" && game.nation) {
         const wn = ((window.GAME_DATA.nations || {})[winners[0] && winners[0].ch.nation] || {}).name || "";
-        title = `${wn}赢下全明星赛！`; sub = won ? "全队配合完美，你们是冠军！" : "这次输给了对面，下次再来！";
-      } else if (game.mode === "team") { title = won ? "你们赢了！" : "对面赢了……"; sub = won ? "队友配合完美。" : "下次换个打法再来！"; }
-      else {
+        title = `${wn}赢下全明星赛！`; sub = watching ? "全员电脑观战结束。" : won ? "全队配合完美，你们是冠军！" : "这次输给了对面，下次再来！";
+      } else if (game.mode === "team") {
+        title = watching ? (winners[0] && winners[0].team === 0 ? "一队赢下比赛！" : "二队赢下比赛！") : won ? "你们赢了！" : "对面赢了……";
+        sub = watching ? "全员电脑观战结束。" : won ? "队友配合完美。" : "下次换个打法再来！";
+      } else {
         const SIDE = { lord: "群主守住了群！", rebel: "黑粉把群主踢出了群！", spy: "潜水党上岸，成了新群主！" };
-        title = SIDE[game.side]; sub = `你的身份是【${Engine.ROLE[me.role]}】——${won ? "你赢了！" : "你输了……"}`;
+        title = SIDE[game.side]; sub = watching ? "全员电脑身份局结束。" : `你的身份是【${Engine.ROLE[me.role]}】——${won ? "你赢了！" : "你输了……"}`;
       }
     } else {
       const order = [w, ...game.alive().filter((p) => p !== w), ...game.outOrder.slice().reverse()].filter((v, i, a) => v && a.indexOf(v) === i);
       rank = order.map((p, i) => `<div><span>${i === 0 ? "👑 群主" : `第 ${i + 1} 名`}</span><img src="${portrait(p.key, "avatar")}" alt="">${p.name}${stat(p)}</div>`).join("");
-      title = won && !bet ? "你成了群主！" : `${w.name} 成了群主`;
-      sub = bet ? (won ? `🎉 押中了！今日冠军就是 ${w.name}。` : `没押中……你押的是 ${window.GAME_DATA.chars[bet].name}，下一局再赌一把。`) : won ? "全群都被你怼服了。" : me.alive ? "" : "你破防退群了……下次再来！";
+      title = won && !watching ? "你成了群主！" : `${w.name} 成了群主`;
+      sub = bet ? (won ? `🎉 押中了！今日冠军就是 ${w.name}。` : `没押中……你押的是 ${window.GAME_DATA.chars[bet].name}，下一局再赌一把。`) : watching ? "全员电脑观战结束。" : won ? "全群都被你怼服了。" : me.alive ? "" : "你破防退群了……下次再来！";
     }
+    const chgLab = game.custom ? "改阵容" : bet ? "换一拨人" : "换角色";
     $("#modal-body").innerHTML = `<div class="result"><img src="${w.disguise ? portrait("xds_cl", "cheer") : portrait(w.key, "win")}" alt="">
       <div class="rr"><div class="rt">${title}</div>
       <p>${sub}</p>
       <div class="rank">${rank}</div>
-      <div class="rbtn"><button class="btn primary" id="btn-again">再来一局</button><button class="btn" id="btn-change">${bet ? "换一拨人" : "换角色"}</button><button class="btn" id="btn-report">本局战报</button></div></div></div>`;
+      <div class="rbtn"><button class="btn primary" id="btn-again">再来一局</button><button class="btn" id="btn-change">${chgLab}</button><button class="btn" id="btn-report">本局战报</button></div></div></div>`;
     $("#modal-close").style.display = "none";
     $("#modal").classList.remove("hidden");
     if (sore && !w.disguise) {
@@ -2028,8 +2041,8 @@ window.UI = (function () {
       const qs = (game.quotes || []).filter((q) => q.text && q.text.length >= 6), top = Math.max(0, ...qs.map((q) => q.w)), pool = qs.filter((q) => q.w === top);
       const q = pool[Math.floor(Math.random() * pool.length)]; if (q) scene = [{ p: by(q.i), text: q.text }];
     }
-    const MODE = { ffa: "群聊混战", team: game.nation ? "全明星赛" : "2v2 组队", id5: "身份局" };
-    return { w, title, round: game.round, mode: game.watch ? "斗蛐蛐" : MODE[game.mode] || "对局", mvp: mvp && mvp.stats.dmg ? mvp : null, feud, guard, busy: busy && busy.stats.used ? busy : null, poor: poor && poor.stats.taken >= 3 ? poor : null, scene,
+    const MODE = { ffa: "群聊混战", duel: "单挑", team: game.nation ? "全明星赛" : game.players.length >= 6 ? "3v3 组队" : "2v2 组队", id5: "身份局" };
+    return { w, title, round: game.round, mode: game.watch ? (game.watch.bet ? "斗蛐蛐" : "自定义观战") : MODE[game.mode] || "对局", mvp: mvp && mvp.stats.dmg ? mvp : null, feud, guard, busy: busy && busy.stats.used ? busy : null, poor: poor && poor.stats.taken >= 3 ? poor : null, scene,
       wimg: w.disguise ? portrait("xds_cl", "cheer") : portrait(w.key, "win") };
   }
   const rpWarm = [];                                                 // 预解码的图留个引用，免得被回收

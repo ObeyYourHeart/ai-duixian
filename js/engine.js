@@ -146,10 +146,11 @@ window.Engine = (function () {
         equip: null, boost: false, offline: false, evidence: null, grudge: {}, saidLow: false, seen: new Set(), lastSeq: 0,
         stats: { dmg: 0, taken: 0, used: 0 },
       }));
-      for (const p of this.players) for (const s of p.ch.skills) if (s.uses) p.uses[s.id] = keys.length === 2 && s.uses2p != null ? s.uses2p : this.mode === "team" && !opts.nation && T.usesTeam[s.id] != null ? T.usesTeam[s.id] : s.uses;   // v37 usesTeam：2v2 专用次数
+      const is2v2 = this.mode === "team" && keys.length === 4;
+      for (const p of this.players) for (const s of p.ch.skills) if (s.uses) p.uses[s.id] = keys.length === 2 && s.uses2p != null ? s.uses2p : is2v2 && T.usesTeam[s.id] != null ? T.usesTeam[s.id] : s.uses;   // v37 usesTeam：2v2 专用次数
       for (const p of this.players) { p.game = this; p.lean = 0; p.turnN = 0; p.played = 0; p.equips = {}; }
-      if (this.mode === "team") { const T2 = opts.teams || (opts.nation ? [0, 1, 0, 1, 1, 0] : [0, 1, 1, 0]); for (const p of this.players) p.team = T2[p.i]; }
-      if (this.mode === "team" && !opts.nation && T.teamHp) for (const p of this.players) { p.hp += T.teamHp; p.maxHp += T.teamHp; }   // v37 2v2 多几点心态：原来平均 3.5 轮就打完，还没配合起来   // 默认座位：你-敌-敌-友
+      if (this.mode === "team") { const T2 = opts.teams || (keys.length >= 6 ? [0, 1, 0, 1, 1, 0] : [0, 1, 1, 0]); for (const p of this.players) p.team = T2[p.i]; }
+      if (is2v2 && T.teamHp) for (const p of this.players) { p.hp += T.teamHp; p.maxHp += T.teamHp; }   // v37 2v2 多几点心态（3v3 保持标准心态）
       this.nation = !!opts.nation;                                     // 全明星赛：中美 3v3，座位中美交替
       if (this.mode === "id5") {
         const roles = opts.roles || shuffle(["lord", "loyal", "rebel", "rebel", "spy"]);
@@ -211,12 +212,13 @@ window.Engine = (function () {
       a.lean = Math.max(-6, Math.min(6, a.lean));
     }
     get human() { return this.players[0]; }
+    is2v2() { return this.mode === "team" && this.players.length === 4; }
     alive() { return this.players.filter((p) => p.alive); }
     others(p) { return this.players.filter((q) => q.alive && q !== p); }
     has(p, k) { return p.hand.filter((c) => c.k === k); }
     hasSkill(p, id) { return p.ch.skills.some((s) => s.id === id); }
     limitTucao(p) { const base = 1 + (this.round >= T.rageRound ? 1 : 0) + (this.hasEq(p, "xianka") ? 1 : 0) + 0; return p.dumb ? 0 : p.sale ? (T.saleExtra == null ? 99 : base + T.saleExtra) : base; }
-    handLimit(p) { const h2 = this.players.length === 2 && T.hand2p[p.key] != null ? T.hand2p[p.key] : T.hand[p.key]; return Math.max(0, p.hp) + (h2 || 0) + (this.mode === "team" && !this.nation ? T.handTeam[p.key] || 0 : 0) + (this.hasEq(p, "chongdianbao") ? T.powerbank : 0); }
+    handLimit(p) { const h2 = this.players.length === 2 && T.hand2p[p.key] != null ? T.hand2p[p.key] : T.hand[p.key]; return Math.max(0, p.hp) + (h2 || 0) + (this.is2v2() ? T.handTeam[p.key] || 0 : 0) + (this.hasEq(p, "chongdianbao") ? T.powerbank : 0); }
     // 装备栏（v30 equipSlots）：按类型分格——硬件（显卡）/ 安全（防火墙、加密、云备份）/ 记忆（长上下文，v45 前叫外设 / 充电宝）各一格，可以同时装；关掉就是原来的一格
     equips(p) { return T.equipSlots ? Object.values(p.equips || {}) : p.equip ? [p.equip] : []; }
     hasEq(p, k) { return this.equips(p).some((c) => c.k === k); }
@@ -229,7 +231,7 @@ window.Engine = (function () {
     // ---------------------------------------------------------------- v48 Harness：每打出 1 张牌部署进度 +1，满格上线，整局生效
     hasH(p, id) { return !!(p && p.deployed && p.ch.harness && (p.ch.harness.ids || []).includes(id)); }
     seatDrawArr() { const n = this.players.length; return (this.mode === "ffa" && n >= 4 && (T.seatDraw["ffa" + n] || T.seatDraw.ffa4)) || T.seatDraw[this.mode]; }   // v50；v71 斗蛐蛐 5 / 6 人乱斗各有一张表（原来第 5、6 位摸「NaN」张）
-    deployNeed(p) { const two = this.players.length === 2, K = two ? T.deployK2p : T.deployK, KT = this.mode === "team" && !this.nation && T.deployKTeam;   // v49 deployKTeam：2v2 单独定满格数（没写的沿用乱斗表；全明星内部也是组队模式，要排除）
+    deployNeed(p) { const two = this.players.length === 2, K = two ? T.deployK2p : T.deployK, KT = this.is2v2() && T.deployKTeam;   // v49 deployKTeam：2v2 单独定满格数（没写的沿用乱斗表；3v3 / 全明星不串入）
       if (KT && KT[p.key] != null) return KT[p.key]; return K[p.key] != null ? K[p.key] : two ? T.deployNeed2p : T.deployNeed; }
     async deployTick(p) {
       if (!p.ch.harness || p.deployed || !p.alive) return;
@@ -431,7 +433,7 @@ window.Engine = (function () {
         const i = this.deck.findIndex((c) => c.k === "chongqi");
         if (i >= 0) p.hand.push(this.deck.splice(i, 1)[0]);
       }
-      this.bombN = Math.max(1, this.players.length - 1 + T.bombs + (this.mode === "id5" ? T.bombsId5 : 0) + (this.nation ? T.bombsNation : 0) + (this.watch && this.players.length >= 5 ? (T.bombsWatch || 0) : 0));
+      this.bombN = Math.max(1, this.players.length - 1 + T.bombs + (this.mode === "id5" ? T.bombsId5 : 0) + (this.nation || (this.mode === "team" && this.players.length >= 6) ? T.bombsNation : 0) + (this.mode === "ffa" && this.players.length >= 5 ? (T.bombsWatch || 0) : 0));
       for (let k = 0; k < this.bombN; k++) this.insertAt({ id: 900 + k, k: "dangji" }, rnd(this.deck.length + 1));
       for (let k = 0; k < T.bombsLight; k++) this.insertAt({ id: 950 + k, k: "dangji", light: true }, rnd(this.deck.length + 1));   // v29 试验【限流】：当成轻量宕机埋进去（走同一套摸到就炸的路）
       this.bombN += T.bombsLight;
@@ -462,12 +464,13 @@ window.Engine = (function () {
           if (t === "rival" && A && B && A.team === B.team) this.ui.sys(`😤 宿敌也得组队：${A.name} 和 ${B.name} 这次是队友，先一致对外`, "prop");
         }
       } else if (this.mode === "team") {
-        const me = this.players[0], mate = this.players.find((p) => p !== me && p.team === me.team), foe = this.players.filter((p) => p.team !== me.team);
-        this.ui.sys(`2v2：你和 ${mate.name} 一队，打败 ${foe.map((p) => p.name).join(" 和 ")}！`, "good");
+        const me = this.players[0], mates = this.players.filter((p) => p !== me && p.team === me.team), foe = this.players.filter((p) => p.team !== me.team);
+        const tag = this.players.length >= 6 ? "3v3" : "2v2";
+        this.ui.sys(`${tag}：${this.watch ? `${me.name} 和` : "你和"} ${mates.map((p) => p.name).join("、")} 一队，打败 ${foe.map((p) => p.name).join("、")}！`, "good");
       }
       if (this.mode === "id5") {
         const lord = this.players.find((p) => p.role === "lord");
-        this.ui.sys(`抢群主：群主是 ${lord.name}${lord.human ? "（就是你）" : ""}。你的身份是【${ROLE[this.players[0].role]}】`, "good");
+        this.ui.sys(`抢群主：群主是 ${lord.name}${lord.human ? "（就是你）" : ""}` + (this.watch ? "（全员电脑观战）" : `。你的身份是【${ROLE[this.players[0].role]}】`), "good");
       }
       for (const p of this.players) await talk(p, this.nation && p.ch.lines.allstar ? "allstar" : "greet", this.players.length >= 4 ? 1500 : 2200);
       const by = (k) => this.players.find((q) => q.key === k);
@@ -578,7 +581,7 @@ window.Engine = (function () {
           this.bombN = (this.bombN || 0) + 1; this.insertSeq++; this.insertBy = null; this.forget();
           this.ui.sys("💣 场外观众往牌堆里偷偷塞了一张【宕机】……谁摸到谁炸", "bad"); Sound.sfx("tick", 0.6); this.ui.sync(); await wait(500);
         } else if (kind === "leak" && al.length >= 2) {
-          const [a, b] = al;
+          const a = al[0], b = (this.mode === "team" && al.find((x) => x.team !== a.team)) || al[1];
           a.grudge[b.i] = (a.grudge[b.i] || 0) + T.leakGrudge; b.grudge[a.i] = (b.grudge[a.i] || 0) + T.leakGrudge;
           this.ui.sys(`📰 爆料：有人翻出 ${a.name} 在小群里吐槽 ${b.name} 的截图——两人当场杠上了`, "bad"); Sound.sfx("notify", 0.7);
           if (a.ch.lines[b.key]) this.ui.say(a, b.key, true); await wait(700);
@@ -649,7 +652,7 @@ window.Engine = (function () {
       } else {
         // 摸鱼：知道顶上有雷、或者刚有人往牌堆里塞过宕机，可以改从牌堆底摸
         let bottom = false;
-        const think = this.hasSkill(p, "think") && Math.random() < (this.players.length === 2 ? T.thinkRate2p : this.mode === "team" && !this.nation ? T.thinkRateTeam : T.thinkRate) ? T.thinkDraw : 0;   // 深思：这回合想得深不深看运气
+        const think = this.hasSkill(p, "think") && Math.random() < (this.players.length === 2 ? T.thinkRate2p : this.is2v2() ? T.thinkRateTeam : T.thinkRate) ? T.thinkDraw : 0;   // 深思：这回合想得深不深看运气
         const danger = this.knowsBomb(p, 2 + think) >= 0;
         if (this.has(p, "moyu").length && !(T.mathDodge && this.hasSkill(p, "math")) && (danger || this.insertSeq > p.lastSeq)) {   // v73 思维链从牌堆顶摸本来就躲，从底下摸反而躲不了
           const go = p.human ? await this.ui.humanConfirm(danger ? "牌堆顶有【宕机】！打出【摸鱼】，这回合改从牌堆底摸牌？" : "刚有人往牌堆里塞了东西……打出【摸鱼】，这回合改从牌堆底摸牌？", danger) : AI.wantMoyu(this, p);
@@ -663,7 +666,7 @@ window.Engine = (function () {
         p.lastSeq = this.insertSeq;
         // 演算：算到这回合要摸到宕机，就改从牌堆底摸（底下也有就没办法了）
         // v73 思维链躲宕机挪进了 draw()（原来这里只查前 2 张，第一轮先手补偿摸 4 张时第 3、4 张会炸）
-        const first = this.mode === "team" && !this.nation && this.round === 1 && p.i === this.startIdx;   // 2v2 先手第一回合多摸 1 张（你-敌-敌-友 座位下两队五五开）
+        const first = this.is2v2() && this.round === 1 && p.i === this.startIdx;   // 2v2 先手第一回合摸牌数（3v3 不串入）
         const nfirst = this.nation && this.round === 1 ? (T.nationFirst[p.i] || 0) + (T.nationDraw[p.ch.nation] && this.players.filter((q) => q.ch.nation === p.ch.nation).indexOf(p) < (T.nationDrawN == null ? 9 : T.nationDrawN) ? T.nationDraw[p.ch.nation] : 0) : 0;   // v71 nationDrawN：按座位顺序只有前几位补（7 对 6 后中国队全员 +1 反超）   // 全明星赛：第一回合补牌（按座位 / 按国家）
         if (think) { this.ui.skillNote(p, SN(p.key, "think")); if (Math.random() < 0.3) this.ui.say(p, "think"); }
         const sd = this.round === 1 && !this.nation ? ((this.seatDrawArr() || [])[(p.i - this.startIdx + this.players.length) % this.players.length] || 0) : 0;   // v37 先手补偿：第一轮按出手顺序增减摸牌
@@ -1319,7 +1322,7 @@ window.Engine = (function () {
         await this.draw(t, t.hp <= 1 ? F[1] : F[0], true);
       }
       // 大 DeepSeek：气死本鱼——打她的人也得出反驳，不然一起破防
-      if (t.key === "deepseek" && src && src !== t && src.alive && !this.over && !(T.furyTeamOnce && this.mode === "team" && !this.nation && t.furyRound === this.round)) {   // v37 2v2 每轮最多锐评一次（2v2 多 2 点心态，挨打次数多，反弹也多）
+      if (t.key === "deepseek" && src && src !== t && src.alive && !this.over && !(T.furyTeamOnce && this.is2v2() && t.furyRound === this.round)) {   // v37 2v2 每轮最多锐评一次（2v2 多 2 点心态，挨打次数多，反弹也多）
         t.furyRound = this.round;
         this.ui.skillNote(t, SN("deepseek", "fury")); this.ui.say(t, "fury", true);
         this.ui.log(t, `【${SN("deepseek", "fury")}】${src.name} 也别想好过`); await wait(500);
@@ -1549,7 +1552,7 @@ window.Engine = (function () {
     keepSafe() { return T.polishKeep || (this.mode === "id5" && T.polishKeepId5); }   // v37 润色不扔【重启】【甩锅】：只在抢群主开（Claude 抢群主最常死于宕机）
     wishKinds() { const order = ["fanbo", "tucao", "naicha", "chongqi", "huigun", "hongbao", "chehui", "baipiao", "jinyan", "shuaping"]; return order.filter((k) => this.deck.some((c) => c.k === k)); }   // 许愿机能许的牌（牌堆里还有的）
     artifactKinds(p) { return Object.keys(EQ_SLOT).filter((k) => !CD[k].owner && !this.equips(p).some((e) => e.k === k) && (this.deck.some((c) => c.k === k) || this.discard.some((c) => c.k === k))); }   // Artifacts 能生成的装备：自己没装着、牌堆或弃牌堆里有
-    passOn() { return T.teamPass && this.mode === "team" && !this.nation; }   // v73.2 2v2 专属递牌（全明星 3v3 不串入）
+    passOn() { return T.teamPass && this.is2v2(); }   // v73.3 2v2 专属递牌（3v3 全明星 / 自定义 3v3 不串入）
     mate(p) { return this.alive().find((q) => q !== p && this.mode === "team" && q.team === p.team) || null; }
     buyPay(p) { return (this.players.length === 2 ? T.buyPay2p : T.buyPay) || 0; }   // v56 收购要先交几张自己的牌当钱（单挑 1，多人局 0）
     canSkill(p, id) {
@@ -1812,7 +1815,7 @@ window.Engine = (function () {
         // Muse 砍价：替你去谈——随机拿对手 1 张，再把你手里最没用的 1 张塞给她（不给重启）
         this.ui.skill(p, SN(p.key, "haggle")); this.ui.say(p, "haggle", true); await wait(500);
         const took = [], own = p.hand.slice();                            // v73 只能塞原本的手牌（刚拿来的不行）
-        for (let k = 0; k < (this.mode === "team" && !this.nation ? T.haggleTakeTeam : T.haggleTake) && t.hand.length; k++) { const c = t.hand[rnd(t.hand.length)]; if (await this.loot(t, p, c)) took.push(c); }
+        for (let k = 0; k < (this.is2v2() ? T.haggleTakeTeam : T.haggleTake) && t.hand.length; k++) { const c = t.hand[rnd(t.hand.length)]; if (await this.loot(t, p, c)) took.push(c); }
         await wait(350);
         const pool = T.haggleGive ? own.filter((x) => p.hand.includes(x) && !took.includes(x) && x.k !== "chongqi") : [];
         const give = pool.length ? (await this.pickOr(p, pool, 1, `【${SN(p.key, "haggle")}】拿走了 ${t.name} ${took.length} 张牌——从你原本的手牌里挑 1 张塞给她`, () => pool.slice().sort((a, b) => AI.value(this, p, a) - AI.value(this, p, b))))[0] : null;   // v73 玩家自己挑

@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="assets/icon/icon-180.png">
 <link rel="icon" type="image/png" href="assets/icon/icon-192.png">
 <title>AI娘对线</title>
-<link rel="stylesheet" href="css/style.css?v=528e0e51">
+<link rel="stylesheet" href="css/style.css?v=9afa626c">
 </head>
 <body>
 <div id="viewport">
@@ -54,6 +54,7 @@
           <button class="mode" data-mode="5">抢群主</button>
           <button class="mode" data-mode="6">全明星</button>
           <button class="mode" data-mode="7">🍿 斗蛐蛐</button>
+          <button class="mode" data-mode="8">🎛️ 自定义</button>
         </div>
         <div class="mode-desc" id="mode-desc"></div>
       </div>
@@ -99,6 +100,24 @@
       <div class="wt-line" id="wt-line"></div>
       <div class="wt-roster" id="wt-roster"></div>
       <div class="tm-btns"><button class="btn small" id="wt-back">返回</button><button class="btn small" id="wt-rand">🎲 随机</button><button class="btn small" id="wt-clear">清空</button><button class="btn primary" id="wt-go">开打！</button></div>
+    </section>
+
+    <!-- v73.3 自定义模式：自选规则、自己、队友与对手（含身份 / 全员电脑观战测试开关） -->
+    <section id="scr-custom" class="screen">
+      <div class="tm-head">
+        <div class="logo mid"><span class="bb b1"><i>自定义</i></span><span class="bb b2">开局</span></div>
+        <div class="cm-modes" id="cm-modes" role="group" aria-label="选择对局模式"></div>
+      </div>
+      <div class="cm-opts" id="cm-opts"></div>
+      <div class="cm-stage" id="cm-stage" aria-live="polite"></div>
+      <div class="cm-rels" id="cm-rels"></div>
+      <div class="cm-roster" id="cm-roster" role="group" aria-label="选择上场角色"></div>
+      <div class="tm-btns">
+        <button type="button" class="btn small" id="cm-back">返回</button>
+        <button type="button" class="btn small" id="cm-rand">🎲 随机补满</button>
+        <button type="button" class="btn small" id="cm-clear">清空对手</button>
+        <button type="button" class="btn primary" id="cm-go">开始对局</button>
+      </div>
     </section>
 
     <!-- 牌桌 -->
@@ -152,10 +171,10 @@
 <script src="js/voices.js?v=2b4d4f2c"></script>
 <script src="js/audio.js?v=f454f2d9"></script>
 <script src="js/settings.js?v=648efbe4"></script>
-<script src="js/engine.js?v=96963cd4"></script>
+<script src="js/engine.js?v=3ac32230"></script>
 <script src="js/ai.js?v=7f9e0272"></script>
 <script src="js/props.js?v=ae0acc39"></script>
-<script src="js/ui.js?v=07704f58"></script>
-<script src="js/main.js?v=fdf3997b"></script>
+<script src="js/ui.js?v=cca15213"></script>
+<script src="js/main.js?v=a612a7c6"></script>
 </body>
 </html>

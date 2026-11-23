@@ -289,8 +289,13 @@ window.Main = (function () {
   const MODE_DESC = { 2: "单挑：一对一，把她踢出群就赢。", 3: "三人乱斗：你和两个电脑，最后留在群里的人当群主。",
     4: "2v2：座位是 你—对手—对手—队友，把对面两人都踢出群就赢。", 5: "抢群主：5 人随机身份（群主 / 管理员 / 黑粉 / 潜水党），各有各的胜利条件。只有群主是明牌：黑粉开局会潜伏几轮装路人，潜水党先帮群主踢黑粉、再反水——看谁对谁出手，猜身份。",
     6: "全明星赛：中国队对阵美国队，3v3。选好你的角色，下一页自己挑队友和对手。",
-    7: "斗蛐蛐：挑 4–6 位 AI娘 上场、押一位今日冠军，全员电脑自己打。你在场外看戏、扔道具，还能撒红包、塞宕机、爆个料。" };
-  function modeDesc() { const e = $("#mode-desc"); if (e) e.textContent = MODE_DESC[players] || ""; $("#scr-select").classList.toggle("nation-on", players === 6); }   // 全明星赛：角色格上标国家队
+    7: "斗蛐蛐：挑 4–6 位 AI娘 上场、押一位今日冠军，全员电脑自己打。你在场外看戏、扔道具，还能撒红包、塞宕机、爆个料。",
+    8: "自定义：自由选模式、自己、队友和对手，还支持指定抢群主身份与全员电脑观战——玩梗组队和定点测试都顺手。" };
+  function modeDesc() {
+    const e = $("#mode-desc"); if (e) e.textContent = MODE_DESC[players] || "";
+    $("#scr-select").classList.toggle("nation-on", players === 6);
+    const go = $("#btn-go"); if (go) go.textContent = players === 8 ? "去配阵容" : players === 7 ? "去押冠军" : players === 6 ? "去组队" : "选她出战";
+  }
 
   // ---------------------------------------------------------------- v71 斗蛐蛐（观战押注）
   let wSel = [], wBet = null, watchOn = false, wSpeed = 1;
@@ -320,8 +325,10 @@ window.Main = (function () {
   }
   function watchBar() {
     const b = $("#watchbar"); if (!game || !game.watch) { b.classList.add("hidden"); return; }
-    const u = game.watchUse;
-    b.innerHTML = `<div class="wb-bet"><img src="${UI.portrait(wBet, "avatar")}" alt=""><span>押注<b>${CH[wBet].name}</b></span></div>
+    const u = game.watchUse, bet = game.watch.bet;
+    const head = bet && CH[bet] ? `<div class="wb-bet"><img src="${UI.portrait(bet, "avatar")}" alt=""><span>押注<b>${CH[bet].name}</b></span></div>`
+      : `<div class="wb-bet"><span>🎛️ <b>自定义观战</b></span></div>`;
+    b.innerHTML = `${head}
       <div class="wb-sp"><button data-s="1" class="${wSpeed === 1 ? "on" : ""}">1×</button><button data-s="2" class="${wSpeed === 2 ? "on" : ""}">2×</button></div>
       <button class="wb-do" data-k="red" ${u.red ? "" : "disabled"} title="随机一半的人各抢到 1 张牌">🧧 撒红包 <small>${u.red}</small></button>
       <button class="wb-do" data-k="bomb" ${u.bomb ? "" : "disabled"} title="往牌堆随机位置塞一张宕机">💣 塞宕机 <small>${u.bomb}</small></button>
@@ -333,7 +340,7 @@ window.Main = (function () {
       const k = x.dataset.k; if (!game || game.over || !game.watchUse[k]) return;
       game.watchUse[k]--; game.watchDo(k); Sound.sfx("click", 0.5); UI.toast({ red: "🧧 红包备好了，下一回合开始时撒出去", bomb: "💣 宕机已经偷偷塞进牌堆……下一回合开始生效", leak: "📰 料已经放出去了，下一回合开始发酵" }[k]); watchBar();
     }; });
-    b.querySelector(".wb-quit").onclick = () => { Sound.sfx("click", 0.5); quitGame(); watchSetup(); };
+    b.querySelector(".wb-quit").onclick = () => { const isCm = !!(game && game.custom); Sound.sfx("click", 0.5); quitGame(); isCm ? customSetup() : watchSetup(); };
   }
   function watchStart() {
     lastOpp = null; watchOn = true; wSpeed = 1;
@@ -350,6 +357,237 @@ window.Main = (function () {
   function quitGame() {
     if (game) { game.over = true; game.ui = new Proxy({}, { get: () => () => new Promise(() => {}) }); }
     UI.detach(); document.body.classList.remove("watching"); $("#watchbar").classList.add("hidden"); watchOn = false; applySpeed();
+  }
+
+  // ---------------------------------------------------------------- v73.3 自定义模式：自选模式、自己、队友、对手、身份与全员电脑观战
+  const CM_MODES = [
+    { id: "duel", label: "⚔️ 单挑", team: false, mates: 0, foes: 1, mode: "duel", hint: "1v1：指定你和 1 位对手" },
+    { id: "ffa3", label: "🔥 三人乱斗", team: false, mates: 0, foes: 2, mode: "ffa", hint: "三人乱斗：指定你和 2 位对手（按座位顺时针行动）" },
+    { id: "team2", label: "🤝 2v2 组队", team: true, mates: 1, foes: 2, mode: "team", hint: "2v2：自选 1 位队友和 2 位对手（座位：你—敌—敌—友）" },
+    { id: "id5", label: "👑 抢群主", team: false, mates: 0, foes: 4, mode: "id5", hint: "5 人身份局：指定 5 位上场角色，还可自选身份或随机" },
+    { id: "team3", label: "🏆 3v3 组队", team: true, mates: 2, foes: 3, mode: "team", hint: "3v3：不限国籍自由选 2 位队友和 3 位对手（座位：你—敌—友—敌—敌—友）" },
+    { id: "ffa6", label: "💥 4–6人混战", team: false, mates: 0, foes: 5, minFoes: 3, mode: "ffa", hint: "4–6 人自由混战：至少选 3 位对手（共 4–6 人上场）" },
+  ];
+  const CM_ROLES = [["rand", "🎲 随机身份"], ["lord", "👑 群主"], ["loyal", "🛡️ 管理员"], ["rebel", "🔥 黑粉"], ["spy", "🫧 潜水党"]];
+  const cmCfg = (id) => CM_MODES.find((m) => m.id === id) || CM_MODES[2];
+  let cm = (() => {
+    const def = { mode: "team2", me: null, mates: [], foes: [], slot: "auto", myRole: "rand", aiOnly: false, nationRule: false };
+    try {
+      const saved = JSON.parse(localStorage.getItem("duixian_custom") || "null");
+      if (saved && typeof saved === "object") {
+        if (CM_MODES.some((m) => m.id === saved.mode)) def.mode = saved.mode;
+        if (CH[saved.me]) def.me = saved.me;
+        if (Array.isArray(saved.mates)) def.mates = saved.mates.filter((k) => CH[k]);
+        if (Array.isArray(saved.foes)) def.foes = saved.foes.filter((k) => CH[k]);
+        if (CM_ROLES.some(([r]) => r === saved.myRole)) def.myRole = saved.myRole;
+        def.aiOnly = !!saved.aiOnly;
+        def.nationRule = !!saved.nationRule;
+      }
+    } catch (e) {}
+    return def;
+  })();
+  function cmSave() {
+    try { localStorage.setItem("duixian_custom", JSON.stringify({ mode: cm.mode, me: cm.me, mates: cm.mates, foes: cm.foes, myRole: cm.myRole, aiOnly: cm.aiOnly, nationRule: cm.nationRule })); } catch (e) {}
+  }
+  function cmClean() {
+    const cfg = cmCfg(cm.mode);
+    if (!CH[cm.me]) cm.me = pickKey || keys[0];
+    const seen = new Set([cm.me]);
+    cm.mates = cfg.team ? cm.mates.filter((k) => CH[k] && !seen.has(k) && seen.add(k)).slice(0, cfg.mates) : [];
+    cm.foes = cm.foes.filter((k) => CH[k] && !seen.has(k) && seen.add(k)).slice(0, cfg.foes);
+    if (cm.slot === "mate" && !cfg.team) cm.slot = "auto";
+  }
+  function cmActiveSlot() {
+    const cfg = cmCfg(cm.mode);
+    if (cm.slot === "me") return "me";
+    if (cm.slot === "mate" && cfg.team) return "mate";
+    if (cm.slot === "foe") return "foe";
+    if (cfg.team && cm.mates.length < cfg.mates) return "mate";
+    return "foe";
+  }
+  function customSetup(syncFromPick) {
+    watchOn = false; document.body.classList.remove("watching");
+    if (syncFromPick && CH[pickKey]) {
+      cm.me = pickKey;
+      cm.mates = cm.mates.filter((k) => k !== pickKey);
+      cm.foes = cm.foes.filter((k) => k !== pickKey);
+    }
+    cmClean(); cmSave();
+    const cfg = cmCfg(cm.mode), active = cmActiveSlot();
+    // 1. 模式切换栏
+    $("#cm-modes").innerHTML = CM_MODES.map((m) => `<button type="button" class="cm-mode${m.id === cm.mode ? " on" : ""}" data-m="${m.id}" aria-pressed="${m.id === cm.mode}">${m.label}</button>`).join("");
+    $("#cm-modes").querySelectorAll(".cm-mode").forEach((b) => { b.onclick = () => {
+      if (cm.mode === b.dataset.m) return;
+      cm.mode = b.dataset.m; cm.slot = "auto"; Sound.sfx("click", 0.5); customSetup();
+    }; });
+    // 2. 模式提示 + 测试选项（身份 / 全明星补牌 / 全员电脑观战）
+    let optHtml = `<span class="cm-hint">${cfg.hint}</span><div class="cm-toggles">`;
+    if (cfg.id === "id5") {
+      optHtml += `<div class="cm-rolebar" role="group" aria-label="指定你的身份"><span>${cm.aiOnly ? "0号位身份" : "你的身份"}：</span>` +
+        CM_ROLES.map(([r, lbl]) => `<button type="button" class="cm-pill${cm.myRole === r ? " on" : ""}" data-r="${r}" aria-pressed="${cm.myRole === r}">${lbl}</button>`).join("") + `</div>`;
+    }
+    if (cfg.id === "team3") {
+      optHtml += `<button type="button" class="cm-chk${cm.nationRule ? " on" : ""}" id="cm-nat" aria-pressed="${cm.nationRule}">${cm.nationRule ? "☑" : "☐"} 启用全明星国家队规则（中国队首轮 +1 牌）</button>`;
+    }
+    optHtml += `<button type="button" class="cm-chk${cm.aiOnly ? " on" : ""}" id="cm-ai" aria-pressed="${cm.aiOnly}">${cm.aiOnly ? "☑" : "☐"} 🤖 全员电脑观战（自动对打 / 抢群主明牌）</button></div>`;
+    $("#cm-opts").innerHTML = optHtml;
+    $("#cm-opts").querySelectorAll(".cm-pill").forEach((b) => { b.onclick = () => { cm.myRole = b.dataset.r; Sound.sfx("click", 0.4); customSetup(); }; });
+    const natBtn = $("#cm-nat"); if (natBtn) natBtn.onclick = () => { cm.nationRule = !cm.nationRule; Sound.sfx("click", 0.4); customSetup(); };
+    const aiBtn = $("#cm-ai"); if (aiBtn) aiBtn.onclick = () => { cm.aiOnly = !cm.aiOnly; Sound.sfx("click", 0.4); customSetup(); };
+
+    // 3. 阵容槽位（组队：我方 VS 对手；非组队：你 + 对手）
+    const slotCard = (k, roleTag, cls, rmType, seatTip) => {
+      const c = CH[k];
+      return `<div class="cm-card ${cls}" data-k="${k}" style="--c:${c.color};--l:${c.light}">
+        <img src="${UI.portrait(k, "avatar")}" alt="">
+        <div class="cm-ci"><b>${c.name}</b><small>${seatTip}</small></div>
+        <span class="cm-tag">${roleTag}</span>
+        ${rmType ? `<button type="button" class="cm-x" data-rm="${rmType}" data-k="${k}" aria-label="移出 ${c.name}" title="移出 ${c.name}">✕</button>` : `<button type="button" class="cm-swap${active === "me" ? " on" : ""}" aria-pressed="${active === "me"}" aria-label="点击更换自己扮演的角色" title="点击后从下方换人">换人</button>`}
+      </div>`;
+    };
+    const emptySlot = (targetSlot, text) => `<button type="button" class="cm-empty${active === targetSlot ? " active" : ""}" data-slot="${targetSlot}"><span>＋</span><small>${text}</small></button>`;
+    const st = $("#cm-stage");
+    if (cfg.team) {
+      const myCards = [slotCard(cm.me, cm.aiOnly ? "0号位" : "你", "is-me" + (active === "me" ? " focus" : ""), null, cm.aiOnly ? "一队 · 0号位" : "我方 · 先手")]
+        .concat(cm.mates.map((k, i) => slotCard(k, "队友", "is-mate", "mate", cfg.mates === 1 ? "座位 4（最后）" : i === 0 ? "座位 3" : "座位 6")));
+      for (let i = cm.mates.length; i < cfg.mates; i++) myCards.push(emptySlot("mate", "点下方选队友"));
+      const foeCards = cm.foes.map((k, i) => slotCard(k, "对手", "is-foe", "foe", cfg.foes === 2 ? `座位 ${i + 2}` : i === 0 ? "座位 2" : `座位 ${i + 3}`));
+      for (let i = cm.foes.length; i < cfg.foes; i++) foeCards.push(emptySlot("foe", "点下方选对手"));
+      st.className = "cm-stage is-team";
+      st.innerHTML = `<div class="cm-col mine${active === "me" || active === "mate" ? " on" : ""}" data-col="mate">
+          <div class="cm-col-h"><b>${cm.aiOnly ? "一队" : "我方队伍"}</b><small>${1 + cm.mates.length} / ${1 + cfg.mates}</small><button type="button" class="cm-focus-btn${active === "mate" ? " on" : ""}" data-slot="mate">选队友</button></div>
+          <div class="cm-slots">${myCards.join("")}</div></div>
+        <div class="cm-vs" aria-hidden="true">VS</div>
+        <div class="cm-col foe${active === "foe" ? " on" : ""}" data-col="foe">
+          <div class="cm-col-h"><b>${cm.aiOnly ? "二队" : "对手队伍"}</b><small>${cm.foes.length} / ${cfg.foes}</small><button type="button" class="cm-focus-btn${active === "foe" ? " on" : ""}" data-slot="foe">选对手</button></div>
+          <div class="cm-slots">${foeCards.join("")}</div></div>`;
+    } else {
+      const cards = [slotCard(cm.me, cm.aiOnly ? "0号位" : "你", "is-me" + (active === "me" ? " focus" : ""), null, "座位 1（0号位）")]
+        .concat(cm.foes.map((k, i) => slotCard(k, cfg.id === "id5" ? "参战" : "对手", "is-foe", "foe", `座位 ${i + 2}`)));
+      const showEmpty = cfg.minFoes ? Math.min(cfg.foes, Math.max(cfg.minFoes, cm.foes.length + 1)) : cfg.foes;
+      for (let i = cm.foes.length; i < showEmpty; i++) cards.push(emptySlot("foe", i < (cfg.minFoes || cfg.foes) ? "点下方选对手" : "可选再加 1 人"));
+      st.className = "cm-stage is-free";
+      st.innerHTML = `<div class="cm-col full on"><div class="cm-col-h"><b>上场阵容</b><small>${1 + cm.foes.length} / ${cfg.minFoes ? `${1 + cfg.minFoes}–${1 + cfg.foes}` : 1 + cfg.foes} 人</small><span class="cm-tip">${active === "me" ? "👆 点下方任意角色替换自己" : "👇 点下方角色加入对手，再点移出"}</span></div>
+        <div class="cm-slots free">${cards.join("")}</div></div>`;
+    }
+    st.querySelectorAll(".cm-swap").forEach((b) => { b.onclick = () => { cm.slot = active === "me" ? "auto" : "me"; Sound.sfx("click", 0.4); customSetup(); }; });
+    st.querySelectorAll("[data-slot]").forEach((b) => { b.onclick = () => { cm.slot = b.dataset.slot; Sound.sfx("click", 0.4); customSetup(); }; });
+    st.querySelectorAll(".cm-x").forEach((b) => { b.onclick = (ev) => {
+      ev.stopPropagation();
+      const k = b.dataset.k;
+      if (b.dataset.rm === "mate") cm.mates = cm.mates.filter((x) => x !== k);
+      else cm.foes = cm.foes.filter((x) => x !== k);
+      Sound.sfx("click", 0.4); customSetup();
+    }; });
+
+    // 4. 当前阵容内人物关系一览（方便测试宿敌特写 / 姐妹联动 / 护短）
+    const lineup = [cm.me, ...cm.mates, ...cm.foes];
+    const rels = (D.relations || []).filter(([a, b]) => lineup.includes(a) && lineup.includes(b))
+      .map(([a, b, t, note]) => `<span class="${t}" title="${note}"><b>${REL_T[t]}</b>${CH[a].name} × ${CH[b].name}</span>`).join("");
+    $("#cm-rels").innerHTML = `<div class="tm-rels">${rels || '<span class="none">当前阵容内暂无特殊人物关系</span>'}</div>`;
+
+    // 5. 全员角色池
+    const rosterHtml = keys.map((k) => {
+      const c = CH[k], isMe = k === cm.me, isMate = cm.mates.includes(k), isFoe = cm.foes.includes(k);
+      const cls = isMe ? " is-me" : isMate ? " is-mate" : isFoe ? " is-foe" : "";
+      const badge = isMe ? (cm.aiOnly ? "0号" : "你") : isMate ? "队友" : isFoe ? "对手" : "";
+      return `<button type="button" class="cm-pick${cls}" data-k="${k}" aria-pressed="${isMe || isMate || isFoe}" style="--c:${c.color};--l:${c.light}" title="${c.name}\n${c.skills.map((s) => `【${s.name}】${s.short || ""}`).join("\n")}">
+        <img src="${UI.portrait(k, "avatar")}" alt=""><span>${c.name}</span>${badge ? `<i>${badge}</i>` : ""}</button>`;
+    }).join("");
+    $("#cm-roster").innerHTML = rosterHtml;
+    $("#cm-roster").querySelectorAll(".cm-pick").forEach((b) => { b.onclick = () => {
+      const k = b.dataset.k;
+      Sound.sfx("click", 0.45);
+      if (active === "me") {
+        if (k === cm.me) { cm.slot = "auto"; customSetup(); return; }
+        const oldMe = cm.me;
+        if (cm.mates.includes(k)) cm.mates = cm.mates.map((x) => (x === k ? oldMe : x));
+        else if (cm.foes.includes(k)) cm.foes = cm.foes.map((x) => (x === k ? oldMe : x));
+        cm.me = k; pickKey = k; cm.slot = "auto";
+        Sound.voice(k, "greet", 0);
+        customSetup(); return;
+      }
+      if (k === cm.me) { cm.slot = "me"; UI.toast("再点下方任意角色即可替换你扮演的 AI娘"); customSetup(); return; }
+      if (cm.mates.includes(k)) { cm.mates = cm.mates.filter((x) => x !== k); customSetup(); return; }
+      if (cm.foes.includes(k)) { cm.foes = cm.foes.filter((x) => x !== k); customSetup(); return; }
+      if (active === "mate" && cfg.team) {
+        if (cm.mates.length < cfg.mates) { cm.mates.push(k); Sound.voice(k, "greet", 0); if (cm.mates.length >= cfg.mates && cm.foes.length < cfg.foes) cm.slot = "foe"; }
+        else if (cm.foes.length < cfg.foes) { cm.foes.push(k); cm.slot = "foe"; Sound.voice(k, "greet", 0); }
+        else UI.toast("双方人数已满，先点掉一位再换");
+      } else {
+        if (cm.foes.length < cfg.foes) { cm.foes.push(k); Sound.voice(k, "greet", 0); }
+        else if (cfg.team && cm.mates.length < cfg.mates) { cm.mates.push(k); cm.slot = "mate"; Sound.voice(k, "greet", 0); }
+        else UI.toast("对手已满，先点掉一位再换");
+      }
+      customSetup();
+    }; });
+
+    // 6. 开始按钮校验
+    const minF = cfg.minFoes != null ? cfg.minFoes : cfg.foes;
+    const needM = cfg.team ? Math.max(0, cfg.mates - cm.mates.length) : 0;
+    const needF = Math.max(0, minF - cm.foes.length);
+    const ok = needM === 0 && needF === 0;
+    $("#cm-go").disabled = !ok;
+    $("#cm-go").textContent = ok ? (cm.aiOnly ? "开始观战！" : "开始对局") : `还差 ${needM + needF} 人`;
+    show("scr-custom");
+  }
+  function customRandom() {
+    cmClean();
+    const cfg = cmCfg(cm.mode);
+    const shuf = (a) => a.slice().sort(() => Math.random() - 0.5);
+    const pool = shuf(keys.filter((k) => k !== cm.me && !cm.mates.includes(k) && !cm.foes.includes(k)));
+    if (cfg.team) while (cm.mates.length < cfg.mates && pool.length) cm.mates.push(pool.shift());
+    const targetF = cfg.minFoes != null ? (cm.foes.length < cfg.minFoes ? cfg.minFoes : cfg.foes) : cfg.foes;
+    while (cm.foes.length < targetF && pool.length) cm.foes.push(pool.shift());
+    cm.slot = "auto"; Sound.sfx("shuffle", 0.5); customSetup();
+  }
+  function customStart() {
+    cmClean(); cmSave();
+    const cfg = cmCfg(cm.mode);
+    const minF = cfg.minFoes != null ? cfg.minFoes : cfg.foes;
+    if ((cfg.team && cm.mates.length < cfg.mates) || cm.foes.length < minF) { customSetup(); return; }
+    let order, teams, roles, nation = false;
+    if (cfg.id === "team2") {
+      order = [cm.me, cm.foes[0], cm.foes[1], cm.mates[0]];
+      teams = [0, 1, 1, 0];
+    } else if (cfg.id === "team3") {
+      order = [cm.me, cm.foes[0], cm.mates[0], cm.foes[1], cm.foes[2], cm.mates[1]];
+      teams = [0, 1, 0, 1, 1, 0];
+      if (cm.nationRule) {
+        const myN = CH[cm.me].nation, myOk = [cm.me, ...cm.mates].every((k) => CH[k].nation === myN);
+        const foN = CH[cm.foes[0]].nation, foOk = foN !== myN && cm.foes.every((k) => CH[k].nation === foN);
+        if (myOk && foOk) nation = true;
+        else UI.toast("当前阵容混编了国籍，已按自由 3v3 规则开局", 2200);
+      }
+    } else if (cfg.id === "id5") {
+      order = [cm.me, ...cm.foes.slice(0, 4)];
+      if (cm.myRole && cm.myRole !== "rand") {
+        const rest = ["lord", "loyal", "rebel", "rebel", "spy"];
+        rest.splice(rest.indexOf(cm.myRole), 1);
+        rest.sort(() => Math.random() - 0.5);
+        roles = [cm.myRole, ...rest];
+      }
+    } else {
+      order = [cm.me, ...cm.foes];
+    }
+    pickKey = cm.me;
+    lastOpp = order.slice(1);
+    watchOn = !!cm.aiOnly; wSpeed = 1;
+    show("scr-game"); Sound.track("battle"); newBg(); UI.detach(); applySpeed();
+    const opts = { mode: cfg.mode, teams, roles, nation, watch: cm.aiOnly ? { free: true } : null };
+    game = window.__game = new Engine.Game(order, UI, opts);
+    game.custom = true;
+    if (cm.aiOnly) {
+      for (const p of game.players) p.human = false;
+      game.watchUse = { ...WT_USE };
+      document.body.classList.add("watching");
+      UI.attach(game); watchBar();
+    } else {
+      document.body.classList.remove("watching");
+      $("#watchbar").classList.add("hidden");
+      UI.attach(game);
+    }
+    game.run().catch((e) => console.error(e));
   }
 
   function start(sameOpp) {
@@ -391,8 +629,8 @@ window.Main = (function () {
     return (window.VOICES || {})[`${k}_greet_${sid}${i}`] ? ["greet_" + sid, i, L[i]] : null;
   }
   // v36 快速开局：用首页的看板娘 + 上次玩的模式（没玩过就三人乱斗）直接开一局，跳过选人页
-  const MODE_NAME = { 2: "单挑", 3: "三人乱斗", 4: "2v2", 5: "抢群主", 6: "全明星赛", 7: "斗蛐蛐" };
-  function lastMode() { let m = 3; try { m = +localStorage.getItem("duixian_mode") || 3; } catch (e) {} return MODE_NAME[m] && m !== 7 ? m : 3; }   // 快速开始不进斗蛐蛐
+  const MODE_NAME = { 2: "单挑", 3: "三人乱斗", 4: "2v2", 5: "抢群主", 6: "全明星赛", 7: "斗蛐蛐", 8: "自定义" };
+  function lastMode() { let m = 3; try { m = +localStorage.getItem("duixian_mode") || 3; } catch (e) {} return MODE_NAME[m] && m !== 7 && m !== 8 ? m : 3; }   // 快速开始不进斗蛐蛐 / 自定义
   function quickSub(kb) { const e = $("#quick-sub"); if (e) e.textContent = `${CH[kb].name} · ${MODE_NAME[lastMode()]}`; }
   function quick() {
     pickKey = Lobby.kb(); players = lastMode();
@@ -523,7 +761,8 @@ window.Main = (function () {
       <div><b>2v2</b><span>座位是 你—对手—对手—队友，把对面两人都踢出群就赢。每人多 2 点心态（打得久一点，才配合得起来）；每回合可以【递牌】：把 1 张手牌递给队友；单体牌和点名技能不能对队友用。</span></div>
       <div><b>抢群主（5 人）</b><span>随机身份：<b>群主</b>公开、多 2 点心态、先手，要和暗中的<b>管理员</b>一起踢掉<b>黑粉</b>和<b>潜水党</b>；两个<b>黑粉</b>要把群主踢出群；<b>潜水党</b>先帮群主清掉黑粉，最后单挑踢掉群主自己当群主——只剩她和群主时「冒泡」亮身份，心态 +1、摸 2 张。除了群主，身份退群后才翻开。踢掉黑粉奖励摸 3 张；群主踢了自己的管理员要弃光手牌。</span></div>
       <div><b>全明星赛（6 人）</b><span><b>中国队</b>（${keys.filter((k) => CH[k].nation === "cn").map((k) => CH[k].name).join("、")}）对阵<b>美国队</b>（${keys.filter((k) => CH[k].nation === "us").map((k) => CH[k].name).join("、")}），3v3。你选谁就进她的国家队，再到组队页自己挑两个队友、三个对手（也可以随机补满）；座位 你—敌—友—敌—敌—友，把对面三人都踢出群就赢。中国队第一回合每人多摸 1 张（两队胜率五五开）。宿敌分到一队也得先一致对外。</span></div>
-      <div><b>🍿 斗蛐蛐（4–6 人，观战）</b><span>挑 4–6 位 AI娘 上场自由混战，开局押注一位冠军，看她们自己对线到最后 1 人留场；观战时可以切 2× 加速、随时给场上的 AI娘 扔道具助威或添乱，也能花掉底栏的「全场起哄」牌给局势拱火。</span></div></div>`],
+      <div><b>🍿 斗蛐蛐（4–6 人，观战）</b><span>挑 4–6 位 AI娘 上场自由混战，开局押注一位冠军，看她们自己对线到最后 1 人留场；观战时可以切 2× 加速、随时给场上的 AI娘 扔道具助威或添乱，也能花掉底栏的「全场起哄」牌给局势拱火。</span></div>
+      <div><b>🎛️ 自定义模式</b><span>自由选择单挑、三人乱斗、2v2、抢群主、3v3 组队（不限国籍）或 4–6 人混战，自己指定我方角色、队友和对手，还可指定抢群主身份或勾选「全员电脑观战」，结算点「再来一局」直接复用同一套阵容。</span></div></div>`],
     ["props", "👍 互动与暗号", () => {
       const P = window.Props, icon = (k) => `<img src="${UI.asset(`assets/img/prop_${k}.webp`)}" alt="">`;
       return `<h2>👍 互动与暗号</h2>
@@ -614,10 +853,15 @@ window.Main = (function () {
       if ($("#scr-select").classList.contains("active")) { $("#btn-back").click(); done(); return; }
       if ($("#scr-team").classList.contains("active")) { $("#tm-back").click(); done(); return; }
       if ($("#scr-watch").classList.contains("active")) { $("#wt-back").click(); done(); return; }
+      if ($("#scr-custom").classList.contains("active")) { $("#cm-back").click(); done(); return; }
     }, true);
     $("#btn-lines").onclick = () => { Sound.sfx("click", 0.5); lineBook(pickKey); };
     $("#btn-quick").onclick = () => { Sound.sfx("click"); Sound.music(Sound.S.music); quick(); };
-    $("#btn-go").onclick = () => { Sound.sfx("click"); if (players === 7) watchSetup(); else if (players === 6) team(); else start(false); };   // 全明星赛先去组队页；斗蛐蛐先去押注页
+    $("#btn-go").onclick = () => { Sound.sfx("click"); if (players === 8) customSetup(true); else if (players === 7) watchSetup(); else if (players === 6) team(); else start(false); };   // 自定义 / 斗蛐蛐 / 全明星分别去各自配置页
+    $("#cm-back").onclick = () => { Sound.sfx("click"); select(); };
+    $("#cm-rand").onclick = customRandom;
+    $("#cm-clear").onclick = () => { cm.mates = []; cm.foes = []; cm.slot = "auto"; Sound.sfx("click", 0.5); customSetup(); };
+    $("#cm-go").onclick = () => { Sound.sfx("click"); customStart(); };
     $("#wt-back").onclick = () => { Sound.sfx("click"); select(); };
     $("#wt-rand").onclick = watchRandom;
     $("#wt-clear").onclick = () => { wSel = []; wBet = null; Sound.sfx("click", 0.5); $("#wt-roster") && watchSetup(); };
@@ -666,5 +910,8 @@ window.Main = (function () {
   }
 
   document.addEventListener("DOMContentLoaded", boot);
-  return { again: () => (game && game.watch ? watchStart() : start(true)), toSelect: () => (game && game.watch ? watchSetup() : select()) };
+  return {
+    again: () => (game && game.custom ? customStart() : game && game.watch ? watchStart() : start(true)),
+    toSelect: () => (game && game.custom ? customSetup() : game && game.watch ? watchSetup() : select()),
+  };
 })();
