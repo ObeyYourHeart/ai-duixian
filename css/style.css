@@ -579,6 +579,8 @@ kbd { font-family: var(--sans); font-size: 13px; font-weight: 800; background: #
 .peekrow .pk.set .pkn { background: #8b6cf0; color: #fff; }
 .peekrow .pk.boom .pkn { background: #d8364a; color: #fff; }
 .peekrow .pkn { font-size: 18px; font-weight: 800; color: #5a4aa8; background: #efeaff; border-radius: 12px; padding: 3px 12px; }
+.peekrow .pk.dis { cursor: not-allowed; opacity: .78; }
+.peekrow .pk.dis .card { cursor: not-allowed; filter: saturate(.8); }
 .pknote { text-align: center; color: #d8364a; font-weight: 700; font-size: 18px; margin: 4px 0 0; }
 .pkgo { display: flex; gap: 14px; justify-content: center; margin-top: 12px; }
 #stage.portrait #known { font-size: 20px; top: auto; bottom: 20px; }

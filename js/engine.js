@@ -60,7 +60,7 @@ window.Engine = (function () {
     banterRate: 0.35, chatterRate: 0.22, clashRival: 0.7, clashRate: 0.35, clashMax: 3, guardRate: 0.85,   /* v39 对线特写：宿敌 / 其他关系触发率、一局最多几段 */                  // 每轮开头随机斗嘴的概率；有人破防时路人在群里起哄的概率   // 宕机：每次检查爆的概率、伤害；防火墙拦截率；充电宝手牌上限
     bundleLook: 3, bundleKeep: 2, bundleRival: false,     // 千问·全家桶：亮出几张、自己留几张、送牌是否只能送对手
     bundleRandom: true,                                   // 千问·全家桶：剩下那张随机送人（不用选目标）
-    penCounts: true,                                       // v36 Gemini 妙笔：占一次吐槽次数（不占时乱斗 47 / 单挑 65）
+    penCounts: false,                                      // v73.5 Gemini 极其雄文：不占回合吐槽次数（顺应手感，将乱斗/2v2/全明星拉回中位线）
     cutExtra: 1, cutAlways: false,                         // v36 Gemini 去AI味：删掉重复牌后多摸几张；cutAlways：没有重复也能用（只摸 cutExtra）
     evRate: 0.5, evFrom: 2, evMax: 3, evOff: [],          // v33 突发事件：第 evFrom 轮起每轮开头触发的概率、一局最多几次、关掉哪几条（id）；evRate 0 = 整个关掉（v37 起只是新闻，不影响对局）
     saleDraw: 1, saleExtra: 1, saleChop: false,           // 千问·狂欢：开的时候摸几张；吐槽多几次（null = 不限）；回合结束是否弃光手牌（剁手）
@@ -1173,16 +1173,38 @@ window.Engine = (function () {
       this.ui.sys(`【${SN("gemini", "know")}】翻开了牌堆顶：${top.map((c) => `【${CD[c.k].name}】`).join("")}`);
       if (!hit) {
         const keep = T.knowKeep && (this.players.length > 2 || T.knowKeep2p) && (!T.knowKeepOnce || t.knowKeepRound !== this.round) ? top.filter((c) => c.k !== "dangji") : [];
-        if (keep.length) t.knowKeepRound = this.round;
-        if (keep.length) {                                            // v36 知识库：没查到反驳，也从翻开的资料里收下最有用的 1 张
-          const c = (await this.pickOr(t, keep, 1, `【${SN("gemini", "know")}】没查到【反驳】——从翻开的牌里挑 1 张收下`, () => AI.pick(this, t, keep, 1)))[0];   // v73 玩家自己挑（只剩 1 张可收时直接收）
+        if (keep.length) {                                            // v36 知识库：没查到反驳，也从翻开的资料里收下 1 张；v73.5 真人完整看到翻开的 3 张（含位置与不可选宕机）
+          t.knowKeepRound = this.round;
+          const posLbl = (i, c) => (c.k === "dangji" ? `💣 ${i === 0 ? "最上面" : `第 ${i + 1} 张`} · 留牌堆` : i === 0 ? "最上面" : `第 ${i + 1} 张`);
+          let c;
+          if (t.human) {
+            const got = ((await this.ui.humanPick(top.slice(), 1, `【${SN("gemini", "know")}】翻开牌堆顶 ${top.length} 张：没查到【反驳】，挑 1 张收下`, { close: true, label: posLbl, disabled: (x) => x.k === "dangji" })) || []).filter((x) => keep.includes(x));
+            c = got[0] || AI.pick(this, t, keep, 1)[0];
+            if (!got.length) this.ui.sys("窗口关掉了——按默认替你挑好了");
+          } else {
+            c = AI.pick(this, t, keep, 1)[0];
+          }
           this.deck.splice(this.deck.indexOf(c), 1); t.hand.push(c); this.ui.drawAnim(t, 1);
           this.ui.log(t, `【${SN("gemini", "know")}】这题没查到反驳，不过资料没白翻——收下了一张`); this.ui.sync(); await wait(400); return false;
         }
-        this.ui.log(t, `【${SN("gemini", "know")}】翻了 ${top.length} 张，这题没查到`); await wait(400); return false;
+        if (t.human && top.length) {
+          const why = this.players.length === 2 && !T.knowKeep2p ? "（单挑只看牌不收牌）"
+            : T.knowKeepOnce && t.knowKeepRound === this.round ? "（本轮已收过 1 张）"
+            : "（全是宕机，不能收）";
+          await this.ui.peek(top, `【${SN("gemini", "know")}】翻开牌堆顶 ${top.length} 张：没查到【反驳】${why}`);
+        }
+        this.ui.log(t, `【${SN("gemini", "know")}】翻了 ${top.length} 张，这题没查到`); this.ui.sync(); await wait(400); return false;
       }
       this.toDiscard(hit); this.ui.say(t, "know", true);
-      this.ui.log(t, `【${SN("gemini", "know")}】这个我知道！翻出一张【反驳】挡住了`); await this.ui.showCard(t, hit, []);
+      if (t.human && top.length) {
+        const rest = top.filter((x) => x !== hit);
+        await this.ui.peek(top, `【${SN("gemini", "know")}】翻开牌堆顶 ${top.length} 张：翻出【反驳】挡住了！`, (i, c) => {
+          if (c === hit) return "✓ 拿去反驳";
+          const r = rest.indexOf(c);
+          return r === 0 ? "→ 留最上面" : `→ 留第 ${r + 1} 张`;
+        });
+      }
+      this.ui.log(t, `【${SN("gemini", "know")}】这个我知道！翻出一张【反驳】挡住了`); this.ui.sync(); await this.ui.showCard(t, hit, []);
       return true;
     }
     // 豆包 嘻嘻抱歉：做错事假装道歉，摸牌

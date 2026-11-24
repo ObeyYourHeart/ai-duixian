@@ -1855,7 +1855,7 @@ window.UI = (function () {
     const row = el("div", "pickrow peekrow");
     const wraps = cards.map((c, i) => {
       const w = el("div", "pk" + (c.k === "dangji" ? " boom" : ""));
-      const tag = el("div", "pkn", label(i));
+      const tag = el("div", "pkn", label(i, c));
       w.appendChild(tag); w.appendChild(cardEl(c, true)); row.appendChild(w);
       return { w, tag, c };
     });
@@ -1924,11 +1924,13 @@ window.UI = (function () {
   function doneDiscard(ids) { const r = discardResolve; discardResolve = null; mode = null; discardPick = []; hidePrompt(); hint(""); sync(); r && r(ids); }
 
   // opt.close（v73）：窗口能用 Esc / 关闭 / 点外面关掉——关掉时返回已经点了的牌（可能不够 n 张，调用方按默认补上）
+  // opt.label / opt.disabled（v73.5）：展示每张牌的牌堆位置标与不可选牌（如宕机）
   function humanPick(cards, n, title, opt) {
     return new Promise((res) => {
       if (!cards.length) { res([]); return; }
       const picked = [], md = $("#modal"), can = !!(opt && opt.close);
-      let done = false, mo = null;
+      const lbl = opt && opt.label, dis = opt && opt.disabled;
+      let done = false, mo = null, hasBoomDis = false;
       const back = (e) => { if (e.target === md) fin(picked.slice()); };
       const fin = (v) => {
         if (done) return; done = true; modalBusy = false;
@@ -1937,17 +1939,30 @@ window.UI = (function () {
       };
       modalBusy = true;
       const body = $("#modal-body"); body.innerHTML = `<h2>${title}</h2>` + (can ? `<p class="pk-hint">关掉窗口就按默认替你挑</p>` : "");
-      const row = el("div", "pickrow");
-      for (const c of cards) {
-        const e = cardEl(c, true);
-        e.onclick = () => {
-          if (done) return;
+      const row = el("div", lbl ? "pickrow peekrow" : "pickrow");
+      cards.forEach((c, i) => {
+        const e = cardEl(c, true), off = !!(dis && dis(c, i));
+        if (off && c.k === "dangji") hasBoomDis = true;
+        const click = () => {
+          if (done || off) return;
           toggle(picked, c); e.classList.toggle("pick2", picked.includes(c));
           if (picked.length === n) setTimeout(() => fin(picked.slice()), 250);
         };
-        row.appendChild(e);
-      }
+        if (lbl) {
+          const w = el("div", "pk" + (c.k === "dangji" ? " boom" : "") + (off ? " dis" : ""));
+          if (off) w.setAttribute("aria-disabled", "true");
+          w.appendChild(el("div", "pkn", lbl(i, c)));
+          w.appendChild(e);
+          if (!off) w.onclick = click;
+          row.appendChild(w);
+        } else {
+          if (off) { e.classList.add("dis"); e.setAttribute("aria-disabled", "true"); }
+          else e.onclick = click;
+          row.appendChild(e);
+        }
+      });
       body.appendChild(row);
+      if (hasBoomDis) body.appendChild(el("p", "pknote", "💣 【宕机】不能收走，会留在牌堆原位——牌桌上也会一直提示你。"));
       $("#modal-close").style.display = can ? "" : "none";
       md.classList.remove("hidden");
       if (can) {
