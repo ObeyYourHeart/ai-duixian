@@ -1349,12 +1349,22 @@ window.Engine = (function () {
     async dying(t, src) {
       while (t.hp <= 0) {
         const tea = this.has(t, "naicha")[0];
-        if (!tea) break;
+        if (tea) {
+          const prev = Math.max(0, t.hp);
+          this.takeFromHand(t, tea); this.toDiscard(tea); t.hp = Math.min(t.maxHp, t.hp + this.teaHeal(t)); if (t.hp <= 0) t.hp = 1;
+          this.ui.log(t, "心态崩了……赶紧喝了一杯<b>【奶茶】</b>");
+          this.ui.heal(t, Math.max(1, t.hp - prev)); Sound.sfx("slurp"); this.ui.say(t, "heal", true);
+          await this.ui.showCard(t, tea, []);
+          continue;
+        }
+        const plug = (t.plugins || []).find((c) => c.k === "naicha");
+        if (!plug) break;
         const prev = Math.max(0, t.hp);
-        this.takeFromHand(t, tea); this.toDiscard(tea); t.hp = Math.min(t.maxHp, t.hp + this.teaHeal(t)); if (t.hp <= 0) t.hp = 1;
-        this.ui.log(t, "心态崩了……赶紧喝了一杯<b>【奶茶】</b>");
+        t.plugins.splice(t.plugins.indexOf(plug), 1); this.toDiscard(plug); t.hp = 1;
+        this.ui.skillNote(t, "DSH", "奶茶插件弹出救命！");
+        this.ui.log(t, "心态崩了……【DSH】紧急弹出<b>【奶茶】</b>插件救命（心态回到 1，该插件销毁）");
         this.ui.heal(t, Math.max(1, t.hp - prev)); Sound.sfx("slurp"); this.ui.say(t, "heal", true);
-        await this.ui.showCard(t, tea, []);
+        await this.ui.showCard(t, plug, []);
       }
       if (t.hp > 0) { this.ui.sync(); return; }
       await this.eliminate(t, src);
@@ -1386,7 +1396,7 @@ window.Engine = (function () {
         }
       }
       if (this.hasH(p, "dsh") && !p.disguise && (p.plugins = p.plugins || []).length < this.dshMax(p) && p.hand.length >= 2) {
-        const c = p.human ? (await this.ui.humanConfirm(`【DSH】万物皆插件：把一张手牌插成插件？（${p.plugins.length} / ${this.dshMax(p)}）`, true) ? ((await this.ui.humanPick(p.hand.slice(), 1, "插哪张？吐槽 → 攻击插件、奶茶 → 回血插件、其他 → 摸牌插件")) || [])[0] : null)
+        const c = p.human ? (await this.ui.humanConfirm(`【DSH】万物皆插件：把一张手牌插成插件？（${p.plugins.length} / ${this.dshMax(p)}）`, true) ? ((await this.ui.humanPick(p.hand.slice(), 1, "插哪张？吐槽 → 攻击插件、奶茶 → 回血插件（满血摸 1 / 濒死救命）、其他 → 摸牌插件")) || [])[0] : null)
           : AI.plugPick(this, p);
         if (c && p.hand.includes(c)) {
           this.takeFromHand(p, c); p.plugins.push(c); Sound.sfx("ding", 0.5); this.ui.skillNote(p, "DSH", `插上【${CD[c.k].name}】插件（${p.plugins.length} / ${this.dshMax(p)}）`);   // v51 字条写清这次干了什么
@@ -1425,7 +1435,7 @@ window.Engine = (function () {
         try { const ok = await this.ask(t, "fanbo", { from: p, card: { k: "tucao" } }); if (ok) await this.comboHit(t); else await this.damage(p, t, 1); } finally { this.noEv--; }
       } else if (c.k === "naicha" && p.hp < p.maxHp) {
         p.hp++; this.ui.heal(p, 1); Sound.sfx("slurp", 0.6); this.ui.log(p, "【DSH】奶茶插件自动续杯：心态 +1"); await wait(400);
-      } else { this.ui.log(p, `【DSH】${CD[c.k].name}插件跑了一遍：摸 1 张`); await this.draw(p, 1, true); }
+      } else { this.ui.log(p, c.k === "naicha" ? "【DSH】奶茶插件跑了一遍（满血改为摸 1 张）" : `【DSH】${CD[c.k].name}插件跑了一遍：摸 1 张`); await this.draw(p, 1, true); }
       this.ui.sync();
     }
 
@@ -2051,12 +2061,19 @@ window.Engine = (function () {
         } else if (card) { t.oweTo = p; this.ui.log(t, `拿人手短：到 ${p.name} 下个回合前，${t.name} 对她的第一张【吐槽】说不出口`); if (T.giftFoeDraw && (!stack || T.giftStackDraw)) await this.draw(p, T.giftFoeDraw, true); }
         this.ui.sync(); await wait(300);
       } else if (id === "qingke") {
-        // 千问·请客：弃牌点外卖，送的人心态 +1；送给别人自己再摸
+        // 千问·请客：弃牌点外卖，送的人喝奶茶（触发大胃等奶茶加成）；送给别人自己再摸
         if (!this.dropRandom(p, T.qingkeCost).length && T.qingkeCost) return;
         this.ui.skill(p, SN("qwen", "qingke")); this.ui.say(p, t === p ? "qingke_self" : "qingke", true); Sound.sfx("slurp", 0.7);
         await wait(500);
-        t.hp = Math.min(t.maxHp, t.hp + 1); this.ui.heal(t, 1);
-        this.ui.log(p, `【${SN("qwen", "qingke")}】给 ${t === p ? "自己" : t.name} 点了一杯奶茶外卖，心态 +1`);
+        const n = this.teaHeal(t), prev = t.hp;
+        t.hp = Math.min(t.maxHp, t.hp + n);
+        const gain = Math.max(1, t.hp - prev);
+        this.ui.heal(t, gain);
+        if (n > 1) {
+          this.ui.skillNote(t, SN(t.key, "bigeat"));
+          if (E.speed > 0) setTimeout(() => { if (!this.over && t.alive) this.ui.say(t, "bigeat", true); }, 1800 * E.speed);
+        }
+        this.ui.log(p, `【${SN("qwen", "qingke")}】给 ${t === p ? "自己" : t.name} 点了一杯奶茶外卖，心态 +${gain}` + (n > 1 ? `（【${SN(t.key, "bigeat")}】）` : ""));
         if (t !== p && T.qingkeDraw) await this.draw(p, T.qingkeDraw, true);
         await wait(300);
       } else if (id === "sale") {
